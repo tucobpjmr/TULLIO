@@ -14,6 +14,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
+import { erroreDiPermesso } from "../../lib/esitoScrittura.js";
 import { renderWithAppData, DEMO_APP_CTX } from "../helpers/appData.jsx";
 
 // Mock di api.js per non istanziare il client Supabase reale (stessa forma di
@@ -75,6 +76,30 @@ describe("useSalvataggio — il contratto condiviso", () => {
     // Il punto del rilievo: chi doveva chiudere o svuotare non è stato chiamato.
     expect(alSuccesso).not.toHaveBeenCalled();
     expect(screen.getByTestId("stato").textContent).toBe("fermo");
+  });
+
+  it("su rifiuto di PERMESSO non chiude, e tace: a parlare è il toast", async () => {
+    // A-1 dell'audit del 4 settembre. Prima di A-1 questo caso non era
+    // scrivibile: `useSyncedDispatch` ritornava `{ error: null }` su
+    // un'azione negata dai permessi, quindi il ramo qui sotto era quello del
+    // SUCCESSO — `alSuccesso()` veniva chiamato e la modale si chiudeva
+    // buttando via i dati.
+    //
+    // Le due asserzioni dicono due cose diverse e servono entrambe:
+    //   · `alSuccesso` non chiamato → il pannello resta aperto, che è ciò che
+    //     salva i dati ed è il contratto di questo file;
+    //   · testo inline VUOTO → il messaggio è uno solo, il toast che il
+    //     reducer ha già alzato (`_denied()`, garantito su ogni azione con
+    //     guard da state/permessoNegatoContract.test.js). Il testo
+    //     predefinito dice «riprova», che qui sarebbe un consiglio sbagliato:
+    //     riprovare fallirà identico.
+    const alSuccesso = vi.fn();
+    render(<Sonda esegui={() => Promise.resolve({ error: erroreDiPermesso() })} alSuccesso={alSuccesso} />);
+    premi();
+
+    await waitFor(() => expect(screen.getByTestId("stato").textContent).toBe("fermo"));
+    expect(alSuccesso).not.toHaveBeenCalled();
+    expect(screen.getByTestId("errore").textContent).toBe("");
   });
 
   it("su successo chiama alSuccesso e non mostra nulla", async () => {
@@ -264,6 +289,29 @@ describe("ClienteModal — chi chiude è la modale, a esito noto", () => {
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Nome *").value).toBe("Famiglia Rossi");
     expect(screen.getByPlaceholderText("+39 000 000 0000").value).toBe("3331234567");
+  });
+
+  it("permesso negato: resta aperta con i dati dentro, esattamente come su una scrittura fallita", async () => {
+    // Il percorso che A-1 descrive, dal call site che il rilievo nomina:
+    // ClientiView.handleSave → dispatch(ADD_CLIENT) → guard che nega
+    // (un driver, o un agente disattivato mentre la scheda era già aperta).
+    // Prima di A-1 quel dispatch rispondeva `{ error: null }` e questa modale
+    // si chiudeva: nome e telefono appena digitati sparivano, con un toast
+    // rosso come unico indizio.
+    //
+    // Nessun testo inline qui, a differenza del caso sopra — e il `findByLabelText`
+    // che segue è ciò che rende il caso osservabile senza di esso: la modale
+    // c'è ancora, con dentro quello che l'utente aveva scritto.
+    const onClose = monta(() => Promise.resolve({ error: erroreDiPermesso() }));
+    scriviNome("Famiglia Rossi");
+    fireEvent.change(screen.getByPlaceholderText("+39 000 000 0000"), { target: { value: "3331234567" } });
+    salva();
+
+    await waitFor(() => expect(screen.queryByText("Salvataggio...")).toBeNull());
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Nome *").value).toBe("Famiglia Rossi");
+    expect(screen.getByPlaceholderText("+39 000 000 0000").value).toBe("3331234567");
+    expect(screen.queryByText(/dati sono ancora qui/)).toBeNull();
   });
 
   it("«Salvataggio...» ora si può vedere davvero", async () => {

@@ -8,8 +8,10 @@ Diciannove rilievi: **nessuno critico, tre di alta priorità** (erano quattro:
 `A-3` è stato ridimensionato a media il 4 settembre — vedi la correzione nel suo
 paragrafo, e leggila prima del rilievo).
 
-✅ **`A-2` è stato chiuso il 4 settembre.** Vedi «Come è stato chiuso (A-2)» in
-fondo al documento.
+✅ **`A-1` e `A-2` sono stati chiusi il 4 settembre**, in quest'ordine inverso
+rispetto alla priorità: `A-2` era una migrazione sola, `A-1` tocca due hook e
+il contratto fra loro. Vedi le due sezioni «Come è stato chiuso» in fondo al
+documento.
 
 ⚠️ Questo è il primo audit del progetto condotto anche **contro il database di
 produzione** (`vmxvnxsqfisucugcpqlc`) e non solo contro il repository: `pg_proc`,
@@ -26,7 +28,7 @@ verdi (81,09 kB gzip anonimo su 86 di soglia, 129,56 kB autenticato su 131),
 `npm run verifica:convenzioni` verde (61 controlli), quattordici audit
 precedenti a registro.
 
-⟦stato: 1/19 chiusi⟧
+⟦stato: 2/19 chiusi⟧
 
 > **Sulla numerazione.** `A-` = alta priorità, `M-` = media, `B-` = bassa, come
 > negli audit dal 12 agosto in poi. Non ci sono `C-`: nessun rilievo critico.
@@ -97,7 +99,7 @@ un controllo esiste, funziona, e **guarda un livello solo**.
 
 | ID | Priorità | Rilievo | File / punto |
 |---|---|---|---|
-| **A-1** | 🔴 Alta | Un'azione **negata dai permessi** ritorna `{ error: null }`: `useSalvataggio` la legge come successo e chiama `alSuccesso()` — la modale si chiude e i dati vengono buttati, con solo un toast rosso a dirlo | `src/hooks/useSyncedDispatch.js:20-24` |
+| **A-1** ✔ | ~~🔴 Alta~~ **chiuso il 4 settembre** | Un'azione **negata dai permessi** ritorna `{ error: null }`: `useSalvataggio` la legge come successo e chiama `alSuccesso()` — la modale si chiude e i dati vengono buttati, con solo un toast rosso a dirlo | `src/hooks/useSyncedDispatch.js:20-24` |
 | **A-2** ✔ | ~~🔴 Alta~~ **chiuso il 4 settembre** | `public.registra_audit()` è eseguibile da **ogni utente autenticato**, senza gate di ruolo né di attività, senza tetti né limite di frequenza — e **nessun percorso dell'app la chiama**. Revocata: migrazione `20260904143756` | DB (`proacl`), `supabase/migrations/20260826214000_audit_log.sql` |
 | **A-3** | 🟡 Media ⚠️ *ridimensionato* | Policy password a soli 8 caratteri, senza requisiti di composizione. La metà «leaked password protection» **non è un rilievo**: è una funzione del piano Supabase **Pro** e una scelta di costo già presa e documentata — vedi la correzione qui sotto | `src/lib/validators.js:44` |
 | **A-4** | 🔴 Alta | `xlsx@0.18.5`: due CVE (`CVE-2023-30533`, `CVE-2024-22363`) **ancora aperte**, mitigate ma non risolte, con il fix fermo da un mese | `package.json:14`, `src/lib/xlsxWorker.js` |
@@ -121,7 +123,13 @@ un controllo esiste, funziona, e **guarda un livello solo**.
 
 ## Action plan — da 8,5 a 10
 
-### A-1 · Un'azione negata ritorna «riuscito»
+### A-1 · Un'azione negata ritorna «riuscito» ✔ *chiuso il 4 settembre*
+
+> ✅ Chiuso. La soluzione applicata differisce da quella proposta qui sotto
+> su un punto — l'errore non è costruito in linea nell'orchestratore ma vive
+> in `lib/esitoScrittura.js`, accanto a `RIFIUTO_RLS` — e il perché sta in
+> «Come è stato chiuso (A-1)» in fondo al documento, insieme ai tre test che
+> lo tengono chiuso.
 
 **Dove.** `src/hooks/useSyncedDispatch.js:20-24`
 
@@ -1000,7 +1008,7 @@ realtime, bundle, stili, errori, push, liste, import, CI).
 |---|---|---|---|
 | ~~1~~ | **A-3** (password) | — | ⚠️ **Saltato per decisione del 4 settembre**: la metà che contava (HaveIBeenPwned) richiede il piano Pro. Resta la metà gratuita — lunghezza minima e requisiti di composizione — ridimensionata a media |
 | ~~2~~ | **A-2** (`registra_audit`) ✔ | — | **Fatto il 4 settembre**: migrazione `20260904143756`, applicata su staging e in produzione |
-| 3 | **A-1** (`{error:null}`) | 2 h | Tocca due hook e va coperto da due test di contratto |
+| ~~3~~ | **A-1** (`{error:null}`) ✔ | — | **Fatto il 4 settembre**: due hook, un contratto nuovo in `lib/esitoScrittura.js`, tre gruppi di test (38 casi) |
 | 4 | **M-3**, **M-4**, **B-3**, **B-6** | 3 h | Quattro rimedi piccoli e indipendenti |
 | 5 | **M-1** (`:focus-visible`) | 1 h | Quattro righe di CSS, effetto su tutta l'app |
 | 6 | **A-4** (xlsx) | 1 h | Da fare **fuori** da un ambiente con egress filtrato |
@@ -1008,11 +1016,115 @@ realtime, bundle, stili, errori, push, liste, import, CI).
 | 8 | **M-5**, **M-6**, **M-7**, **B-1**, **B-2**, **B-4**, **B-5**, **B-7** | — | Un rilievo per sessione, nell'ordine che conviene |
 | 9 | **M-8** (stili) | — | Solo se arriva il tema scuro o un restyle |
 
-Chiusi 1–6 la valutazione è **9,5** (con `A-2` fatto e `A-3` ridotto alla sua metà gratuita, restano 3, 4, 5 e 6). Il mezzo punto restante è `M-8`, ed è il
+Chiusi 1–6 la valutazione è **9,5**. Con `A-1` e `A-2` fatti e `A-3` ridotto alla sua metà gratuita, restano i punti 4, 5 e 6. Il mezzo punto restante è `M-8`, ed è il
 solo rilievo che chiederei di **non** affrontare finché non c'è una ragione di
 prodotto: il sistema di stili attuale è brutto da leggere e corretto da
 eseguire, e riscriverlo senza una richiesta è il tipo di lavoro che introduce
 regressioni per guadagnare eleganza.
+
+
+---
+
+## Come è stato chiuso (A-1)
+
+**4 settembre 2026.** Due hook, un contratto nuovo, tre gruppi di test.
+
+### Dove è finito l'errore, e perché non in linea
+
+Il rilievo proponeva di costruire l'errore dentro `useSyncedDispatch`. È finito
+invece in **`lib/esitoScrittura.js`**, e la ragione è che lì c'era già il suo
+gemello:
+
+```js
+export const RIFIUTO_RLS = { message: "operazione non consentita dal database…" };
+```
+
+`RIFIUTO_RLS` è «il database ha detto di no» — il rifiuto silenzioso della RLS,
+che risponde 2xx e tocca zero righe. `erroreDiPermesso()` è «il client ha detto
+di no, senza nemmeno chiedere». Sono la stessa domanda a due distanze, e
+tenerle nello stesso file è ciò che rende difficile chiudere una e dimenticare
+l'altra — che è esattamente come A-1 è nato: `RIFIUTO_RLS` fu creato per un
+audit precedente, e il caso a monte non fu guardato.
+
+Il modulo è anche l'unico posto da cui **entrambi** gli hook possono importarlo
+senza che una primitiva di UI (`useSalvataggio`, in `src/hooks/`) debba
+dipendere dal livello dello stato (`src/state/`).
+
+### Le tre modifiche
+
+| File | Cosa |
+|---|---|
+| `src/lib/esitoScrittura.js` | `NOME_PERMESSO_NEGATO`, `erroreDiPermesso()`, `isPermessoNegato()` |
+| `src/hooks/useSyncedDispatch.js` | il ramo `denied` ritorna `{ error: erroreDiPermesso() }` invece di `{ error: null }` |
+| `src/hooks/useSalvataggio.js` | su un errore di permesso non chiama `alSuccesso` **e** non scrive il testo inline |
+
+⚠️ **Perché il testo inline viene soppresso, e non aggiunto.** I due rami
+d'errore fanno la stessa cosa su ciò che conta — il pannello resta aperto con i
+dati dentro — e differiscono solo sul messaggio. Il testo predefinito è
+«Salvataggio non riuscito. I dati sono ancora qui, riprova.»: «riprova» è un
+consiglio giusto per una scrittura fallita e sbagliato per un rifiuto di
+permesso, dove riprovare fallirà identico. A parlare resta il toast che il
+reducer ha già alzato. Due messaggi che si contraddicono sullo stesso gesto
+sono il difetto che «Compensazione» (`M-1`) ha già chiuso una volta dentro il
+reducer; qui si evita di riaprirlo da fuori.
+
+### L'invariante che quel silenzio richiede — e il test che la tiene
+
+Tacere è sicuro **solo se il toast del reducer c'è sempre**. Se domani qualcuno
+aggiungesse un `guard` a una entry del registry senza il corrispondente
+`_denied()` nel reducer, il rifiuto diventerebbe muto: pannello aperto, nessun
+messaggio, nessuna idea di cosa sia successo — peggio del difetto che A-1
+chiude.
+
+I due livelli vivono in file diversi e nulla li legava. `state/reducer.js` lo
+dice già a parole («il pre-check dell'orchestratore impedisce solo la richiesta
+di rete, non il dispatch che arriva qui, ed è proprio questo reducer a dover
+rifiutare per davvero») — ma una frase in un commento non fallisce quando
+smette di essere vera.
+
+`src/test/state/permessoNegatoContract.test.js` la rende misurabile, sulla
+falsariga di `rollbackContract.test.js`: per ognuna delle **17 entry con
+`guard`** dei due registry e delle **14 azioni di `ADMIN_ONLY_ACTIONS`**, con un
+driver come utente corrente, verifica che il reducer alzi un toast d'errore
+**e** non applichi nulla a `tasks`/`notices`/`clients`. Un primo caso controlla
+che ogni entry con `guard` abbia un payload nel test: senza, una entry nuova
+verrebbe saltata in silenzio e la copertura scenderebbe senza che nulla lo
+dica.
+
+> Il driver, e non un junior agent, perché è il solo ruolo che nega **tutto**:
+> un junior sull'anagrafica i permessi ce li ha.
+
+### Verifica per mutazione
+
+Le tre modifiche sono state verificate rompendole una per una, e ogni rottura
+fa fallire il test che le corrisponde — che è l'unico modo di sapere che un
+test verde stia misurando qualcosa:
+
+| Mutazione | Esito |
+|---|---|
+| `DELETE_TASK` nel reducer rifiuta in silenzio (`return state` invece di `_denied()`) | ✗ `permessoNegatoContract` — 1 fallito su 34 |
+| `useSyncedDispatch` torna a `{ error: null }` sul rifiuto | ✗ `syncedDispatch` — 2 falliti su 28 |
+| `useSalvataggio` scrive il testo inline anche sul rifiuto di permesso | ✗ `salvaEChiudi` — 2 falliti su 20 |
+
+### Cosa è migliorato di conseguenza, senza essere il rilievo
+
+Tre chiamanti diretti di `dispatch` controllavano già `res?.error` e ora si
+comportano bene **senza essere stati toccati** — è il segno che il difetto era
+nel contratto e non nei call site:
+
+* `ClientiView.jsx:195` — su `UPDATE_CLIENT` negata non esegue più
+  `RENAME_CLIENT_IN_TASKS`, che rinominava i task verso un nome che
+  l'anagrafica non aveva mai preso;
+* `RipristinaTaskModal.jsx:79` — la sequenza `UPDATE_TASK` → `RESTORE_TASK` si
+  ferma alla prima invece di ripristinare un task con i valori vecchi;
+* `ProfileEditor.jsx:192` — la modale resta aperta.
+
+### Cosa NON è cambiato
+
+`useListeWrite` (`components/liste/listePersistence.js`) non è stato toccato:
+davanti a un guard che nega ritornava già `{ ok: false, data: null }`. Era la
+versione giusta dello stesso contratto, scritta nell'altro registry — e A-1 è
+il posto in cui aveva vinto quella sbagliata.
 
 ---
 

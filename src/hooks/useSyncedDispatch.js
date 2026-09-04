@@ -41,6 +41,7 @@ import { isAdmin } from "../lib/permissions.js";
 // forma del toast, così i due non dicono più due frasi diverse per lo stesso
 // evento davanti allo stesso utente.
 import { erroreDiScrittura, testoErrore, toastErrore } from "../state/registroScritture.js";
+import { erroreDiPermesso } from "../lib/esitoScrittura.js";
 
 export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
   // Snapshot vivo dello state: leggendolo da un ref invece che dalle deps,
@@ -78,8 +79,25 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
       || (spec?.guard ? !spec.guard(s, action, uid) : false);
 
     if (denied) {
+      // L'azione va comunque al reducer: è LUI a produrre il toast di rifiuto
+      // (`_denied()`), e lo fa per tutte e diciassette le entry con `guard` dei
+      // due registry più le quattordici di ADMIN_ONLY_ACTIONS — invariante
+      // pinnata da src/test/state/permessoNegatoContract.test.js, che è ciò
+      // che rende sicuro il silenzio di useSalvataggio qui sotto.
       rawDispatch(action);
-      return Promise.resolve({ error: null });
+      // A-1 dell'audit del 4 settembre. Qui c'era `{ error: null }`, cioè la
+      // risposta di una scrittura RIUSCITA: chi attende l'esito — e attende
+      // `useSalvataggio`, il modo in cui quindici form decidono se chiudersi —
+      // leggeva un successo e chiudeva la modale buttando via quanto l'utente
+      // aveva scritto. Il toast c'era; il valore di ritorno diceva il
+      // contrario, e a decidere è il valore di ritorno.
+      //
+      // I quattro casi del blocco «difesa in profondità sui permessi» in
+      // syncedDispatch.test.js verificavano che nessuna chiamata partisse verso
+      // il server — vero, e insufficiente: nessuno guardava cosa venisse
+      // restituito, quindi il comportamento non era deliberato, era non
+      // specificato.
+      return Promise.resolve({ error: erroreDiPermesso() });
     }
 
     const toDispatch = spec?.normalize ? spec.normalize(action, s, uid) : action;

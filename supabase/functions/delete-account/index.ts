@@ -19,6 +19,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { entroLimite } from "../_shared/rateLimit.ts";
 
 Deno.serve(async (req: Request) => {
   const cors = corsHeaders(req);
@@ -48,6 +49,14 @@ Deno.serve(async (req: Request) => {
     );
     const { data: { user }, error: authErr } = await userClient.auth.getUser();
     if (authErr || !user) return json({ error: "Token non valido" }, 401);
+
+    // B-2 dell'audit del 2 settembre. Raggiungibile da QUALUNQUE utente
+    // autenticato — non serve essere admin — quindi un tetto per chiamante
+    // conta comunque: cinque all'ora tollerano un retry dopo un errore di
+    // rete senza permettere a un token rubato di martellare la funzione.
+    if (!(await entroLimite(adminClient, `delete-account:${user.id}`, 60, 5))) {
+      return json({ error: "Troppe richieste in poco tempo: riprova più tardi" }, 429);
+    }
 
     // Ban PRIMA di toccare public.users: è l'operazione critica (blocca ogni
     // login futuro). Se fallisce usciamo subito, senza aver ancora modificato

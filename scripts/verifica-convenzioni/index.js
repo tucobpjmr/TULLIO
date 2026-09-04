@@ -17,6 +17,7 @@
 // Non richiede rete né credenziali: misura questo repo. Esce 1 su qualunque
 // divergenza, 2 su un errore imprevisto.
 import { readFile, readdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { ESLint, Linter } from 'eslint';
 import {
   LetturaFallita, leggiCallSiteSalvataggio, leggiCallSiteStorico, leggiConteggioMultiComp,
@@ -50,6 +51,41 @@ import {
   // B-3 (26 agosto): i test stanno in cartelle che rispecchiano il sorgente.
   testSciolti,
 } from './convenzioni.js';
+// M-3 (2 settembre): un rilievo ancorato a una condizione verificabile sul
+// sorgente, non solo a una riga di tabella — vedi ANCORE più sotto. File a sé
+// (ancore.js) perché convenzioni.js aveva superato la soglia di max-lines.
+import { verificaAncore, entryTaskSenzaRollback } from './ancore.js';
+
+// ─── ANCORE (M-3 dell'audit del 2 settembre) ────────────────────────────────
+// Il controllo n. 7 (leggiStatoAudit/leggiStatoIndex) confronta la tabella di
+// un audit con il marcatore in INDEX.md: due PROSE, scritte dalla stessa mano
+// nello stesso commit, che per costruzione non possono smentirsi. È il motivo
+// per cui A-1 e A-4 dell'audit del 31 agosto sono stati corretti nel codice
+// il 1 settembre e sono rimasti dichiarati aperti — in entrambi i documenti —
+// fino al 3, con quel controllo verde per tutto il tempo.
+//
+// Un'ANCORA lega un rilievo a una condizione MISURABILE sul sorgente. Non
+// sostituisce il giudizio di chi chiude un rilievo — dice soltanto che il
+// documento e il codice non stanno più raccontando due storie diverse.
+// L'elenco è volutamente corto: solo i rilievi di ALTA priorità che questa
+// sessione ha già dovuto riaprire per il disallineamento, non un obiettivo
+// da raggiungere per ogni rilievo del registro.
+//
+// Funzione e non costante: `A-1` ha bisogno del testo del registry
+// (`persistence.js`+`persistenceAdmin.js`), che `main()` legge una volta sola
+// più sotto — passarlo qui evita una seconda lettura degli stessi due file.
+const costruisciAncore = (registryTesto) => [
+  {
+    audit: 'AUDIT_CODEBASE_2026-08-31.md', rilievo: 'A-1',
+    descrizione: 'ogni entry task/commento nominata dal rilievo ha un rollback',
+    chiuso: () => entryTaskSenzaRollback(registryTesto).length === 0,
+  },
+  {
+    audit: 'AUDIT_CODEBASE_2026-08-31.md', rilievo: 'A-4',
+    descrizione: 'la segnalazione raggiunge una tabella (migrazione applicata al repo)',
+    chiuso: () => existsSync('supabase/migrations/20260901120000_error_reports.sql'),
+  },
+];
 
 // Gli audit sotto controllo: nome del file, prefisso dei suoi rilievi.
 const AUDIT = [
@@ -348,10 +384,10 @@ async function main() {
   // sotto). Le due metà si leggono insieme, o le entry spostate spariscono da
   // ogni controllo che dipende da questo elenco — è la stessa nota che lascia
   // scrittureInVoloAMeta in convenzioni.js.
-  const azioni = azioniRegistry(
+  const registryTesto =
     (await readFile('src/state/persistence.js', 'utf8'))
-    + '\n' + (await readFile('src/state/persistenceAdmin.js', 'utf8')),
-  );
+    + '\n' + (await readFile('src/state/persistenceAdmin.js', 'utf8'));
+  const azioni = azioniRegistry(registryTesto);
 
   const senzaAttesa = formSenzaAttesaEsito(sorgenti, azioni);
   controlli.push({
@@ -543,8 +579,10 @@ async function main() {
 
   // 7. Stato dei rilievi: quello che l'indice dichiara contro quello che il
   //    documento di audit porta nella propria tabella delle priorità.
+  const testiAudit = {};
   for (const { file, prefisso } of AUDIT) {
     const testo = await readFile(`docs/${file}`, 'utf8');
+    testiAudit[file] = testo;
     const misurato = leggiStatoAudit(testo, prefisso);
     const dichiarato = leggiStatoIndex(indexMd, file);
     controlli.push({
@@ -558,6 +596,11 @@ async function main() {
       rimedio: `Aggiorna ⟦stato: ${misurato.chiusi}/M chiusi⟧ sulla riga di ${file}.`,
     });
   }
+
+  // 7-bis. Le ANCORE (M-3 dell'audit del 2 settembre): un rilievo legato a una
+  //    condizione sul sorgente, non solo al confronto fra due prose — vedi il
+  //    commento su ANCORE in cima al file.
+  controlli.push(...verificaAncore(costruisciAncore(registryTesto), testiAudit));
 
   const scarti = confronta(controlli);
 

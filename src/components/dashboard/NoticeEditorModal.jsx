@@ -1,6 +1,6 @@
 // ─── NOTICE EDITOR MODAL ─────────────────────────────────────────────────────
 // Estratto dal monolite (Step P Phase 2f).
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useId } from "react";
 import { NOTICE_COLORS } from "../../lib/taskConstants.js";
 import { MentionText } from "../ui/MentionText.jsx";
 import { Modal } from "../ui/Modal.jsx";
@@ -62,6 +62,9 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
   const [text, setText] = useState(notice?.text || "");
   const [color, setColor] = useState(notice?.color || NOTICE_COLORS[0]);
   const [pinned, setPinned] = useState(notice?.pinned || false);
+  // M-4 dell'audit del 2 settembre: `htmlFor` esplicito invece della forma
+  // annidata, che si rompe in silenzio alla prima ristrutturazione del markup.
+  const pinnedId = useId();
   // v2.8: tag/categorie sui post-it (free-form, max 20 char ciascuno, max 5).
   // Persistono come array di stringhe normalizzate (lowercase, trim).
   const [tags, setTags] = useState(Array.isArray(notice?.tags) ? notice.tags : []);
@@ -223,8 +226,8 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
       </div>
 
       {/* Pin */}
-      <label style={rowCenterGap8}>
-        <input type="checkbox" checked={pinned} onChange={e => setPinned(e.target.checked)} />
+      <label style={rowCenterGap8} htmlFor={pinnedId}>
+        <input id={pinnedId} type="checkbox" checked={pinned} onChange={e => setPinned(e.target.checked)} />
         📌 Fissa questo avviso in cima alla bacheca
       </label>
 

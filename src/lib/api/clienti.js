@@ -14,6 +14,12 @@ import { withOrigin } from '../realtime.js';
 import { CONTA_RIGHE } from './comuni.js';
 import { terminiRicerca } from '../searchUtils.js';
 
+// B-1 dell'audit del 2 settembre. `\` è il carattere di escape di `ilike`
+// per postgrest-js, e va sfuggito per primo: altrimenti un `_` scritto
+// dall'utente diventerebbe `\_` letterale invece di restare un carattere
+// jolly sfuggito.
+const escapeIlike = (t) => t.replace(/[\\%_]/g, (m) => `\\${m}`);
+
 // ----------------- CLIENTS -----------------
 // `clients` è in realtime dalla 20260807215625 e ha origin_client dalla
 // 20260808120000 (S-1). Prima di quest'ultima erano le uniche mutazioni del
@@ -89,7 +95,12 @@ export const Clients = {
     if (termini.length === 0) return { data: [], error: null };
     const supabase = await getSupabase();
     let query = supabase.from('clients').select('*');
-    for (const t of termini) query = query.ilike('name', `%${t}%`);
+    // B-1 dell'audit del 2 settembre (B-2 del 31 agosto). `%` e `_` sono
+    // wildcard per `ilike`: senza escape, chi cerca «50%» trova in realtà
+    // «50» seguito da qualsiasi cosa. Si sfugge PRIMA di comporre il
+    // pattern, non dopo: sfuggire l'intero `%${t}%` cancellerebbe anche i
+    // due `%` che delimitano la ricerca.
+    for (const t of termini) query = query.ilike('name', `%${escapeIlike(t)}%`);
     return query.order('name').limit(limit);
   },
   // ─── A-1 (audit del 30 agosto) · la ricerca dell'ANAGRAFICA si fa sul

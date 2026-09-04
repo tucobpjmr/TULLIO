@@ -3,13 +3,17 @@
 //
 // Menù a tendina multi-selezione (Categoria/Status/Agente nel pannello Ricerca).
 // Sostituisce i chip toggle: trigger compatto + pannello a scomparsa con checkbox.
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useId } from "react";
 import { Z } from "../../styles/tokens.js";
 import * as stiliComuni from "../../styles/common.js";
 
 export const FilterDropdown = ({ options, selected, onToggle }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  // M-4 dell'audit del 2 settembre: un prefisso solo, un id per opzione —
+  // `htmlFor` esplicito invece della forma annidata (fragile alla prima
+  // ristrutturazione del markup), come gli altri campi del pannello.
+  const idPrefix = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -43,18 +47,20 @@ export const FilterDropdown = ({ options, selected, onToggle }) => {
           border: "1px solid var(--border)", borderRadius: 8,
           boxShadow: "0 12px 30px rgba(0,0,0,0.15)", zIndex: Z.panelRaised, padding: 6,
         }}>
-          {options.map(opt => {
+          {options.map((opt, i) => {
             const active = selected.includes(opt.value);
+            const id = `${idPrefix}-${i}`;
             return (
               <label
                 key={opt.value}
+                htmlFor={id}
                 style={{
                   display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
                   borderRadius: 6, cursor: "pointer", fontSize: 12,
                   background: active ? "var(--surface2)" : "transparent",
                 }}
               >
-                <input type="checkbox" checked={active} onChange={() => onToggle(opt.value)} />
+                <input id={id} type="checkbox" checked={active} onChange={() => onToggle(opt.value)} />
                 {opt.icon}
                 {opt.label}
               </label>

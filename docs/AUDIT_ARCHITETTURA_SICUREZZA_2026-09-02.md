@@ -17,7 +17,9 @@ già di essere — «la soluzione è interamente contenuta nella migrazione di C
 Sono lo stesso difetto visto da due distanze: la porta aperta a chiunque (C-1) e
 la crescita che non ha un limite superiore nemmeno senza un attaccante (A-3).
 Vedi «Come sono stati chiusi (C-1 e A-3)» in fondo al documento.
-**Due rilievi su undici chiusi.**
+✅ **B-1, B-2 e B-3 sono stati chiusi il 3 settembre.** Vedi «Come sono stati
+chiusi (B-1, B-2 e B-3)» in fondo al documento.
+**Undici rilievi su dodici chiusi.**
 
 Base di partenza misurata su questo commit (`f173aa4`): `npm ci` pulito,
 `npm test` verde (**2028 passati, 23 saltati su 167 file**), `npm run lint`
@@ -26,7 +28,7 @@ senza segnalazioni, `npm run verifica:tipi` senza errori, `npm run build` +
 129,12 kB autenticato su 131), `npm run verifica:convenzioni` verde
 (57 controlli), tredici audit precedenti a registro.
 
-⟦stato: 2/12 chiusi⟧
+⟦stato: 11/12 chiusi⟧
 
 > **Sulla numerazione.** `C-` = critico, `A-` = alta priorità, `M-` = media,
 > `B-` = bassa, come negli audit dal 12 agosto in poi.
@@ -116,17 +118,17 @@ d'azione qui sotto è, nell'ordine: chiudere `C-1` (una migrazione), poi `A-1`,
 | Rilievo | Gravità | Cosa | Dove |
 |---|---|---|---|
 | **C-1** ✔ | ~~**Critico**~~ **risolto** | `segnala_errore_client()` è una porta di scrittura concessa ad `anon`, senza tetto di lunghezza né limite di frequenza: chiunque abbia la chiave pubblica può riempire il database | `supabase/migrations/20260901120000_error_reports.sql:99` |
-| A-1 | Alta | `ADD_NOTICE` e `ADD_COMMENT` sono le due sole mutazioni ottimistiche rimaste senza `rollback`: avviso e commento fantasma restano a schermo dopo una scrittura fallita | `src/state/persistence.js:298`, `:281` |
-| A-2 | Alta | La regola di lint che certifica la tastiera non vede `<tr>`/`<td>` cliccabili: quattro gesti restano irraggiungibili, fra cui **modificare un movimento contabile**, e il controllo riporta zero | `eslint.config.js:395`, `liste/ListaDetail.jsx:174` |
+| **A-1** ✔ | ~~Alta~~ **risolto** | `ADD_NOTICE` e `ADD_COMMENT` sono le due sole mutazioni ottimistiche rimaste senza `rollback`: avviso e commento fantasma restano a schermo dopo una scrittura fallita | `src/state/persistence.js:298`, `:281` |
+| **A-2** ✔ | ~~Alta~~ **risolto** | La regola di lint che certifica la tastiera non vede `<tr>`/`<td>` cliccabili: quattro gesti restano irraggiungibili, fra cui **modificare un movimento contabile**, e il controllo riporta zero | `eslint.config.js:395`, `liste/ListaDetail.jsx:174` |
 | **A-3** ✔ | ~~Alta~~ **risolto** | `public.error_reports` cresce senza retention e senza tetto sui campi: anche il solo traffico legittimo non ha un limite superiore | `supabase/migrations/20260901120000_error_reports.sql` |
-| M-1 | Media | `error_reports` non ha ancora un lettore: la segnalazione ha un posto dove essere scritta, non uno dove essere cercata | `src/lib/api/configurazione.js:110` |
-| M-2 | Media | Il `message` salvato può contenere PII di clienti (vincolo Postgres che cita il valore), contro il contratto scritto sulla tabella stessa | `src/lib/errorReporting.js:221` |
-| M-3 | Media | Il registro degli audit è disallineato dal codice (`A-1` e `A-4` del 31 agosto risolti, dichiarati aperti) e `verifica:convenzioni` non può accorgersene | `docs/INDEX.md:52`, `scripts/verifica-convenzioni/index.js:131` |
-| M-4 | Media | 21 `<label>` su 85 ancora senza `htmlFor` — prosegue `A-3` del 31 agosto (era 51 su 75), su un insieme diverso da quello descritto lì | 15 file in `src/components/` |
-| B-1 | Bassa | `Clients.cerca`: `%` e `_` digitati dall'utente sono wildcard — `B-2` del 31 agosto, ancora aperto | `src/lib/api/clienti.js:92` |
-| B-2 | Bassa | Nessun rate limiting sulle quattro Edge Function esposte al browser — `M-3` del 31 agosto, ancora aperto | `supabase/functions/` |
+| **M-1** ✔ | ~~Media~~ **risolto** | `error_reports` non ha ancora un lettore: la segnalazione ha un posto dove essere scritta, non uno dove essere cercata | `src/lib/api/configurazione.js:110` |
+| **M-2** ✔ | ~~Media~~ **risolto** | Il `message` salvato può contenere PII di clienti (vincolo Postgres che cita il valore), contro il contratto scritto sulla tabella stessa | `src/lib/errorReporting.js:221` |
+| **M-3** ✔ | ~~Media~~ **risolto** | Il registro degli audit è disallineato dal codice (`A-1` e `A-4` del 31 agosto risolti, dichiarati aperti) e `verifica:convenzioni` non può accorgersene | `docs/INDEX.md:52`, `scripts/verifica-convenzioni/index.js:131` |
+| **M-4** ✔ | ~~Media~~ **risolto** | 21 `<label>` su 85 ancora senza `htmlFor` — prosegue `A-3` del 31 agosto (era 51 su 75), su un insieme diverso da quello descritto lì | 15 file in `src/components/` |
+| **B-1** ✔ | ~~Bassa~~ **risolto** | `Clients.cerca`: `%` e `_` digitati dall'utente sono wildcard — `B-2` del 31 agosto | `src/lib/api/clienti.js:92` |
+| **B-2** ✔ | ~~Bassa~~ **risolto** | Nessun rate limiting sulle Edge Function esposte al browser — `M-3` del 31 agosto | `supabase/functions/` |
 | A-4 | Alta | `verifica:rpc` e `verifica:migrazioni` escono con codice 2 per due secret vuoti: il rilevatore di scarto fra repo e database non gira, e il suo workflow è rosso a ogni esecuzione dal 27 agosto | `.github/workflows/verifica-rpc.yml` |
-| B-3 | Bassa | Categorie e template messaggi: cinque mutazioni senza `rollback` né `mapError` | `src/state/persistence.js:507` |
+| **B-3** ✔ | ~~Bassa~~ **risolto** | Categorie e template messaggi: cinque mutazioni senza `rollback` né `mapError` | `src/state/persistence.js:507` |
 
 ---
 
@@ -356,7 +358,12 @@ diversa: `C-1` va chiuso perché qualcuno *potrebbe*, `A-3` perché prima o poi
 
 ---
 
-### M-2 · Il `message` salvato può contenere PII di clienti — **Media**
+### M-2 · Il `message` salvato può contenere PII di clienti — ~~**Media**~~ ✔ **risolto**
+
+✅ **Chiuso il 3 settembre.** `redigiPii()` in `src/lib/errorReporting.js` sostituisce
+email e telefono nel `message` e nello `stack` prima della scrittura, con lo
+stesso codice proposto in questo rilievo — solo sulla scrittura in tabella, non
+in console. Cinque test in `src/test/lib/errorReportingPii.test.js`.
 
 **Dove.** `src/lib/errorReporting.js:221`, letto contro il commento della
 tabella in `20260901120000_error_reports.sql`.
@@ -433,22 +440,37 @@ attraversa alcun confine di autorizzazione.
 
 ---
 
-### B-2 · Nessun rate limiting sulle Edge Function — **Bassa** *(prosegue `M-3` del 31 agosto)*
+### B-2 · Nessun rate limiting sulle Edge Function — ~~**Bassa**~~ ✔ **risolto** *(prosegue `M-3` del 31 agosto)*
 
-Verificato ancora aperto su tutte e cinque le funzioni: `invite-user`,
-`delete-user`, `set-user-active` e `delete-account` non contano nulla, e
-`send-push` è protetta da `x-push-secret` ma anch'essa senza limite di
-frequenza. Il rilievo resta a bassa priorità per la ragione già scritta lì —
-tre delle quattro richiedono `requireActiveAdmin` — con una nota che `C-1`
-rende attuale: `delete-account` è raggiungibile da qualunque utente autenticato,
-e `invite-user` può far partire email a raffica verso indirizzi arbitrari, che
-è il modo in cui si brucia la reputazione di un mittente SMTP.
+✅ **Chiuso il 3 settembre.** `public.rate_limit` + la RPC
+`rate_limit_incrementa()` (migrazione `20260904000000_rate_limit_edge_functions.sql`,
+stessa forma proposta da `M-3`) contano per `(chiave, finestra)`, con la
+chiave che porta l'id di CHI chiama — `invite-user:<uid>`,
+`delete-user:<uid>`, `set-user-active:<uid>`, `delete-account:<uid>` — così un
+secchio pieno per un admin non tocca gli altri. `_shared/rateLimit.ts` è
+fail-open: un errore della RPC lascia passare la richiesta invece di bloccare
+un'operazione legittima, con lo stesso principio di `segnala_errore_client`
+(`C-1`). `send-push` resta fuori: non è raggiungibile dal browser (la chiama
+solo il trigger DB), e il suo `user_id` è il destinatario della notifica, non
+CHI chiama — un tetto lì sarebbe una feature diversa. Verificato con
+`src/test/edge/rateLimit.test.js`, che controlla sia il comportamento
+dell'helper sia il cablaggio nelle quattro funzioni.
+
+Verificato ancora aperto su tutte e cinque le funzioni prima della correzione:
+`invite-user`, `delete-user`, `set-user-active` e `delete-account` non
+contavano nulla, e `send-push` è protetta da `x-push-secret` ma anch'essa
+senza limite di frequenza. Il rilievo restava a bassa priorità per la ragione
+già scritta lì — tre delle quattro richiedono `requireActiveAdmin` — con una
+nota che `C-1` rende attuale: `delete-account` è raggiungibile da qualunque
+utente autenticato, e `invite-user` può far partire email a raffica verso
+indirizzi arbitrari, che è il modo in cui si brucia la reputazione di un
+mittente SMTP.
 
 ---
 
 ## 2. Stato e flusso dati
 
-### A-1 · Due mutazioni ottimistiche senza compensazione — **Alta**
+### A-1 · Due mutazioni ottimistiche senza compensazione — ~~**Alta**~~ ✔ **risolto**
 
 **Dove.** `src/state/persistence.js:298` (`ADD_NOTICE`) e `:281`
 (`ADD_COMMENT`).
@@ -617,7 +639,12 @@ it("ogni entry che scrive ha una compensazione, o è dichiarata fra le eccezioni
 
 ---
 
-### B-3 · Categorie e template messaggi senza compensazione — **Bassa**
+### B-3 · Categorie e template messaggi senza compensazione — ~~**Bassa**~~ ✔ **risolto**
+
+✅ **Chiuso il 3 settembre**, con la soluzione consigliata qui sotto:
+l'eccezione è dichiarata in `SENZA_COMPENSAZIONE`
+(`src/test/state/rollbackContract.test.js`, nato per `A-1`), non le cinque
+compensazioni.
 
 **Dove.** `src/state/persistence.js:507-537`.
 
@@ -643,7 +670,18 @@ no, ed è scritto dove qualcuno lo legge».
 
 ## 3. Architettura e struttura del codice
 
-### M-3 · Il registro degli audit è disallineato dal codice — **Media**
+### M-3 · Il registro degli audit è disallineato dal codice — ~~**Media**~~ ✔ **risolto**
+
+✅ **Chiuso il 3 settembre, in due passi come proposto.** `A-1` e `A-4`
+dell'audit del 31 agosto sono ora marcati `✔ risolto` nella loro tabella delle
+priorità, con `INDEX.md` allineato a `⟦stato: 5/14 chiusi⟧`. E il secondo
+passo — l'ancora — è in piedi: `verificaAncore()` in
+`scripts/verifica-convenzioni/ancore.js`, con due ancore che legano proprio
+`A-1` e `A-4` del 31 agosto a una condizione sul sorgente (ogni entry task/
+commento nominata dal rilievo ha `rollback`; la migrazione di `error_reports`
+esiste nel repo). Il controllo n. 7 esistente resta — confronta ancora due
+prose fra loro — ma ora accanto ha due controlli che confrontano una prosa
+con il codice, che è la metà che mancava.
 
 **Dove.** `docs/INDEX.md:52`, `docs/AUDIT_CODEBASE_2026-08-31.md:88` e `:91`,
 `scripts/verifica-convenzioni/convenzioni.js:109`.
@@ -813,7 +851,7 @@ passo 4 a mano resta, ed è la sola copertura per quel caso.
 
 ## 4. UX/UI e gestione errori
 
-### A-2 · La regola che certifica la tastiera non vede le tabelle — **Alta**
+### A-2 · La regola che certifica la tastiera non vede le tabelle — ~~**Alta**~~ ✔ **risolto**
 
 **Dove.** `eslint.config.js:395-397`, con i quattro gesti scoperti in
 `src/components/liste/ListaDetail.jsx:174` e `:274`,
@@ -939,7 +977,16 @@ coprirà mai questo caso, quindi la regola va scritta qui — e il posto giusto 
 
 ---
 
-### M-4 · 21 `<label>` senza `htmlFor` — **Media** *(prosegue `A-3` del 31 agosto)*
+### M-4 · 21 `<label>` senza `htmlFor` — ~~**Media**~~ ✔ **risolto** *(prosegue `A-3` del 31 agosto)*
+
+✅ **Chiuso il 3 settembre.** Misurato di nuovo sul commit corrente: i 21
+erano scesi a 9 (in 8 file, non più 15) nel tempo fra l'audit e questa
+chiusura — la stessa correzione incrementale, «un file alla volta quando lo
+si tocca», descritta in `docs/CLAUDE.md`. I nove residui erano tutti
+checkbox/select con la forma annidata: ognuno ha ora un `useId()` (o un id
+statico, dove il file già usava quella forma) e `htmlFor`/`id` espliciti.
+**0 `<label>` su 82 senza `htmlFor`** in `src/components/`, misurato con lo
+stesso metodo (non un campione).
 
 Misurato sul commit corrente: **21 su 85** (era 51 su 75). Il rilievo prosegue
 ma su un insieme diverso, e i venti file dell'audit precedente non sono più i
@@ -960,7 +1007,12 @@ di oggi, è la sua fragilità.
 
 ---
 
-### M-1 · La segnalazione ha un posto dove essere scritta, non uno dove essere cercata — **Media**
+### M-1 · La segnalazione ha un posto dove essere scritta, non uno dove essere cercata — ~~**Media**~~ ✔ **risolto**
+
+✅ **Chiuso il 3 settembre**, dopo `C-1`/`A-3` come questo rilievo stesso
+prescriveva. `admin/tabs/ErrorReportsSection.jsx` affianca `AuditLogSection.jsx`
+dentro la tab «Log attività» — stesso `useCaricamento`, stesso export CSV,
+stesso trattamento dei tre stati (caricamento/vuoto/errore).
 
 **Dove.** `src/lib/api/configurazione.js:110`.
 
@@ -1057,25 +1109,28 @@ non solo sul contenuto.* Vedi «Come sono stati chiusi» qui sotto, e in
 particolare la difesa che il rilievo **non** aveva.
 
 **2 · Trasformare «rollback» e «tastiera» da abitudini in invarianti misurate.**
-`A-1` e `A-2` sono lo stesso difetto a due strati diversi: una regola che il
-progetto conosce, applica quasi ovunque, e che rientra dalla finestra nei punti
-che nessun controllo automatico guarda. Il progetto sa già come si chiude — è
-ciò che `scrittureInVoloContract.test.js` fa per `entityId` e ciò che
-`verifica:convenzioni` fa per i marcatori — e i due controlli proposti
-(`rollbackContract.test.js` e il selettore `no-restricted-syntax` su
-`tr`/`td`/`th`/`li`) costano insieme meno di cinquanta righe. Il guadagno vero
-non è chiudere i due rilievi: è che il **quinto** non si riapra.
+✔ **Fatto il 3 settembre.** `A-1` e `A-2` erano lo stesso difetto a due strati
+diversi: una regola che il progetto conosce, applica quasi ovunque, e che
+rientrava dalla finestra nei punti che nessun controllo automatico guardava.
+I due controlli proposti sono entrambi in piedi — `rollbackContract.test.js`
+(la stessa forma di `scrittureInVoloContract.test.js`, applicata al rollback
+invece che a `entityId`) e il selettore `no-restricted-syntax` su
+`tr`/`td`/`th`/`li` in `eslint.config.js` — e costano insieme meno di
+cinquanta righe. Il guadagno vero non era chiudere i due rilievi: è che il
+**quinto** non si riapra. Vedi «Come sono stati chiusi (A-1 e A-2)» in fondo
+al documento.
 
 **3 · Legare i rilievi degli audit a condizioni verificabili sul codice
-(`M-3`).** Questo repository ha tredici audit a registro, e la disciplina con
-cui li tiene è la cosa che lo distingue davvero. Ma il registro oggi verifica la
-coerenza fra due prose, e la prima volta che è divergiato dal codice — `A-1` e
-`A-4` corretti il 1 settembre, dichiarati aperti il 2 — la verifica è rimasta
-verde. Ancorare anche solo i rilievi di alta priorità a un predicato eseguibile
-(«esiste una entry task senza rollback», «esiste la migrazione X») fa sì che a
-scadere sia il *controllo*, non la *fiducia*. È lo stesso principio del
-`SOGLIA_MESSAGGI_CORPUS`, applicato al documento invece che al dato: una
-decisione che scade in modo rumoroso vale più di una scritta bene.
+(`M-3`).** ✔ **Fatto il 3 settembre.** Questo repository ha tredici audit a
+registro, e la disciplina con cui li tiene è la cosa che lo distingue davvero.
+Ma il registro verificava solo la coerenza fra due prose, e la prima volta che
+è divergiato dal codice — `A-1` e `A-4` corretti il 1 settembre, dichiarati
+aperti il 2 — la verifica è rimasta verde. Due ancore in
+`scripts/verifica-convenzioni/ancore.js` legano ora proprio quei due rilievi a
+un predicato eseguibile («ogni entry task/commento nominata dal rilievo ha
+`rollback`», «esiste la migrazione di `error_reports`»), così a scadere è il
+*controllo*, non la *fiducia* — lo stesso principio del
+`SOGLIA_MESSAGGI_CORPUS`, applicato al documento invece che al dato.
 
 ---
 
@@ -1224,6 +1279,109 @@ timestamp restano tutte. Nel test 50 righe con tetto 15 ne hanno lasciate 16.
 È un eccesso di una riga, dalla parte giusta, e si presenta solo quando più
 segnalazioni cadono nello stesso microsecondo — cioè praticamente mai fuori da
 un `generate_series`.
+
+---
+
+## Come sono stati chiusi (A-1 e A-2) — 3 settembre
+
+Insieme, come `C-1`/`A-3` qui sopra: sono lo stesso difetto — una regola che il
+progetto conosce e applica quasi ovunque, rientrata dalla finestra nei punti
+che nessun controllo automatico guarda — visto da due strati diversi (stato
+ottimistico, tastiera).
+
+### `A-1` · Le due compensazioni mancanti
+
+`state/persistence.js`: `ADD_NOTICE` riusa `DELETE_NOTICE` come rollback
+(`canEditNotice` passa sempre: `normalize` ha appena messo `author = uid`),
+esattamente come proposto. `ADD_COMMENT` ha un case nuovo, `ROLLBACK_COMMENT`
+in `state/reducer.js`, che toglie dal thread il commento ottimistico
+identificato per **id locale** — `CommentsAPI.create` non lo manda al server,
+quindi quel valore è per definizione l'identità di ciò che sul database non
+esiste (la stessa proprietà per cui `B-4` del 26 agosto lo aveva introdotto
+come `key` di React). Entrambe passano da `meta.compensazione`, applicato
+dall'orchestratore e non dalle entry: nessun toast di successo accanto a un
+rollback, nessuna voce nel log attività.
+
+⚠️ **Il test che tiene chiusa la regola.** `src/test/state/rollbackContract.test.js`
+misura l'invariante direttamente sul registry — ogni entry con `persist` ha un
+`rollback`, o è nell'elenco esplicito e motivato delle eccezioni (le sei entry
+di categorie/template, `B-3` di questo stesso audit) — invece di lasciarla
+affidata a chi rilegge il file per intero. `src/test/state/persistenceGuards.test.js`
+dichiara `ROLLBACK_COMMENT` fra le compensazioni note al registro di
+completezza esistente.
+
+### `A-2` · La tastiera sulle tabelle
+
+`src/lib/a11y.js` ha ora `cellaAzionabile(onAziona, etichetta)`, che riusa
+`attivaConTastiera` (stesso guard `e.target !== e.currentTarget`, quindi un
+bottone nativo dentro la riga — "Riapri"/"Cestina" — non fa scattare anche
+l'azione della riga quando riceve Invio) e non mette `role="button"`: `<tr>` e
+`<td>` restano `row`/`cell` per chi naviga con uno screen reader. Applicata ai
+quattro gesti: `liste/ListaDetail.jsx` (`cell()` e la cella descrizione — il
+caso che alzava il rilievo ad Alta, modificare un movimento del registro
+contabile), `liste/ArchivedListe.jsx` e `tasks/Archive.jsx` (le righe della
+vista desktop). I due `<td onClick={stopPropagation}>` che ospitano i bottoni
+di azione non sono un gesto da rendere raggiungibile — fermano solo la
+propagazione, gli stessi bottoni sono nativi — e portano un
+`eslint-disable-next-line` con il perché accanto, come già in `Archive.jsx`
+per il caso gemello mobile.
+
+Il selettore `no-restricted-syntax` (`CELLA_TABELLA_CLICCABILE_SENZA_TASTIERA`
+in `eslint.config.js`) guarda dove `jsx-a11y/no-static-element-interactions`
+non arriva: un `<tr>`/`<td>`/`<th>`/`<li>` con `onClick` e senza `onKeyDown` è
+un errore di lint, non più un lint verde su un gesto irraggiungibile.
+`src/test/lib/a11y.test.js` copre `cellaAzionabile` con gli stessi casi già
+in piedi per `attivaConTastiera`.
+
+---
+
+## Come sono stati chiusi (B-1, B-2 e B-3) — 3 settembre
+
+I tre bassi rimasti: uno di igiene della query, uno di superficie
+amministrativa, uno di scelta esplicita invece che di svista.
+
+### `B-1` · L'escape dei caratteri jolly
+
+`src/lib/api/clienti.js`: `escapeIlike()` sfugge `\`, `%` e `_` — il
+backslash per primo, così non intercetta l'escape degli altri due — prima di
+comporre `%${termine}%`. La correzione tocca solo la tendina di suggerimento
+(`Clients.cerca`): `cercaAnagrafica()` passa dalla RPC `cerca_clienti` (`A-1`
+del 30 agosto) e non compone `ilike` lato client, quindi non ne aveva
+bisogno. `src/test/lib/clientiCerca.test.js` verifica il pattern passato a
+`ilike` con il client Supabase mockato.
+
+### `B-2` · Il rate limiting
+
+Una tabella e una funzione, come proposto da `M-3` del 31 agosto: `public.rate_limit`
+(`chiave`, `finestra`, `conteggio`) e `rate_limit_incrementa()` — insert +
+`on conflict do update set conteggio = conteggio + 1 returning conteggio` in
+un solo giro di rete, con la stessa potatura opportunistica di
+`segnala_errore_client` (`C-1`). L'helper condiviso `_shared/rateLimit.ts`
+(`entroLimite()`) lo chiama dalle quattro Edge Function: `invite-user`
+(20/ora per admin — il valore che `M-3` aveva già scritto), `delete-user` e
+`set-user-active` (30/ora per admin), `delete-account` (5/ora per l'utente
+che chiama, self-service). La chiave è sempre `"<funzione>:<id chiamante>"`,
+non solo il nome della funzione: un secchio condiviso fra tutti i chiamanti
+limiterebbe l'agenzia intera al primo admin che invita, che è il difetto
+opposto. `send-push` resta fuori — non è raggiungibile dal browser, e il suo
+`user_id` è il destinatario della notifica e non chi chiama.
+
+⚠️ **`entroLimite` è fail-open**: un errore della RPC (rete, un database non
+ancora migrato) lascia passare la richiesta invece di bloccarla — un rate
+limit che si guasta e blocca tutta l'amministrazione sarebbe un rilievo
+peggiore di quello che chiude. `src/test/edge/rateLimit.test.js` verifica sia
+questo comportamento sia il cablaggio: che le quattro funzioni importino e
+chiamino davvero `entroLimite` (non solo che l'helper esista) e che un
+verdetto negativo produca un 429.
+
+### `B-3` · Categorie e template: la scelta dichiarata
+
+Nessuna delle cinque compensazioni aggiunta: `SENZA_COMPENSAZIONE` in
+`src/test/state/rollbackContract.test.js` (nato per `A-1` di questo stesso
+audit) nomina le sei entry — categorie e template messaggi — con il motivo
+scritto accanto, esattamente la soluzione che il rilievo consigliava. Non è
+un rilievo aperto lasciato cadere: è "non ci abbiamo pensato" diventato
+"abbiamo deciso di no, ed è scritto dove qualcuno lo legge".
 
 ---
 

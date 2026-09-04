@@ -81,6 +81,8 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
   const [filtri, filtriDispatch] = useReducer(filtriReducer, FILTRI_VUOTI);
   const idDateFrom = useId();
   const idDateTo = useId();
+  // M-4 dell'audit del 2 settembre: come gli altri campi qui sopra.
+  const idIncludeTrashed = useId();
   const { dateFrom, dateTo, cats, stats, agents, includeTrashed, listeStati, listeClienti } = filtri;
   const imposta = (campo, valore) => filtriDispatch({ type: "IMPOSTA", campo, valore });
   const alterna = (campo, valore) => filtriDispatch({ type: "ALTERNA", campo, valore });
@@ -293,8 +295,8 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
           </>
         )}
 
-        <label style={rowCenterGap8}>
-          <input type="checkbox" checked={includeTrashed} onChange={e => imposta("includeTrashed", e.target.checked)} />
+        <label style={rowCenterGap8} htmlFor={idIncludeTrashed}>
+          <input id={idIncludeTrashed} type="checkbox" checked={includeTrashed} onChange={e => imposta("includeTrashed", e.target.checked)} />
           🗑️ Includi {listeAllowed ? "task e liste" : "task"} nel cestino
         </label>
       </div>

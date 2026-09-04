@@ -23,6 +23,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireActiveAdmin } from "../_shared/requireActiveAdmin.ts";
 import { registraAudit } from "../_shared/audit.ts";
+import { entroLimite } from "../_shared/rateLimit.ts";
 
 // Non un ban "per sempre" letterale (a differenza di delete-account, che è
 // irreversibile per scelta): è "fino a quando un admin non lo rimuove
@@ -66,6 +67,13 @@ Deno.serve(async (req: Request) => {
     const esito = await requireActiveAdmin(supabaseAdmin, supabaseUser);
     if (!esito.ok) return json({ error: esito.error }, esito.status);
     const callerId = esito.userId;
+
+    // B-2 dell'audit del 2 settembre. Bannare/sbloccare una sessione per
+    // chiamata: trenta l'ora per admin bastano a una revisione del team, non
+    // a bannare l'intera agenzia in un ciclo da un token compromesso.
+    if (!(await entroLimite(supabaseAdmin, `set-user-active:${callerId}`, 60, 30))) {
+      return json({ error: "Troppe richieste in poco tempo: riprova più tardi" }, 429);
+    }
 
     const body = await req.json();
     const targetId: string = (body.userId ?? "").trim();

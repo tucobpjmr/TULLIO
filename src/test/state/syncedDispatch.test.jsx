@@ -20,7 +20,7 @@ vi.mock("../../lib/api.js", () => {
 
 const { useSyncedDispatch } = await import("../../hooks/useSyncedDispatch.js");
 const { makeInitialState } = await import("../../state/reducer.js");
-const { Tasks: TasksAPI, Clients: ClientsAPI, Users: UsersAPI, Comments: CommentsAPI } = await import("../../lib/api.js");
+const { Tasks: TasksAPI, Clients: ClientsAPI, Users: UsersAPI, Categories: CategoriesAPI } = await import("../../lib/api.js");
 
 const TEAM = [
   { id: "admin1",  name: "Admin",  role: "Admin",        active: true, pending: false },
@@ -164,15 +164,17 @@ describe("useSyncedDispatch — fallimenti di persistenza", () => {
   });
 
   it("promise rigettata: toast con il fallback 'errore di rete'", async () => {
-    // ADD_COMMENT non ha mapError (né rollback, vedi il test sotto): è
-    // l'azione giusta per il fallback GENERICO dell'infrastruttura, che
-    // altrimenti finirebbe coperto dal mapError specifico di una entry.
-    CommentsAPI.create.mockRejectedValueOnce(new Error(""));
-    const { dispatch, rawDispatch } = setup({ tasks: [task()] });
+    // ADD_CATEGORY non ha mapError (né rollback, vedi il test sotto — B-3
+    // dell'audit del 2 settembre): è l'azione giusta per il fallback GENERICO
+    // dell'infrastruttura, che altrimenti finirebbe coperto dal mapError
+    // specifico di una entry. Era ADD_COMMENT finché A-1 dello stesso audit
+    // non le ha dato entrambi.
+    CategoriesAPI.create.mockRejectedValueOnce(new Error(""));
+    const { dispatch, rawDispatch } = setup();
 
     let res;
     await act(async () => {
-      res = await dispatch({ type: "ADD_COMMENT", payload: { taskId: uuid(1), comment: { text: "ciao" } } });
+      res = await dispatch({ type: "ADD_CATEGORY", payload: { key: "test", label: "Test" } });
     });
 
     const toast = azioniDispatchate(rawDispatch).find(a => a.type === "SHOW_TOAST");
@@ -204,20 +206,26 @@ describe("useSyncedDispatch — fallimenti di persistenza", () => {
 
   it("senza rollback dichiarato si mostra solo il toast", async () => {
     // A-1 dell'audit del 1 settembre ha dato un rollback a tutte le mutazioni
-    // sui task (era 1 entry su 8): ADD_COMMENT resta l'unica del registro
-    // senza, perché rimanda al thread e non c'è un "prev" a cui tornare —
-    // è quindi l'azione giusta per verificare questo percorso.
-    CommentsAPI.create.mockResolvedValueOnce({ error: { message: "boom" } });
-    const { dispatch, rawDispatch } = setup({ tasks: [task()] });
+    // sui task (era 1 entry su 8), e A-1 del 2 settembre ha chiuso le ultime
+    // due del registro senza (ADD_NOTICE, ADD_COMMENT — vedi
+    // docs/AUDIT_ARCHITETTURA_SICUREZZA_2026-09-02.md). Le cinque voci di
+    // categorie/template restano senza per scelta dichiarata (B-3 dello
+    // stesso audit: tabelle di configurazione, scritte dai soli admin, senza
+    // sottoscrizione realtime concorrente): ADD_CATEGORY è quindi l'azione
+    // giusta per verificare questo percorso.
+    CategoriesAPI.create.mockResolvedValueOnce({ error: { message: "boom" } });
+    const { dispatch, rawDispatch } = setup();
 
     await act(async () => {
-      await dispatch({ type: "ADD_COMMENT", payload: { taskId: uuid(1), comment: { text: "ciao" } } });
+      await dispatch({ type: "ADD_CATEGORY", payload: { key: "test", label: "Test" } });
     });
 
     // Nessun rollback, ma il ritiro del toast ottimistico c'è comunque: è
     // l'altra metà di B-2, quella che la compensazione da sola non copre.
+    // Niente MARK/UNMARK_PENDING_WRITE: ADD_CATEGORY non dichiara `entityId`
+    // (nessuna sottoscrizione concorrente da cui difendersi, vedi sopra).
     expect(azioniDispatchate(rawDispatch).map(a => a.type))
-      .toEqual(["ADD_COMMENT", "MARK_PENDING_WRITE", "RETRACT_TOASTS", "SHOW_TOAST", "UNMARK_PENDING_WRITE"]);
+      .toEqual(["ADD_CATEGORY", "RETRACT_TOASTS", "SHOW_TOAST"]);
   });
 
   // M-2 dell'audit del 14 agosto (secondo passaggio): RENAME_CLIENT_IN_TASKS

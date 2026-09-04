@@ -3,7 +3,7 @@
 // decine di file. Se questi test passano, ogni chiamante ha lo stesso
 // comportamento per costruzione.
 import { describe, it, expect, vi } from "vitest";
-import { attivaConTastiera } from "../../lib/a11y.js";
+import { attivaConTastiera, cellaAzionabile } from "../../lib/a11y.js";
 
 const evento = (over = {}) => ({
   key: "Enter",
@@ -47,5 +47,38 @@ describe("attivaConTastiera", () => {
     attivaConTastiera(onActivate)(e);
     expect(onActivate).not.toHaveBeenCalled();
     expect(e.preventDefault).not.toHaveBeenCalled();
+  });
+});
+
+// A-2 dell'audit del 2 settembre: `jsx-a11y/no-static-element-interactions`
+// non guarda `<tr>`/`<td>` (ruolo ARIA implicito), quindi quattro gesti —
+// fra cui modificare un movimento del registro contabile — restavano
+// irraggiungibili da tastiera col lint verde. `cellaAzionabile` tiene il
+// ruolo implicito e aggiunge solo la tastiera.
+describe("cellaAzionabile", () => {
+  it("espone tabIndex, aria-label e onClick", () => {
+    const onAziona = vi.fn();
+    const props = cellaAzionabile(onAziona, "Modifica descrizione");
+    expect(props.tabIndex).toBe(0);
+    expect(props["aria-label"]).toBe("Modifica descrizione");
+    expect(props.onClick).toBe(onAziona);
+  });
+
+  it("onKeyDown attiva su Invio/Spazio come attivaConTastiera", () => {
+    const onAziona = vi.fn();
+    const props = cellaAzionabile(onAziona, "Apri riga");
+    const bersaglio = {};
+    props.onKeyDown(evento({ target: bersaglio, currentTarget: bersaglio }));
+    expect(onAziona).toHaveBeenCalledTimes(1);
+  });
+
+  it("non si attiva una seconda volta se l'evento nasce su un bottone annidato", () => {
+    // Es. "Riapri"/"Cestina" dentro la riga: il loro click nativo arriva già
+    // a onClick, e il keydown che li ha generati non deve far scattare
+    // ANCHE l'azione della riga.
+    const onAziona = vi.fn();
+    const props = cellaAzionabile(onAziona, "Apri riga");
+    props.onKeyDown(evento({ target: { tag: "bottone" }, currentTarget: { tag: "riga" } }));
+    expect(onAziona).not.toHaveBeenCalled();
   });
 });

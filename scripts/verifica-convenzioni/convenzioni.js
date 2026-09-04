@@ -1122,7 +1122,8 @@ function casiDelReducer(testo) {
 }
 
 // Le entry di primo livello di un registry: `  NOME: {` a due spazi di rientro.
-function entryDelRegistry(testo) {
+// Esportata (M-3 dell'audit del 2 settembre): serve anche a `entryTaskSenzaRollback`.
+export function entryDelRegistry(testo) {
   const t = senzaCommenti(testo);
   const re = /^ {2}([A-Z_]+):\s*\{/gm;
   const punti = [];

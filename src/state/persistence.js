@@ -292,6 +292,18 @@ export const PERSISTENCE = {
       user_id: uid,
       text: a.payload.comment?.text ?? "",
     }),
+    // A-1 dell'audit del 2 settembre. Senza, un'INSERT respinta lasciava
+    // l'utente davanti a DUE affermazioni contraddittorie insieme: il proprio
+    // commento nel thread e, sotto, «Commento non inviato» da useSalvataggio —
+    // e riprovando ne otteneva due a schermo e uno solo sul server. Si
+    // identifica per l'id LOCALE: CommentsAPI.create non lo manda al server
+    // (costruisce la riga da task_id/user_id/text), quindi quel valore è per
+    // definizione l'identità di ciò che sul database non esiste.
+    rollback: (s, a) => ({
+      type: "ROLLBACK_COMMENT",
+      payload: { taskId: a.payload?.taskId, commentId: a.payload?.comment?.id },
+    }),
+    mapError: (err) => err?.message || "commento non inviato",
   },
 
   // ─── BACHECA AVVISI ────────────────────────────────────────────────────────
@@ -306,6 +318,16 @@ export const PERSISTENCE = {
     }),
     entityId: (a) => a.payload?.id,
     persist: (s, a) => NoticesAPI.create(toDbNotice(a.payload)),
+    // A-1 dell'audit del 2 settembre. Era l'unica delle quattro entry degli
+    // avvisi senza compensazione, ed è quella che CREA: un'INSERT respinta non
+    // emette alcun evento realtime, quindi nessun refetch viene a togliere
+    // l'avviso dalla bacheca di chi l'ha scritto, che resta pubblicato mentre
+    // il resto del team non lo vedrà mai. Riusa DELETE_NOTICE (il case esiste
+    // e il suo canEditNotice passa: `normalize` ha appena messo `author =
+    // uid`) invece di un case nuovo, come ADD_CLIENT riusa
+    // ROLLBACK_CLIENTS_BULK.
+    rollback: (s, a) => ({ type: "DELETE_NOTICE", payload: a.payload.id }),
+    mapError: (err) => err?.message || "avviso non pubblicato",
   },
   // A-1 dell'audit del 14 agosto: erano le uniche tre mutazioni del registry
   // senza guard NÉ rollback, mentre sono anche le uniche su cui la RLS nega

@@ -12,6 +12,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireActiveAdmin } from "../_shared/requireActiveAdmin.ts";
 import { registraAudit } from "../_shared/audit.ts";
+import { entroLimite } from "../_shared/rateLimit.ts";
 
 Deno.serve(async (req: Request) => {
   const cors = corsHeaders(req);
@@ -63,6 +64,14 @@ Deno.serve(async (req: Request) => {
     const esito = await requireActiveAdmin(supabaseAdmin, supabaseUser);
     if (!esito.ok) return json({ error: esito.error }, esito.status);
     const callerId = esito.userId;
+
+    // B-2 dell'audit del 2 settembre. Elimina definitivamente una riga di
+    // auth.users: trenta l'ora per admin bastano a smaltire una pulizia
+    // dell'anagrafica del team, non a cancellarlo in blocco per errore o in
+    // mano a un token compromesso.
+    if (!(await entroLimite(supabaseAdmin, `delete-user:${callerId}`, 60, 30))) {
+      return json({ error: "Troppe eliminazioni in poco tempo: riprova più tardi" }, 429);
+    }
 
     const body = await req.json();
     const targetId: string = (body.userId ?? "").trim();

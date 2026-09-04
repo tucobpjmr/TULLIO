@@ -2,7 +2,7 @@
 // Import/export di task e backup completo dello stato.
 // Il backup in ingresso passa da validateBackup: un JSON arbitrario che
 // sostituisce team e categorie è la cosa più pericolosa che l'app accetti.
-import { useState, useRef } from "react";
+import { useState, useRef, useId } from "react";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { useTasks } from "../../../state/TasksContext.jsx";
 import { useStoricoTaskCompleto } from "../../../state/StoricoTaskContext.jsx";
@@ -40,6 +40,10 @@ export const AdminIOTab = ({ agencyName, notices = [] }) => {
   const caricandoStorico = useStoricoTaskCompleto();
   const [includeTrashed, setIncludeTrashed] = useState(false);
   const fileInputRef = useRef(null);
+  // M-4 dell'audit del 2 settembre: un `useId()` per associare la checkbox
+  // al proprio `<label>` con `htmlFor`, invece della forma annidata (valida
+  // per il lint ma fragile alla prima ristrutturazione del markup).
+  const idIncludeTrashed = useId();
 
   const tasksToExport = () => includeTrashed ? tasks : tasks.filter(t => !t.deletedAt);
 
@@ -143,8 +147,8 @@ export const AdminIOTab = ({ agencyName, notices = [] }) => {
       <div style={cardStyle}>
         <h3 style={cardH}>📤 Esporta task</h3>
         <p style={cardP}>Scarica i task in formato CSV o Excel per archiviazione, analisi esterna o backup parziale.</p>
-        <label style={rowCenterGap8}>
-          <input type="checkbox" checked={includeTrashed} onChange={e => setIncludeTrashed(e.target.checked)} />
+        <label style={rowCenterGap8} htmlFor={idIncludeTrashed}>
+          <input id={idIncludeTrashed} type="checkbox" checked={includeTrashed} onChange={e => setIncludeTrashed(e.target.checked)} />
           Includi task nel cestino
         </label>
         <div style={txtF12Muted}>

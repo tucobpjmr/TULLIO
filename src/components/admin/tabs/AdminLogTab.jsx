@@ -8,21 +8,20 @@ import { useConfirm } from "../../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../../styles/common.js";
 import { useDispatch } from "../../../state/DispatchContext.jsx";
 import { AuditLogSection } from "./AuditLogSection.jsx";
+import { ErrorReportsSection } from "./ErrorReportsSection.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
-const titoloSezione = { fontSize: 13, fontWeight: 700, letterSpacing: 0.3, marginBottom: 4 };
+// ⚠️ titoloSezione/txtF32Mb8/txtF11Mt6/gridGap2/txtFlex1F13/txtF11MutedNowrap
+// sono ora in styles/common.js (M-1 dell'audit del 2 settembre): ricorrevano
+// già identiche qui e in AuditLogSection.jsx, ed ErrorReportsSection.jsx è
+// stata la terza copia che ha reso la duplicazione misurabile.
 const separatore = { height: 1, background: "var(--border)", margin: "28px 0 20px" };
-const txtF32Mb8 = { fontSize: 32, marginBottom: 8 };
-const txtF11Mt6 = { fontSize: 11, marginTop: 6 };
-const gridGap2 = { display: "grid", gap: 2 };
 const rowCenterGap12 = {
   display: "flex", alignItems: "center", gap: 12,
   padding: "8px 4px", borderBottom: "1px solid var(--surface2)",
 };
 const txtF16TxtCenter = { fontSize: 16, width: 24, textAlign: "center" };
-const txtFlex1F13 = { flex: 1, fontSize: 13, color: "var(--text)" };
-const txtF11Muted = { fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" };
 
 // ─── ADMIN TAB: LOG ATTIVITÀ ───────────────────────────────────────────────
 export const AdminLogTab = ({ activityLog = [] }) => {
@@ -95,7 +94,13 @@ export const AdminLogTab = ({ activityLog = [] }) => {
 
       <div style={separatore} />
 
-      <div style={titoloSezione}>ATTIVITÀ DI QUESTA SESSIONE</div>
+      {/* M-1 dell'audit del 2 settembre: il codice VD-… dettato al telefono
+          ora ha un posto in cui essere cercato, non solo scritto. */}
+      <ErrorReportsSection />
+
+      <div style={separatore} />
+
+      <div style={stiliComuni.titoloSezione}>ATTIVITÀ DI QUESTA SESSIONE</div>
       <p style={stiliComuni.txtF12MutedMb12}>
         Solo questo dispositivo, da quando hai aperto la pagina · non include le azioni
         di altri utenti e non viene conservata alla chiusura. Le operazioni privilegiate
@@ -139,17 +144,17 @@ export const AdminLogTab = ({ activityLog = [] }) => {
       <div style={cardStyle}>
         {list.length === 0 ? (
           <div style={stiliComuni.statoVuotoCentrato}>
-            <div style={txtF32Mb8}>📋</div>
+            <div style={stiliComuni.txtF32Mb8}>📋</div>
             <div style={stiliComuni.txtF14}>Nessuna attività registrata{filter !== "all" ? " in questo filtro" : " ancora"}</div>
-            <div style={txtF11Mt6}>Le azioni di questa sessione appariranno qui (ultime 100)</div>
+            <div style={stiliComuni.txtF11Mt6}>Le azioni di questa sessione appariranno qui (ultime 100)</div>
           </div>
         ) : (
-          <div style={gridGap2}>
+          <div style={stiliComuni.gridGap2}>
             {list.map(l => (
               <div key={l.id} style={rowCenterGap12}>
                 <div style={txtF16TxtCenter}>{iconFor(l.type)}</div>
-                <div style={txtFlex1F13}>{l.text}</div>
-                <div style={txtF11Muted}>{formatRel(l.time)}</div>
+                <div style={stiliComuni.txtFlex1F13}>{l.text}</div>
+                <div style={stiliComuni.txtF11MutedNowrap}>{formatRel(l.time)}</div>
               </div>
             ))}
           </div>

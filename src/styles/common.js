@@ -175,6 +175,30 @@ export const txtF12MutedMb12 = { fontSize: 12, color: "var(--text-muted)", margi
 // Il corpo centrato di uno stato vuoto dentro una card.
 export const statoVuotoCentrato = { padding: "40px 20px", textAlign: "center", color: "var(--text-muted)" };
 
+// M-1 dell'audit del 2 settembre · promosse dallo stesso controllo relazionale
+// di A-2 qui sopra, per la stessa ragione: `ErrorReportsSection.jsx` è la
+// terza sezione «lettore append-only dentro Admin → Log attività» (dopo
+// `AuditLogSection.jsx`, e il guscio `AdminLogTab.jsx` che le monta entrambe)
+// e la terza copia è quella che ha reso visibile una duplicazione già
+// esistente in due file.
+export const titoloSezione = { fontSize: 13, fontWeight: 700, letterSpacing: 0.3, marginBottom: 4 };
+// L'emoji sopra il messaggio di uno stato vuoto o d'errore — quarta taglia
+// accanto a txtF36Mb12/txtF40Mb12/txtF48Mb16 qui sopra.
+export const txtF32Mb8 = { fontSize: 32, marginBottom: 8 };
+// La riga di spiegazione sotto il titolo di uno stato vuoto o d'errore.
+export const txtF11Mt6 = { fontSize: 11, marginTop: 6 };
+// L'elenco delle righe di un registro (audit log, segnalazioni): gap minimo,
+// ogni riga porta già il proprio bordo/padding.
+export const gridGap2 = { display: "grid", gap: 2 };
+// Il testo principale di una riga di registro, che occupa lo spazio restante
+// fra un'icona/codice a sinistra e un orario a destra.
+export const txtFlex1F13 = { flex: 1, fontSize: 13, color: "var(--text)" };
+// Come txtF11Muted, con `whiteSpace: nowrap`: un orario o un'etichetta breve
+// in fondo a una riga di registro, che non deve andare a capo. Nome distinto
+// da txtF11Muted perché il valore è diverso (M-3 dell'audit del 26 agosto:
+// un suffisso di collisione è una bugia, "Nowrap" è la differenza vera).
+export const txtF11MutedNowrap = { fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" };
+
 // ─── SPAZIATURE ──────────────────────────────────────────────────────────────
 export const mb14 = { marginBottom: 14 };
 export const mt12 = { marginTop: 12 };

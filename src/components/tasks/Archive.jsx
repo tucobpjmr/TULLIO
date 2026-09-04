@@ -20,6 +20,7 @@ import { indicizza, matchIndice, terminiRicerca } from "../../lib/searchUtils.js
 import { useFinestra } from "../../hooks/useFinestra.js";
 import { MostraAltri } from "../ui/MostraAltri.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
+import { cellaAzionabile } from "../../lib/a11y.js";
 import * as stiliComuni from "../../styles/common.js";
 import {
   borderBottom2, boxF12Bold, boxF12Bold2, boxF13MinW0, mb20, padding2, padding3,
@@ -298,9 +299,12 @@ export const Archive = memo(function Archive({ loading = false }) {
                 <tbody>
                   {finestra.visibili.map(task => (
                     <tr key={task.id} style={borderBottom2}
-                      onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: task })}
                       onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
                       onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      {...cellaAzionabile(
+                        () => dispatch({ type: "SET_SELECTED_TASK", payload: task }),
+                        `Apri ${task.title}`,
+                      )}
                     >
                       <td style={padding2}>
                         <div style={txtBoldHeading}>{task.title}</div>
@@ -324,6 +328,11 @@ export const Archive = memo(function Archive({ loading = false }) {
                       <td style={stiliComuni.cellaMuted}>
                         {task.completedAt ? formatDate(task.completedAt) : "—"}
                       </td>
+                      {/* Non è un controllo: ferma solo la propagazione del click verso la
+                          riga (che ora si apre anche da tastiera, vedi cellaAzionabile sopra),
+                          così toccare "Riapri"/"Cestina" non apre anche la task. I due
+                          pulsanti sono nativi e già accessibili da tastiera. */}
+                      {/* eslint-disable-next-line no-restricted-syntax -- vedi commento sopra */}
                       <td style={stiliComuni.cellaAzioni} onClick={e => e.stopPropagation()}>
                         <div style={stiliComuni.rowAzioniInLinea}>
                           <button onClick={() => handleReopen(task)} title="Riapri (rimetti in lavorazione)" style={stiliComuni.btnNavyMini}>↩ Riapri</button>

@@ -724,6 +724,11 @@ const COMPENSAZIONE = [
   // PRECEDENTE i soli task il cui update di RENAME_CLIENT_IN_TASKS non è
   // arrivato sul server (Promise.allSettled invece di Promise.all).
   "ROLLBACK_RENAME_CLIENT_IN_TASKS",
+  // A-1 dell'audit del 2 settembre: dispatchata dal registry quando l'INSERT
+  // di ADD_COMMENT non arriva sul server — toglie dal thread il commento
+  // ottimistico identificato per id locale. Stesso principio di
+  // ROLLBACK_EMPTY_TRASH: è la compensazione, non ha nulla da riscrivere.
+  "ROLLBACK_COMMENT",
 ];
 
 // Questo quarto elenco non è una categoria: è un registro di lacune note.

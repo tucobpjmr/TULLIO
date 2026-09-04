@@ -19,7 +19,14 @@ la crescita che non ha un limite superiore nemmeno senza un attaccante (A-3).
 Vedi «Come sono stati chiusi (C-1 e A-3)» in fondo al documento.
 ✅ **B-1, B-2 e B-3 sono stati chiusi il 3 settembre.** Vedi «Come sono stati
 chiusi (B-1, B-2 e B-3)» in fondo al documento.
-**Undici rilievi su dodici chiusi.**
+✅ **A-4 è stato chiuso il 4 settembre**: `SUPABASE_URL`/`SUPABASE_ANON_KEY`
+sono ora popolate nel workflow (repository variable, non secret — B-4
+dell'audit del 26 agosto). Verificato sulla run `Verifica RPC` #161
+(commit `800916a`): tutti e quattro i controlli passano, incluso
+`verifica:migrazioni` — che prima usciva con codice 2 senza aver
+interrogato nulla — ora confronta davvero repository e database e non
+trova scarti.
+**Dodici rilievi su dodici chiusi.**
 
 Base di partenza misurata su questo commit (`f173aa4`): `npm ci` pulito,
 `npm test` verde (**2028 passati, 23 saltati su 167 file**), `npm run lint`
@@ -28,7 +35,7 @@ senza segnalazioni, `npm run verifica:tipi` senza errori, `npm run build` +
 129,12 kB autenticato su 131), `npm run verifica:convenzioni` verde
 (57 controlli), tredici audit precedenti a registro.
 
-⟦stato: 11/12 chiusi⟧
+⟦stato: 12/12 chiusi⟧
 
 > **Sulla numerazione.** `C-` = critico, `A-` = alta priorità, `M-` = media,
 > `B-` = bassa, come negli audit dal 12 agosto in poi.
@@ -127,7 +134,7 @@ d'azione qui sotto è, nell'ordine: chiudere `C-1` (una migrazione), poi `A-1`,
 | **M-4** ✔ | ~~Media~~ **risolto** | 21 `<label>` su 85 ancora senza `htmlFor` — prosegue `A-3` del 31 agosto (era 51 su 75), su un insieme diverso da quello descritto lì | 15 file in `src/components/` |
 | **B-1** ✔ | ~~Bassa~~ **risolto** | `Clients.cerca`: `%` e `_` digitati dall'utente sono wildcard — `B-2` del 31 agosto | `src/lib/api/clienti.js:92` |
 | **B-2** ✔ | ~~Bassa~~ **risolto** | Nessun rate limiting sulle Edge Function esposte al browser — `M-3` del 31 agosto | `supabase/functions/` |
-| A-4 | Alta | `verifica:rpc` e `verifica:migrazioni` escono con codice 2 per due secret vuoti: il rilevatore di scarto fra repo e database non gira, e il suo workflow è rosso a ogni esecuzione dal 27 agosto | `.github/workflows/verifica-rpc.yml` |
+| **A-4** ✔ | ~~Alta~~ **risolto** | `verifica:rpc` e `verifica:migrazioni` uscivano con codice 2 per due secret (repository variable) vuoti: il rilevatore di scarto fra repo e database non girava, e il suo workflow era rosso a ogni esecuzione dal 27 agosto | `.github/workflows/verifica-rpc.yml` |
 | **B-3** ✔ | ~~Bassa~~ **risolto** | Categorie e template messaggi: cinque mutazioni senza `rollback` né `mapError` | `src/state/persistence.js:507` |
 
 ---
@@ -762,7 +769,22 @@ const ANCORE = [
 
 ---
 
-### A-4 · Il rilevatore di scarto fra repository e database non gira — **Alta**
+### A-4 · Il rilevatore di scarto fra repository e database non gira — ~~**Alta**~~ ✔ **risolto**
+
+✅ **Chiuso il 4 settembre.** `SUPABASE_URL`/`SUPABASE_ANON_KEY` sono state
+popolate come repository VARIABLE (non secret — è la forma che B-4 dell'audit
+del 26 agosto aveva già scelto per questi due valori, entrambi pubblici).
+Verificato sulla run `Verifica RPC` #161 (commit `800916a`, quattro minuti
+dopo la #160 che aveva ancora fallito su `verifica:migrazioni` — non per i
+secret, che a quel punto erano già presenti, ma perché la migrazione di `B-2`
+non era ancora stata applicata al database: il controllo ha funzionato
+esattamente come deve): tutti e quattro gli step passano, incluso
+`verifica:migrazioni`, che ora confronta davvero repository e produzione
+invece di uscire con codice 2 prima di interrogare alcunché. Non implementato
+il passo `Secret presenti` proposto più sotto (fallire in modo esplicito e
+leggibile se i due valori tornassero vuoti): è un rinforzo preventivo contro
+la ricaduta, non necessario per chiudere il rilievo con i valori già
+popolati, e resta un lavoro a sé.
 
 *(Trovato il 3 settembre applicando la correzione di `C-1`, non durante
 l'analisi. È il rilievo che spiega gli altri di questa famiglia.)*

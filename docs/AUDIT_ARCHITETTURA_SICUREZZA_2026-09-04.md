@@ -1,0 +1,980 @@
+# Audit — architettura e sicurezza · 4 settembre 2026
+
+Perimetro: i cinque assi richiesti — architettura e struttura del codice,
+sicurezza e gestione dei dati, stato e flusso dati, performance e scalabilità,
+UX/UI e gestione errori.
+
+Diciannove rilievi: **nessuno critico, quattro di alta priorità.**
+
+⚠️ Questo è il primo audit del progetto condotto anche **contro il database di
+produzione** (`vmxvnxsqfisucugcpqlc`) e non solo contro il repository: `pg_proc`,
+`pg_policies`, `pg_trigger` e gli advisor Supabase. Tre dei quattro rilievi di
+alta priorità non sono visibili leggendo le migrazioni — è la lezione che
+`A-4` dell'audit del 2 settembre aveva già scritto («l'ancora di un rilievo che
+tocca il database va interrogata SUL database») applicata all'analisi invece
+che al controllo.
+
+Base di partenza misurata su questo commit: `npm ci` pulito, `npm test` verde
+(**2064 passati su 172 file**), `npm run lint` senza segnalazioni,
+`npm run verifica:tipi` senza errori, `npm run build` + `npm run verifica:bundle`
+verdi (81,09 kB gzip anonimo su 86 di soglia, 129,56 kB autenticato su 131),
+`npm run verifica:convenzioni` verde (61 controlli), quattordici audit
+precedenti a registro.
+
+⟦stato: 0/19 chiusi⟧
+
+> **Sulla numerazione.** `A-` = alta priorità, `M-` = media, `B-` = bassa, come
+> negli audit dal 12 agosto in poi. Non ci sono `C-`: nessun rilievo critico.
+
+---
+
+## Executive summary
+
+### Valutazione: **8,5 / 10**
+
+Il progetto è in salute. Non è una formula di cortesia: ho cercato le classi di
+difetto che di solito pagano — XSS, secret nel bundle, RLS assente, race
+condition sulle scritture ottimistiche, bundle fuori controllo — e sono
+**tutte già chiuse, e chiuse bene**. Zero `dangerouslySetInnerHTML`, zero
+`innerHTML`, zero `eval`; CSP bloccante senza `unsafe-inline` (con la verifica
+non ovvia che React scrive gli stili via CSSOM e non tocca `style-src-attr`);
+allow-list di origini elencate host per host invece che per prefisso, con il
+ragionamento sul perché un prefisso su `vercel.app` non descriva un insieme che
+il progetto possiede; un contatore di generazione (`prendiTurno`/`vinceIlTurno`)
+su ogni entità con più di uno scrittore; 2.064 test, `checkJs` a zero errori,
+sette script di verifica in CI. Il preambolo di `lib/supabase.js` sul doppio
+`GoTrueClient` e sul commit guard di `auth-js` è la migliore analisi post-mortem
+che abbia letto in un repository applicativo.
+
+**Il rischio principale non è più il codice: è lo scarto fra i tre livelli su
+cui il codice vive.** I quattro rilievi di alta priorità hanno tutti la stessa
+forma, ed è la stessa che gli audit del 31 agosto e del 2 settembre stavano già
+descrivendo:
+
+* `A-1` — il livello **applicativo** dice «negato» al reducer e «riuscito» a chi
+  chiama: la stessa domanda, due risposte, e il chiamante è il form che decide
+  se chiudersi.
+* `A-2` — il livello **database** espone una porta di scrittura sul registro di
+  controllo che nessun percorso dell'app usa, e che nessuna delle tre difese
+  costruite tre giorni fa per la porta gemella (`segnala_errore_client`) copre.
+* `A-3` — il livello **piattaforma** (impostazioni Supabase Auth) ha una difesa
+  spenta che nessun file del repository può accendere, e che nessuno script
+  guarda.
+* `A-4` — il livello **dipendenze** porta due CVE note e senza fix su npm, con
+  una mitigazione strutturale ottima e un fix definitivo fermo da un mese
+  perché la rete lo blocca.
+
+Nessuno dei quattro è un errore di scrittura. Tutti e quattro sono punti in cui
+un controllo esiste, funziona, e **guarda un livello solo**.
+
+### Cosa ho verificato senza trovare rilievi
+
+| Area | Esito |
+|---|---|
+| XSS | 0 `dangerouslySetInnerHTML` / `innerHTML` / `eval` / `new Function` in `src/` |
+| Secret nel frontend | solo `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`, entrambi pubblici per disegno |
+| `console.log` residui | 1, dietro `import.meta.env.DEV && VITE_PROFILE_VIEWS` (esce dal bundle di produzione) |
+| Header HTTP | CSP bloccante, HSTS 2 anni, `frame-ancestors 'none'`, COOP/COEP, `object-src 'none'` |
+| `target="_blank"` | 1 occorrenza, con `rel="noopener noreferrer"`; 2 `window.open` con `"noopener"` |
+| RLS su `tasks`/`messages`/`notifications`/`push_subscriptions` | policy corrette, `rls_active_only` RESTRICTIVE ovunque |
+| Escalation su `public.users` | `users_update` richiede `is_active_user()` su sé stessi o `is_admin()`; trigger `audit_users_privilegi` in piedi |
+| Gate admin nelle Edge Function | `requireActiveAdmin` + `puoAgireComeAdmin` ricalcano `is_admin()` incluso `coalesce(pending,false)` |
+| RPC distruttive | `reset_completo` ha `private.is_admin()`, `importa_backup` idem, le RPC liste hanno `can_liste()` — **verificato su `pg_proc` in produzione, non dedotto dalle migrazioni** |
+| Modifica messaggi altrui | `messages_update` è larga in RLS, ma il trigger `messages_blocca_modifiche_altrui` confronta `to_jsonb(new) - reactions - read_by - pinned…` e chiude il caso |
+| Race condition sulle scritture | contatore di generazione + `isCurrent()` + `MARK_PENDING_WRITE`, con l'ordine delle azioni fissato da un test |
+| Bundle e code-splitting | 81 kB gzip anonimo, 130 kB autenticato, soglie in CI, 17 chunk lazy |
+| Rate limiting Edge Function | `rate_limit_incrementa` cablato in tutte e quattro, chiave per chiamante |
+| Error boundary | tre livelli (app, vista, overlay) + handler globali + codice `VD-…` che raggiunge `error_reports` |
+
+---
+
+## Tabella delle priorità
+
+| ID | Priorità | Rilievo | File / punto |
+|---|---|---|---|
+| **A-1** | 🔴 Alta | Un'azione **negata dai permessi** ritorna `{ error: null }`: `useSalvataggio` la legge come successo e chiama `alSuccesso()` — la modale si chiude e i dati vengono buttati, con solo un toast rosso a dirlo | `src/hooks/useSyncedDispatch.js:20-24` |
+| **A-2** | 🔴 Alta | `public.registra_audit()` è eseguibile da **ogni utente autenticato**, senza gate di ruolo né di attività, senza tetti né limite di frequenza — e **nessun percorso dell'app la chiama** | DB (`proacl`), `supabase/migrations/20260826214000_audit_log.sql` |
+| **A-3** | 🔴 Alta | **Leaked password protection disattivata** su Supabase Auth, con una policy password che chiede solo 8 caratteri | advisor prod + `src/lib/validators.js:44` |
+| **A-4** | 🔴 Alta | `xlsx@0.18.5`: due CVE (`CVE-2023-30533`, `CVE-2024-22363`) **ancora aperte**, mitigate ma non risolte, con il fix fermo da un mese | `package.json:14`, `src/lib/xlsxWorker.js` |
+| **M-1** | 🟡 Media | 21 `outline: "none"` e **nessuna regola `:focus-visible` globale**: fuori dal modulo Liste il focus da tastiera non ha un indicatore proprio | `src/styles/global.css`, 18 file |
+| **M-2** | 🟡 Media | 40 `onMouseEnter` contro 15 `onFocus`: le affordance costruite sull'hover non hanno la controparte da tastiera | `src/components/**` (20 file) |
+| **M-3** | 🟡 Media | Cinque funzioni trigger (`audit_clients_*`, `audit_users_*`, `audit_liste_truncate`) hanno `EXECUTE` a **`PUBLIC`, `anon` e `authenticated`** — le uniche del progetto rimaste così | DB (`proacl`) |
+| **M-4** | 🟡 Media | Le Edge Function restituiscono al client il **messaggio d'errore interno grezzo** (`err.message`, `banErr.message`, `authErr.message`) nel ramo `catch` e su tre 500 | 4 × `supabase/functions/*/index.ts` |
+| **M-5** | 🟡 Media | `checkJs` copre `src/lib` + `src/state` (≈40% del codice non-test) e `strict` è `false`: `src/components` e `src/hooks` — 174 file — non sono controllati | `jsconfig.json:47-50` |
+| **M-6** | 🟡 Media | La CSP non ha `report-to`/`report-uri`: «0 violazioni CSP» è una misura fatta a mano una volta, non un presidio continuo | `vercel.json:16` |
+| **M-7** | 🟡 Media | `user_contacts_select` è `using (true)`: **anche un driver** legge email e telefono di tutto il team, benché il ruolo sia escluso per disegno da ogni altro dato | DB, `supabase/migrations/20260629222802_user_contacts_select_team.sql` |
+| **M-8** | 🟡 Media | 344 costanti di stile a nomi meccanici (`boxF125Warning`, `rowCenterBetween4`) + 335 stili inline dinamici, nessun design system, nessun tema scuro | `src/styles/`, 15 × `*Styles.js` |
+| **B-1** | 🟢 Bassa | Le quattro policy di `clients` ripetono `users.role = ANY(ARRAY[...])` in linea invece di usare un helper `private.can_clienti()`, contro il principio che il progetto applica ovunque | DB (`pg_policies`) |
+| **B-2** | 🟢 Bassa | `useEffect(..., [enabled, delay, ...deps])`: uno spread in un array di dipendenze — React solleva se la lunghezza cambia, e nessun lint può verificarlo | `src/hooks/useDebouncedTableSubscription.js:97` |
+| **B-3** | 🟢 Bassa | `redigiPii()` redige `message` e `stack` ma **non** `url` e `user_agent`, che finiscono grezzi in `error_reports` | `src/lib/errorReporting.js:55-59` |
+| **B-4** | 🟢 Bassa | `task_history.actor_id` è una FK senza indice di copertura; sette indici non sono mai stati usati | advisor prod |
+| **B-5** | 🟢 Bassa | `delete-account` banna l'utente (irreversibile) e poi ripulisce la PII in `allSettled`: se la pulizia fallisce, l'utente è bloccato fuori e i suoi dati restano | `supabase/functions/delete-account/index.ts` |
+| **B-6** | 🟢 Bassa | `invite-user` non valida il formato dell'email prima di passarla a GoTrue, mentre valida ruolo, capacity e colore | `supabase/functions/invite-user/index.ts` |
+| **B-7** | 🟢 Bassa | `docs/` ha 40 handoff + 21 audit: l'indice distingue vigente da storico, ma la ricerca di «qual è la regola oggi» costa | `docs/` |
+
+---
+
+## Action plan — da 8,5 a 10
+
+### A-1 · Un'azione negata ritorna «riuscito»
+
+**Dove.** `src/hooks/useSyncedDispatch.js:20-24`
+
+```js
+const denied = (ADMIN_ONLY_ACTIONS.has(action.type) && !isAdmin(s.team, uid))
+  || (spec?.guard ? !spec.guard(s, action, uid) : false);
+if (denied) {
+  rawDispatch(action);
+  return Promise.resolve({ error: null });   // ← qui
+}
+```
+
+**Perché è grave.** Il reducer, ricevendo l'azione, produce il toast di rifiuto
+(`_denied()` in `state/reducer.js:69`) e **non applica la mutazione**. Ma il
+valore di ritorno dice successo, e chi lo legge è `useSalvataggio`:
+
+```js
+// src/hooks/useSalvataggio.js:39-49
+if (esito?.error) { setErrore(...); return esito; }
+if (esito?.avviso) { ... }
+rif.current.alSuccesso?.();   // ← chiude la modale
+```
+
+Il percorso completo, verificato end-to-end su `ClientiView.jsx:195-214` →
+`ClienteModal.jsx:51` (`useSalvataggio(onSave, { alSuccesso: onClose })`):
+
+1. un agente disattivato mentre la scheda è aperta (o un driver, o un junior su
+   categoria `payment`) compila la scheda cliente e preme **Salva**;
+2. il guard nega, il reducer alza il toast «Non hai i permessi…»;
+3. `dispatch` ritorna `{ error: null }`, `handleSave` supera `if (res?.error)`;
+4. `useSalvataggio` chiama `alSuccesso` → **la modale si chiude, i dati inseriti
+   spariscono**, e per di più `RENAME_CLIENT_IN_TASKS` parte su un nome che non
+   è mai stato cambiato.
+
+È lo stesso difetto che `M-1` («Compensazione») ha chiuso per il ramo *errore
+di scrittura* — «un salvataggio RIFIUTATO dal server produceva "Profilo
+aggiornato!" accanto a "Salvataggio fallito"» — mai applicato al ramo
+*rifiutato dai permessi*. I quattro test del blocco «difesa in profondità sui
+permessi» in `src/test/state/syncedDispatch.test.jsx:98-136` verificano che
+**nessuna chiamata parta verso il server**; nessuno verifica cosa venga
+restituito. Il comportamento non è deliberato: è non specificato.
+
+**Soluzione.** Un errore tipizzato, così i call site non devono distinguere il
+rifiuto dal guasto di rete — per loro sono la stessa cosa: «non è salvato».
+
+```js
+// src/hooks/useSyncedDispatch.js
+// Il rifiuto di un permesso NON è un successo: chi attende l'esito (ogni form
+// che passa da useSalvataggio) usa `error` per decidere se chiudersi. Il
+// reducer alza già il toast — quello resta l'unico messaggio che l'utente
+// legge — ma il pannello deve restare aperto con i dati dentro, esattamente
+// come dopo una scrittura respinta dal server.
+const erroreDiPermesso = () => {
+  const e = new Error('non hai i permessi per questa azione');
+  e.name = 'PermessoNegato';
+  return e;
+};
+
+if (denied) {
+  rawDispatch(action);
+  return Promise.resolve({ error: erroreDiPermesso() });
+}
+```
+
+E in `useSalvataggio`, perché il pannello non mostri **due** messaggi per lo
+stesso rifiuto (il toast del reducer e il testo inline):
+
+```js
+// src/hooks/useSalvataggio.js — dentro salva(), al posto del ramo esistente
+if (esito?.error) {
+  // Un rifiuto di permesso ha già il suo toast, alzato dal reducer: qui basta
+  // non chiudere. Un guasto di scrittura invece non ce l'ha, e il testo
+  // inline è l'unico posto in cui l'utente lo legge.
+  if (esito.error?.name !== 'PermessoNegato') {
+    const m = rif.current.messaggioErrore;
+    setErrore(typeof m === 'function' ? m(esito.error) : m);
+  }
+  return esito;
+}
+```
+
+**Test da aggiungere** (`src/test/state/syncedDispatch.test.jsx`):
+
+```js
+it("un'azione negata ritorna un errore, non un successo", async () => {
+  const { dispatch } = setup({ uid: 'junior1' });
+  const esito = await dispatch({ type: 'ADD_TASK', payload: task({ category: 'payment' }) });
+  expect(esito.error).toBeTruthy();
+  expect(esito.error.name).toBe('PermessoNegato');
+});
+```
+
+E un caso di contratto in `salvaEChiudi.test.jsx`, che è il file nato per
+misurare esattamente questo: «il pannello non si è chiuso E i dati sono ancora
+lì», con un utente a cui il guard nega.
+
+---
+
+### A-2 · `registra_audit()` aperta a chiunque sia autenticato
+
+**Dove.** Database di produzione, `pg_proc.proacl`:
+
+```
+registra_audit → {postgres=X/postgres, authenticated=X/postgres, service_role=X/postgres}
+```
+
+**Corpo attuale** (letto da `pg_get_functiondef`, non dalla migrazione):
+
+```sql
+begin
+  if v_me is null then raise exception 'Non autenticato.'; end if;
+  select name into v_nome from public.users where id = v_me;
+  insert into public.audit_log (actor_id, actor_name, action, target_type, target_id, details)
+  values (v_me, v_nome, p_action, p_target_type, p_target_id, coalesce(p_details, '{}'::jsonb))
+  returning id into v_id;
+```
+
+**Perché è grave.** Quattro cose insieme:
+
+1. **Nessun gate oltre «sei autenticato».** Un invitato ancora `pending`, o un
+   utente disattivato con la sessione ancora valida, scrive nel registro: la
+   RESTRICTIVE `rls_active_only` non lo ferma, perché una `SECURITY DEFINER`
+   non attraversa la RLS. È esattamente la categoria di chiamante che
+   `adminPredicate.ts` è stato scritto per respingere.
+2. **`action`, `target_type`, `target_id` e `details` li sceglie il chiamante.**
+   `audit_log` è la fonte di verità su chi ha fatto cosa, letta dagli admin in
+   `AuditLogSection`. Chiunque può scriverci voci verosimili (`user.bannato`,
+   `user.hard_delete` su un id a scelta) e — soprattutto — **annegare** le voci
+   vere sotto migliaia di voci false. `actor_id` resta `auth.uid()`, quindi non
+   c'è impersonificazione; c'è però contraffazione e rumore, che su un registro
+   di controllo hanno lo stesso effetto pratico.
+3. **Nessun tetto e nessun limite di frequenza.** È lo scenario che `C-1` del 2
+   settembre ha chiuso su `segnala_errore_client` con tre difese — tetti di
+   lunghezza, limite di frequenza, tetto sulle righe — dichiarando esplicitamente
+   che «è il tetto sulle RIGHE a rendere calcolabile il caso peggiore». Qui non
+   ce n'è nessuna delle tre, su una funzione che accetta un `jsonb` libero.
+4. **Nessun percorso dell'app la chiama.** `grep -rn "registra_audit" src/` dà
+   una sola occorrenza: `src/test/integration/rls.test.js:243`. Le scritture
+   reali su `audit_log` arrivano dai trigger di riga e dalle Edge Function via
+   `_shared/audit.ts`, che usa la `service_role` e **inserisce direttamente**,
+   con il commento che spiega perché non passi di qui.
+
+Cioè: è superficie d'attacco pura, senza un utente legittimo.
+
+**Soluzione — revocare.** È la stessa mossa di
+`20260729190431_revoke_reset_completo_execute_authenticated.sql`, e senza il
+motivo che l'aveva fatta rimangiare: lì un admin doveva poter chiamare la RPC
+dall'app, qui nessuno la chiama.
+
+```sql
+-- supabase/migrations/20260905090000_revoke_registra_audit_authenticated.sql
+--
+-- `public.registra_audit()` è concessa a `authenticated` dalla 20260826214000 e
+-- NON è chiamata da nessun percorso dell'applicazione: l'unica occorrenza in
+-- src/ è in test/integration/rls.test.js. Le scritture vere su audit_log
+-- arrivano dai trigger di riga e da _shared/audit.ts, che gira con la
+-- service_role e inserisce direttamente — per la ragione scritta in cima a
+-- quel file (con la service_role `auth.uid()` è null, l'attore va passato).
+--
+-- Finché il GRANT resta, chiunque abbia una sessione — compreso un invitato
+-- `pending` e un utente disattivato, che una SECURITY DEFINER non fa passare
+-- dalla RLS — può scrivere nel registro di controllo voci con `action`,
+-- `target_*` e `details` a sua scelta, senza tetto e senza limite di
+-- frequenza. Non può falsificare `actor_id` (è auth.uid()), ma può
+-- contraffare il resto e sommergere le voci vere: su un registro le due cose
+-- si equivalgono.
+--
+-- Non è una restrizione nuova: è la stessa mossa della
+-- 20260729190431 su reset_completo, senza la ragione che lì l'aveva fatta
+-- rimangiare 24 ore dopo (un admin doveva poterla chiamare dall'app).
+revoke execute on function public.registra_audit(text, text, text, jsonb) from authenticated, public;
+grant  execute on function public.registra_audit(text, text, text, jsonb) to service_role;
+
+comment on function public.registra_audit(text, text, text, jsonb) is
+  'Scrittura sul registro di controllo per i percorsi che hanno una sessione '
+  'utente. Riservata a service_role dalla 20260905090000: nessun percorso '
+  'client la usa, e il GRANT ad authenticated era una porta di contraffazione '
+  'del registro senza un chiamante legittimo. Se un domani servisse dal client, '
+  'va riaperta CON il gate (private.is_active_user()), i tetti di lunghezza e '
+  'il limite di frequenza di segnala_errore_client (20260903094500) — le tre '
+  'difese servono tutte e tre, come C-1 del 2 settembre ha stabilito.';
+```
+
+**Se invece la si vuole tenere aperta** (per un uso client futuro), il minimo è
+il gate + i tre limiti già scritti per la porta gemella:
+
+```sql
+  if not private.is_active_user() then
+    raise exception 'Operazione riservata agli utenti attivi.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  if not (select public.rate_limit_incrementa('registra_audit:' || v_me::text, 1, 30)) then
+    return null;
+  end if;
+  -- e i left() su p_action / p_target_type / p_target_id come in segnala_errore_client
+```
+
+**Da aggiornare insieme.** `FUNZIONI_SECURITY_DEFINER_VERIFICATE` in
+`scripts/verifica-advisor/advisor.js` e la tabella §1 di `docs/SICUREZZA.md` —
+è la lezione che `C-1` del 2 settembre ha già pagato una volta.
+
+---
+
+### A-3 · Leaked password protection spenta
+
+**Dove.** Advisor di sicurezza del progetto di produzione:
+
+> `auth_leaked_password_protection` — WARN — *Leaked password protection is
+> currently disabled.*
+
+E lato client, `src/lib/validators.js:44`:
+
+```js
+export const PASSWORD_MIN = 8;
+export const passwordValida = (messaggio = `…almeno ${PASSWORD_MIN} caratteri.`) =>
+  (v) => (typeof v === 'string' && v.length >= PASSWORD_MIN ? null : messaggio);
+```
+
+**Perché è grave.** Otto caratteri senza nessun altro requisito e senza
+controllo contro HaveIBeenPwned significa che `password` e `12345678` passano.
+È l'unico fattore di autenticazione dell'app — non c'è MFA — e protegge la PII
+di persone esterne al team (`clients`) e il registro contabile dei buoni
+viaggio. Tutto il lavoro fatto su RLS, gate admin e allow-list di origini
+presuppone che la sessione appartenga a chi dice di essere.
+
+È anche l'unico rilievo di questo audit che **nessun file del repository può
+chiudere**: sta nelle impostazioni del progetto Supabase, cioè nel livello che
+gli script di verifica non guardano. Per questo è alta priorità nonostante il
+rimedio sia una spunta.
+
+**Soluzione, in tre passi.**
+
+1. **Piattaforma** — Supabase → Authentication → Policies:
+   * *Leaked password protection* → **on**;
+   * *Minimum password length* → **12** (allineare `PASSWORD_MIN`);
+   * *Password requirements* → almeno `lower + upper + digits`.
+
+2. **Client** — allineare il validatore, così l'utente legge il requisito prima
+   di inviare invece di riceverlo come errore da GoTrue:
+
+```js
+// src/lib/validators.js
+// I requisiti rispecchiano quelli configurati in Supabase → Auth → Policies.
+// Sono DUE, e il secondo non è di troppo: quello della piattaforma è l'unico
+// che valga anche per chi chiama /auth/v1 senza passare da qui; questo evita
+// di far scoprire il requisito all'utente sotto forma di errore del server —
+// la stessa asimmetria dei tetti di errorReporting (C-1 del 2 settembre).
+export const PASSWORD_MIN = 12;
+
+const REQUISITI = [
+  [/.{12,}/,  'almeno 12 caratteri'],
+  [/[a-z]/,   'una lettera minuscola'],
+  [/[A-Z]/,   'una lettera maiuscola'],
+  [/\d/,      'una cifra'],
+];
+
+export const passwordValida = () => (v) => {
+  if (typeof v !== 'string') return 'La password deve avere ' + REQUISITI.map(r => r[1]).join(', ') + '.';
+  const mancanti = REQUISITI.filter(([rx]) => !rx.test(v)).map(([, testo]) => testo);
+  return mancanti.length ? `La password deve avere ${mancanti.join(', ')}.` : null;
+};
+```
+
+I due call site (`auth/UpdatePasswordScreen.jsx:30`,
+`components/shell/AccountSicurezza.jsx:49`) non cambiano: chiamano già
+`passwordValida()`.
+
+3. **Presidio** — aggiungere l'advisor `auth_leaked_password_protection`
+   all'elenco che `npm run verifica:advisor` fa fallire, così la spunta non può
+   tornare giù in silenzio. È il livello che oggi manca a `scripts/verifica-advisor/`.
+
+---
+
+### A-4 · `xlsx@0.18.5`: due CVE ancora aperte
+
+**Dove.** `package.json:14` → `"xlsx": "^0.18.5"`, risolta a `0.18.5` in
+`package-lock.json:6683`.
+
+* `GHSA-4r6h-8v6p-xvw6` (CVE-2023-30533) Prototype Pollution — fix in 0.19.3+
+* `GHSA-5pgg-2g8v-p4x9` (CVE-2024-22363) ReDoS — fix in 0.20.2+
+
+**Stato reale.** La mitigazione in piedi è ottima e va detto: il parse gira in
+un worker **usa-e-getta** (`src/lib/xlsxWorker.js`), terminato dopo ogni file,
+con timeout a 30 s, tetto a 15 MB, opzioni di lettura fisse (`cellHTML: false`,
+`cellFormula: false`), sanificazione delle chiavi al confine e
+`withPrototypePollutionGuard` sul passaggio nel realm principale. Il
+ragionamento — «cambiare la categoria della difesa da rilevare a contenere» — è
+corretto e raro.
+
+**Ma resta una mitigazione, non un fix**, e il commento in cima al worker lo
+dichiara. Ho riverificato oggi: `https://cdn.sheetjs.com` risponde ancora 403
+**da questo ambiente**. Il che è il punto: la ragione per cui il rilievo è
+fermo da un mese non è tecnica, è di rete, e va rimossa in un ambiente diverso
+da quello in cui è stata constatata.
+
+**Soluzione, in ordine di preferenza.**
+
+1. **Fix definitivo** — dalla propria macchina di sviluppo o da un runner GitHub
+   Actions (dove l'egress non è filtrato):
+
+```bash
+npm install --save https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
+npm test && npm run build && npm run verifica:bundle
+```
+
+`package-lock.json` registra la URL del tarball: da lì `npm ci` funziona anche
+in CI senza toccare `cdn.sheetjs.com` di nuovo, perché la risorsa è pinnata per
+integrità. **Il worker non va rimosso**: resta la difesa in profondità, e il
+suo commento va aggiornato da «fix da fare» a «fix fatto, il worker resta
+perché il contenimento vale comunque».
+
+2. **Se il CDN resta irraggiungibile ovunque** — sostituire la libreria per i
+   due usi reali del progetto:
+   * lettura CSV → un parser dedicato (`papaparse`, manutenuto, ~7 kB gzip);
+   * scrittura `.xlsx` → `exceljs` o `write-excel-file`.
+
+   Solo la lettura `.xls`/`.xlsx` legacy resterebbe scoperta, ed è la metà
+   dell'import anagrafica: va misurato quanti file reali la usano prima di
+   decidere.
+
+3. **Nel frattempo**, un presidio che il repository non ha: il worker è
+   costruito con `new Worker(new URL("./xlsxWorker.js", import.meta.url))`, cioè
+   nello stesso origin. Aggiungere `sandbox` non è possibile per un worker, ma
+   `MAX_IMPORT_BYTES` può scendere da 15 MB a 5 (nessun export anagrafica
+   realistico lo supera) e `TIMEOUT_MS` da 30 s a 15: entrambi riducono la
+   finestra della ReDoS senza costare nulla.
+
+---
+
+### M-1 e M-2 · Focus da tastiera e affordance solo-hover
+
+**Dove.** 21 `outline: "none"` in 18 file; una sola regola `:focus-visible` in
+tutto il progetto, e sta in `src/components/liste/liste.css:54`, scoped a
+`.lv-root`. Fuori dal modulo Liste, il focus è segnalato — quando lo è — da un
+handler:
+
+```jsx
+// src/components/shell/ProfileEditor.jsx:280 e altri 14 punti
+onFocus={e => e.target.style.borderColor = "var(--gold)"}
+```
+
+Quindici `onFocus` contro **quaranta** `onMouseEnter`: venticinque elementi
+cambiano aspetto col mouse e non con la tastiera.
+
+**Perché conta.** WCAG 2.4.7 (*Focus Visible*, AA) e 2.4.11 (*Focus Not
+Obscured*, AA in WCAG 2.2). Un gestionale si usa a tastiera — è il pattern
+d'uso, non un caso limite — e il progetto ha già investito su questo asse
+(`attivaConTastiera`, `cellaAzionabile`, `useTrappolaFocus`, `jsx-a11y` in CI,
+la regola `no-restricted-syntax` su `<tr>`/`<td>`). Il pezzo mancante è quello
+che nessuna delle due regole di lint può vedere, perché non è una prop mancante
+ma un `outline` tolto.
+
+**Soluzione.** Una regola globale, che costa quattro righe e vale ovunque —
+compresi i 21 punti che hanno tolto l'outline, perché `:focus-visible` viene
+dopo nella cascata:
+
+```css
+/* src/styles/global.css — dopo il blocco UTILITY
+   ─── FOCUS DA TASTIERA (M-1) ───
+   Ventuno `outline: "none"` sparsi negli stili inline hanno tolto l'anello di
+   focus del browser, e quindici `onFocus` che cambiano borderColor l'hanno
+   rimpiazzato solo su altrettanti input: venticinque elementi interattivi
+   cambiano aspetto col mouse (`onMouseEnter`) e non con la tastiera.
+   `:focus-visible` è la pseudo-classe giusta e non `:focus`: il browser la
+   applica quando l'elemento ha ricevuto il focus in un modo per cui un
+   indicatore è UTILE (Tab, frecce, tastiera virtuale), non dopo un click —
+   che è il motivo per cui gli `outline: none` erano stati scritti.
+   Vale anche sui punti che l'outline se lo tolgono in linea: uno stile inline
+   vince sulla cascata per la stessa proprietà, ma `:focus-visible` la
+   ridichiara solo mentre il focus c'è, ed è quello il momento che conta. */
+:where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* Sui fondi scuri (testate navy, toast, ErrorBoundary) l'oro non stacca:
+   il bianco sì, e il contrasto resta sopra 3:1 in entrambi i versi. */
+.vd-su-scuro :focus-visible { outline-color: #fff; }
+```
+
+Poi, per **M-2**, la regola meccanica: dove c'è `onMouseEnter` per un effetto
+visivo, serve `onFocus` con lo stesso effetto (e `onBlur` con `onMouseLeave`).
+Il modo di non doverselo ricordare è una utility, sulla falsariga di
+`attivaConTastiera`:
+
+```js
+// src/lib/a11y.js
+/**
+ * Le quattro prop che fanno reagire un elemento al mouse E alla tastiera con
+ * lo stesso effetto. Nasce dal rilievo M-2 del 4 settembre: quaranta
+ * `onMouseEnter` contro quindici `onFocus`, cioè venticinque affordance che
+ * esistono solo per chi usa il mouse.
+ *
+ * Si spreada sulle props, come `attivaConTastiera`:
+ *   <div {...evidenziaConTastiera(attivo => setHover(attivo))}>
+ */
+export const evidenziaConTastiera = (imposta) => ({
+  onMouseEnter: () => imposta(true),
+  onMouseLeave: () => imposta(false),
+  onFocus:      () => imposta(true),
+  onBlur:       () => imposta(false),
+});
+```
+
+E la regola che impedisce al numero di risalire, nella forma già usata per
+`CELLA_TABELLA_CLICCABILE_SENZA_TASTIERA` in `eslint.config.js`:
+
+```js
+const HOVER_SENZA_TASTIERA = {
+  selector: 'JSXOpeningElement'
+    + ':has(JSXAttribute[name.name="onMouseEnter"])'
+    + ':not(:has(JSXAttribute[name.name="onFocus"]))',
+  message:
+    'Effetto visivo legato al solo hover: chi naviga da tastiera non lo vede. '
+    + 'Usa evidenziaConTastiera() da lib/a11y.js (spread sulle props). Se '
+    + "l'effetto è puramente decorativo, disattiva la regola con il perché "
+    + 'accanto.',
+};
+```
+
+⚠️ Questa regola parte **con violazioni**, a differenza delle altre di questo
+file: va introdotta come `warn`, portata a zero, e solo allora promossa a
+`error` — la stessa disciplina del ratchet di `jsconfig.json`.
+
+---
+
+### M-3 · Cinque funzioni trigger eseguibili da `anon`
+
+**Dove.** `pg_proc.proacl` in produzione:
+
+```
+audit_clients_delete   → {=X/postgres, postgres=X, anon=X, authenticated=X, service_role=X}
+audit_clients_insert   → idem
+audit_liste_truncate   → idem
+audit_users_delete     → idem
+audit_users_privilegi  → idem
+```
+
+`=X/postgres` è il GRANT a **PUBLIC**. Sono le uniche funzioni del progetto
+rimaste così: ogni altra ha una `revoke ... from public` esplicita.
+
+**Sfruttabilità: bassa.** Tutte e cinque hanno `RETURNS trigger`, e PostgREST
+non espone le funzioni che ritornano `trigger`; Postgres stesso rifiuta di
+chiamarle fuori da un contesto di trigger. L'advisor le segnala perché guarda i
+privilegi, non la chiamabilità. **Ma va sistemato lo stesso**, per due ragioni
+che non dipendono dallo sfruttamento:
+
+* è l'unico punto in cui la disciplina «revoca esplicita su ogni definer» ha una
+  falla, e una falla senza motivo è quella che il prossimo `create function`
+  copia dal vicino — lo stesso argomento con cui `VIETATO_APPGLOBALS` esiste;
+* tiene acceso un WARN nell'advisor. Cinque WARN permanenti su una dashboard
+  sono il modo in cui il sesto, vero, passa inosservato — è l'argomento di
+  `verifica:audit` sul rumore.
+
+**Soluzione.**
+
+```sql
+-- supabase/migrations/20260905090100_revoke_trigger_functions_public.sql
+--
+-- Le cinque funzioni di audit sono TRIGGER function: `RETURNS trigger`, quindi
+-- PostgREST non le espone su /rest/v1/rpc e Postgres rifiuta di chiamarle fuori
+-- da un trigger. L'advisor le segnala guardando i privilegi, non la
+-- chiamabilità, ed è il verso giusto in cui sbagliare per un advisor.
+--
+-- Si revoca comunque, per due ragioni che non dipendono dallo sfruttamento:
+-- sono le uniche definer del progetto senza revoca esplicita — cioè la forma
+-- che il prossimo `create function` copia dal vicino — e cinque WARN
+-- permanenti sono il modo in cui il sesto passa inosservato (lo stesso
+-- argomento di verifica:audit sul rumore).
+--
+-- Il trigger continua a funzionare: l'esecutore di una trigger function è il
+-- proprietario della tabella, non il ruolo che ha fatto la INSERT.
+do $$
+declare f text;
+begin
+  foreach f in array array[
+    'audit_clients_delete()', 'audit_clients_insert()', 'audit_liste_truncate()',
+    'audit_users_delete()',   'audit_users_privilegi()'
+  ] loop
+    execute format('revoke all on function public.%s from public, anon, authenticated', f);
+  end loop;
+end $$;
+```
+
+**Verifica dopo l'applicazione** — che i trigger scrivano ancora: una INSERT su
+`clients` da un client autenticato deve continuare a produrre la riga in
+`audit_log`. Il caso sta già in `src/test/integration/rls.test.js`.
+
+---
+
+### M-4 · Le Edge Function restituiscono l'errore interno grezzo
+
+**Dove.** Tutte e quattro le funzioni con CORS, nel `catch` finale:
+
+```ts
+} catch (err: unknown) {
+  const msg = err instanceof Error ? err.message : "Errore interno";
+  console.error("[delete-user]", msg);
+  return json({ error: msg }, 500);   // ← il messaggio interno va al client
+}
+```
+
+più tre 500 espliciti che concatenano il messaggio di GoTrue o di PostgREST:
+
+* `delete-account/index.ts` → `"Impossibile completare l'eliminazione: " + banErr.message`
+* `set-user-active/index.ts` → `"Impossibile aggiornare l'accesso: " + authErr.message` e `"…il profilo non si è salvato: " + dbErr.message`
+
+**Perché conta.** `delete-user` ha già fatto la scelta giusta sul ramo che
+conta di più — «L'errore è stato registrato: riprova, e se persiste contatta
+chi amministra il progetto» — con l'errore vero solo a log. Gli altri percorsi
+non l'hanno seguita, e restituiscono a un chiamante (che è admin, ma è pur
+sempre l'esterno) nomi di colonna, vincoli violati e messaggi interni di GoTrue.
+È la stessa asimmetria che `MSG_NON_AUTORIZZATO` chiude sul rifiuto di
+autorizzazione — un messaggio solo per tre casi diversi, perché distinguerli
+dice quanto manca ad arrivarci — non applicata ai guasti.
+
+**Soluzione.** Un helper condiviso, accanto agli altri di `_shared/`:
+
+```ts
+// supabase/functions/_shared/erroreInterno.ts
+//
+// La risposta a un guasto: dettagliata a log, opaca al chiamante.
+//
+// `delete-user` aveva già la forma giusta per la deleteUser fallita («L'errore
+// è stato registrato: riprova, e se persiste contatta chi amministra il
+// progetto»), e le altre tre funzioni non l'avevano seguita: restituivano
+// `err.message` di GoTrue o di PostgREST, cioè nomi di colonna, vincoli
+// violati e messaggi interni. È la stessa scelta di MSG_NON_AUTORIZZATO in
+// adminPredicate.ts — un messaggio solo, perché distinguerli dice a chi
+// riceve la risposta più di quanto gli serva — applicata ai guasti invece che
+// ai rifiuti.
+//
+// Il `codice` è ciò che tiene insieme i due lati: chi riceve l'errore lo legge
+// a schermo, chi guarda i log lo ritrova accanto al messaggio vero. Stessa
+// forma di `codiceSegnalazione()` in src/lib/errorReporting.js.
+export function erroreInterno(tag: string, err: unknown): { error: string; codice: string } {
+  const codice = `VD-${Date.now().toString(36).toUpperCase()}`;
+  const dettaglio = err instanceof Error ? err.message : String(err);
+  console.error(`[${tag}] (${codice})`, dettaglio);
+  return {
+    codice,
+    error:
+      "Operazione non riuscita. L'errore è stato registrato: riprova, e se " +
+      `persiste segnala il codice ${codice} a chi amministra il progetto.`,
+  };
+}
+```
+
+Uso, identico nelle quattro funzioni:
+
+```ts
+} catch (err: unknown) {
+  return json(erroreInterno("delete-user", err), 500);
+}
+```
+
+e sui tre 500 espliciti:
+
+```ts
+if (banErr) return json(erroreInterno("delete-account/ban", banErr), 500);
+```
+
+⚠️ **Non toccare i 4xx**: `409` su email già registrata e `502` sul servizio
+email non configurato sono messaggi *azionabili*, scritti apposta per dire a
+chi amministra cosa fare. Sono la ragione per cui questo non è un `catch` unico
+per tutto.
+
+---
+
+### M-5 · `checkJs` copre meno della metà del codice
+
+**Dove.** `jsconfig.json:47-50`:
+
+```json
+"include": ["src/lib/**/*.js", "src/state/**/*.js"]
+```
+
+`src/components` (140 `.jsx`) e `src/hooks` (19 `.js`) restano fuori: 174 file
+su 286 non-test, cioè la maggioranza del codice e **tutta** la superficie in cui
+i tipi del dominio (ruoli, categorie, priorità, stati) vengono consumati. Anche
+`strict` è `false`, quindi `null`/`undefined` non sono distinti nemmeno dove
+il controllo gira.
+
+Il file lo dichiara già («lo scope è un ratchet… `src/components/` e
+`src/hooks/` sono il prossimo passo»), e la regola d'ingaggio è scritta: si
+allarga quando la cartella nuova è a zero.
+
+**Soluzione, nell'ordine.**
+
+1. `src/hooks` — 19 file, quasi tutti già con JSDoc:
+
+```json
+"include": ["src/lib/**/*.js", "src/state/**/*.js", "src/hooks/**/*.js"]
+```
+
+2. Poi `src/components/ui` (primitive, poche prop), poi le viste.
+
+3. Infine `"strict": true`, che è il passo che dà di più e va fatto per
+   ultimo — su un progetto senza `any` sparsi vale quasi solo per
+   `strictNullChecks`, cioè per la classe di difetto che questo dominio
+   produce davvero (un `task.client` assente, un `member` non trovato).
+
+Il criterio da non rilassare: si allarga **quando la cartella nuova è a zero**,
+e nello stesso commit. Diciassette errori chiusi all'attivazione, non
+silenziati, è il precedente da tenere.
+
+---
+
+### M-6 · La CSP non riporta le violazioni
+
+**Dove.** `vercel.json:16`. La policy è eccellente e non ha direttive
+permissive, ma non ha nemmeno un endpoint di raccolta: `docs/SICUREZZA.md:713`
+dichiara «Violazioni CSP: **0**», ed è una misura fatta a mano, in Chromium,
+una volta. Una regressione — un `<style>` reintrodotto, una CDN aggiunta, un
+`worker-src` che smette di bastare — è **silenziosa per l'utente** (l'elemento
+semplicemente non si carica) e invisibile a chi mantiene.
+
+**Soluzione.** L'endpoint esiste già: `error_reports` con la sua RPC concessa ad
+`anon`, che è esattamente il canale giusto — una violazione CSP può avvenire
+prima del login.
+
+```jsonc
+// vercel.json — aggiungere in coda al valore della CSP
+"…; object-src 'none'; report-uri /csp-report; report-to csp"
+```
+
+e, dato che `report-uri` vuole un endpoint che accetti POST mentre il progetto
+è statico, la via più corta è raccogliere lato client — l'evento `securitypolicyviolation`
+è già disponibile e non richiede infrastruttura:
+
+```js
+// src/lib/errorReporting.js — dentro installaHandlerGlobali()
+// Una violazione CSP non produce un errore JS: l'elemento semplicemente non si
+// carica, e per l'utente è una schermata che manca un pezzo. Questo handler la
+// fa arrivare dove arrivano gli altri errori, con lo stesso codice VD-… che
+// l'utente può dettare. È il presidio che mancava a «Violazioni CSP: 0» di
+// SICUREZZA.md §8, che finora era una misura fatta a mano una volta sola.
+const onCsp = (ev) => {
+  const codice = codiceSegnalazione();
+  registraSegnalazione(codice, 'csp',
+    new Error(`${ev.violatedDirective}: ${ev.blockedURI || '(inline)'}`),
+    `${ev.sourceFile ?? ''}:${ev.lineNumber ?? ''}`);
+};
+document.addEventListener('securitypolicyviolation', onCsp);
+```
+
+(da deregistrare nel cleanup insieme agli altri due, e da coprire con un caso
+in `src/test/lib/errorReporting.test.js`).
+
+---
+
+### M-7 · Un driver legge email e telefono di tutto il team
+
+**Dove.** `pg_policies`: `user_contacts_select` è `using (true)` — introdotta
+dalla `20260629222802_user_contacts_select_team.sql`, che è **esplicita e
+deliberata**: «Su richiesta del prodotto i contatti diventano una rubrica
+interna».
+
+**Perché lo segnalo comunque.** La decisione è del 29 giugno. Il ruolo `driver`
+è stato ristretto dopo: è fuori da tutte e quattro le policy di `clients` «per
+disegno: non ha accesso ai dati commerciali» (`src/lib/permissions.js`), fuori
+da `can_liste()`, e in `canViewTask` vede solo i propri task. Un driver è
+tipicamente un collaboratore esterno o occasionale. La rubrica gli dà email e
+telefono di tutto il personale interno — l'unico dato del sistema per cui il
+suo ruolo non ha una restrizione, e non perché qualcuno l'abbia deciso, ma
+perché la policy è più vecchia della restrizione.
+
+Non è un difetto: è uno **scope che non corrisponde più al modello dei ruoli**.
+La domanda da porre al prodotto è una sola: *un driver deve poter vedere la
+rubrica?*
+
+**Soluzione, se la risposta è no.** La forma rispecchia `can_liste()`:
+
+```sql
+-- supabase/migrations/20260905090200_user_contacts_rubrica_esclude_driver.sql
+--
+-- La 20260629222802 ha aperto la lettura di user_contacts a ogni utente
+-- autenticato («rubrica interna», su richiesta del prodotto). È del 29 giugno:
+-- il ruolo `driver` è stato ristretto DOPO — fuori da tutte e quattro le policy
+-- di clients, fuori da can_liste(), e in canViewTask limitato ai propri task.
+-- La rubrica è rimasta l'unico dato del sistema su cui il driver non ha una
+-- restrizione, non per una decisione ma perché la policy è più vecchia della
+-- restrizione.
+--
+-- Si mantiene la rubrica per i ruoli interni e la si chiude al driver, che
+-- continua a leggere il PROPRIO contatto (ne ha bisogno: ProfileEditor).
+drop policy if exists user_contacts_select on public.user_contacts;
+
+create policy user_contacts_select on public.user_contacts
+  for select to authenticated
+  using (
+    user_id = (select auth.uid())
+    or (select private.can_liste())   -- admin, manager, agent: attivi e approvati
+  );
+```
+
+e il verdetto corrispondente lato client, accanto agli altri di
+`src/lib/permissions.js`:
+
+```js
+// ─── RUBRICA INTERNA ─────────────────────────────────────────────────────────
+// Rispecchia user_contacts_select (20260905090200). Il driver vede solo il
+// proprio contatto: è l'unico dato su cui il suo ruolo non aveva una
+// restrizione, e non per scelta — vedi M-7 dell'audit del 4 settembre.
+export const canViewContacts = (team, userId, targetId) =>
+  targetId === userId || canAccessListe(team, userId);
+```
+
+**Da aggiornare insieme.** `ContactMenuItem.jsx` / `ContactActions.jsx`, che
+oggi mostrano i pulsanti a chiunque, e un caso in
+`src/test/integration/rls.test.js`.
+
+---
+
+### M-8 · Il sistema di stili
+
+**Dove.** 344 costanti esportate fra `src/styles/common.js` e quindici file
+`*Styles.js`, più 335 `style={{…}}` dinamici rimasti nei componenti. I nomi
+sono meccanici per convenzione dichiarata: `boxF125Warning`,
+`rowCenterBetween4`, `txtF10Bold2`, `mt2`.
+
+**Va detto cosa questo NON è.** Non è disordine: è il risultato di M-1
+dell'audit del 12 agosto, che ha sollevato 1.153 oggetti letterali a costanti di
+modulo per rendere stabile la prop e permettere a `memo` di saltare il lavoro —
+e che è ciò che ha permesso di togliere `'unsafe-inline'` da `style-src`. Il
+commento in cima a `common.js` è chiaro sul fatto che sia «un registro delle
+forme GIÀ IN USO, non un design system», e che il nome meccanico sia un
+segnale: «dice che quella forma non ha ancora un significato nell'app».
+
+**Il costo, oggi.** In `clientImportModalStyles.js` convivono
+`rowCenterBetween`, `rowCenterBetween2`, `rowCenterBetween3`,
+`rowCenterBetween4` e `rowCenterBetween5`: cinque varianti di «riga, centrata,
+spaziata» che differiscono per un `flexWrap` e un `gap`. Nessuna è
+riutilizzabile fuori dal file, nessun cambio di tema le tocca tutte, e — la
+conseguenza visibile — **non c'è un tema scuro**: `global.css` dichiara
+`color-scheme: light` e i colori vivono in 344 oggetti JS che nessuna media
+query raggiunge. Per un gestionale usato tutto il giorno è una richiesta che
+arriva, e oggi costerebbe un passaggio su tutti e 344.
+
+**Soluzione, incrementale e senza big-bang.**
+
+1. **Promuovere, non riscrivere.** `src/styles/tokens.js` esiste già ed è il
+   posto dichiarato («ci si arriva promuovendo di qui, non scrivendo qui una
+   forma nuova»). Il criterio operativo che manca: *una forma usata in ≥3 file
+   sale in `tokens.js` con un nome semantico*. Le cinque `rowCenterBetween*`
+   diventano una `rigaTestata({ wrap, gap })`.
+
+2. **Portare i colori nelle variabili CSS**, che è il passo che sblocca il tema
+   scuro. Sono già quasi tutti lì (`var(--navy)`, `var(--gold)`); i residui sono
+   i letterali `#FEE2E2`, `#FEF3C7`, `rgba(255,255,255,0.1)` sparsi negli
+   `*Styles.js`. Una volta che sono token, il tema scuro è un blocco solo:
+
+```css
+/* src/styles/global.css */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="chiaro"]) {
+    --surface: #12141a;  --surface2: #1a1d26;  --card: #1f2430;
+    --text: #e8e6e0;     --text-muted: #9a9aa8;  --border: #2c303c;
+    color-scheme: dark;
+  }
+}
+```
+
+3. **Un test di non-regressione sul numero**, nella forma già usata da
+   `verifica:convenzioni` per gli stili inline dinamici: il conteggio delle
+   costanti non deve salire senza che qualcuna scenda in `tokens.js`. È il
+   ratchet che impedisce al registro di crescere per inerzia.
+
+⚠️ Questo è il rilievo con il rapporto valore/rischio peggiore dei diciannove:
+tocca ogni schermata e non chiude nessun difetto funzionale. Va fatto **dopo**
+gli altri, una cartella alla volta, e solo se il tema scuro o un restyle lo
+rendono necessario. Lo segnalo perché è il debito che cresce da solo, non
+perché vada aggredito adesso.
+
+---
+
+### Rilievi di bassa priorità
+
+**B-1 · `clients` ripete la logica di ruolo in linea.** Le quattro policy
+scrivono `EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid() AND users.role
+= ANY(ARRAY['admin','manager','agent']))` invece di chiamare un helper, mentre
+ogni altra tabella usa `private.is_admin()` / `is_active_user()` /
+`can_liste()`. Funzionalmente sono equivalenti (la RESTRICTIVE `rls_active_only`
+aggiunge attivo+approvato), ma è la stessa domanda scritta in cinque posti —
+esattamente ciò che il preambolo di `canAccessListe` in `permissions.js` esiste
+per evitare. Rimedio: `private.can_clienti_scrittura()` e
+`private.can_clienti_eliminazione()`, che rispecchino le due funzioni già in
+`permissions.js`, e riscrivere le policy come `using ((select private.can_clienti_scrittura()))`.
+
+**B-2 · Spread in un array di dipendenze.**
+`src/hooks/useDebouncedTableSubscription.js:97`:
+`}, [enabled, delay, ...deps]);` — React solleva se la lunghezza cambia fra due
+render, e `react-hooks/exhaustive-deps` non può verificare un array a lunghezza
+variabile. Oggi tutti i chiamanti passano `deps` a lunghezza costante. Rimedio:
+serializzare (`[enabled, delay, JSON.stringify(deps)]`) o documentare
+l'invariante con un `if (import.meta.env.DEV)` che confronti la lunghezza con
+quella del render precedente e sollevi con un messaggio chiaro.
+
+**B-3 · `redigiPii` non copre `url` e `user_agent`.**
+`src/lib/errorReporting.js:55-59` redige email e telefoni da `message` e
+`stack`, ma `url` (`window.location.href`) e `userAgent` passano grezzi. Con
+`rewrites` a `/` l'URL non porta oggi PII, ma è un'assunzione sul routing che
+non è scritta da nessuna parte, e il commento sulla tabella dice «non deve
+contenere PII oltre a quella già presente in users». Rimedio: passare anche
+`url` da `redigiPii`, e troncare `userAgent` alla sola famiglia di browser.
+
+**B-4 · Indici.** `task_history.actor_id` è una FK senza indice di copertura:
+ogni `DELETE` su `users` fa una scansione. Sette indici non sono mai stati usati
+(`idx_users_active`, `idx_tasks_assignees`, `idx_lista_history_actor_id`,
+`rate_limit_finestra`, `audit_log_at_desc`, `audit_log_actor_at`,
+`idx_users_invited_by`, `idx_lista_beneficiari_created_by`). ⚠️ «Mai usato» su
+`audit_log` e `rate_limit` significa «tabella ancora giovane», non «indice
+inutile»: da rivalutare fra qualche mese, non da rimuovere ora.
+
+**B-5 · `delete-account`: ban prima, pulizia poi.** Il ban di dieci anni è
+applicato e verificato; la pulizia della PII (`users`, `user_contacts`,
+`push_subscriptions`, avatar) è in `Promise.allSettled` e i fallimenti finiscono
+solo in `console.error`. L'utente resta bloccato fuori con i propri dati dentro,
+e nessuno lo sa. Rimedio: restituire un `warning` nella risposta quando almeno
+una pulizia fallisce — come già fa `invite-user` per l'upsert del profilo — e
+scrivere una voce `user.autoeliminato` con l'elenco dei residui via
+`registraAudit`, così chi amministra ha dove guardare.
+
+**B-6 · `invite-user` non valida il formato dell'email.** Valida ruolo (contro
+un `Set`), capacity (1–100), colore (regex esadecimale) e poi passa `email` a
+GoTrue senza controllarla. GoTrue la respinge, quindi non è un buco: è
+un'asimmetria che costa un giro di rete e restituisce un messaggio di GoTrue al
+posto di uno del progetto. Rimedio: la stessa `EMAIL_RX` di
+`src/lib/validators.js`, copiata (le Edge Function non importano da `src/`) con
+il commento che dice da dove viene.
+
+**B-7 · Navigabilità di `docs/`.** 40 handoff + 21 audit. `INDEX.md` distingue
+già vigente da storico, ed è più di quanto facciano quasi tutti i progetti. Il
+costo residuo è trovare *la regola di oggi* su un argomento: la risposta è
+sparsa fra `CLAUDE.md`, l'audit che l'ha introdotta e quello che l'ha corretta.
+Rimedio a costo basso: spostare gli handoff anteriori a settembre in
+`docs/handoff/archivio/` e aggiungere in `INDEX.md` una tabella
+«argomento → documento vigente» per i dieci temi ricorrenti (permessi, RLS,
+realtime, bundle, stili, errori, push, liste, import, CI).
+
+---
+
+## Ordine di esecuzione consigliato
+
+| # | Rilievo | Costo | Effetto |
+|---|---|---|---|
+| 1 | **A-3** (password) | 10 min | Chiude l'unico rilievo che nessun file del repo può chiudere |
+| 2 | **A-2** (`registra_audit`) | 30 min | Una migrazione, nessun impatto sull'app |
+| 3 | **A-1** (`{error:null}`) | 2 h | Tocca due hook e va coperto da due test di contratto |
+| 4 | **M-3**, **M-4**, **B-3**, **B-6** | 3 h | Quattro rimedi piccoli e indipendenti |
+| 5 | **M-1** (`:focus-visible`) | 1 h | Quattro righe di CSS, effetto su tutta l'app |
+| 6 | **A-4** (xlsx) | 1 h | Da fare **fuori** da un ambiente con egress filtrato |
+| 7 | **M-2** (hover/focus) | 4 h | 25 punti + la regola di lint come `warn` |
+| 8 | **M-5**, **M-6**, **M-7**, **B-1**, **B-2**, **B-4**, **B-5**, **B-7** | — | Un rilievo per sessione, nell'ordine che conviene |
+| 9 | **M-8** (stili) | — | Solo se arriva il tema scuro o un restyle |
+
+Chiusi 1–6 la valutazione è **9,5**. Il mezzo punto restante è `M-8`, ed è il
+solo rilievo che chiederei di **non** affrontare finché non c'è una ragione di
+prodotto: il sistema di stili attuale è brutto da leggere e corretto da
+eseguire, e riscriverlo senza una richiesta è il tipo di lavoro che introduce
+regressioni per guadagnare eleganza.

@@ -64,22 +64,27 @@ storico; ogni decisione non ovvia ha accanto il ragionamento che l'ha prodotta
 e — cosa più rara — il **ragionamento sbagliato che l'ha preceduta**.
 
 **Il rischio principale non è più dentro l'applicazione: è ai suoi bordi.**
-I due rilievi di alta priorità stanno entrambi fuori dal codice che l'audit del
-4 settembre ha esaminato — uno nella catena che *installa* il progetto, uno in
-ciò che il progetto *non ha mai avuto*:
+I due rilievi che questo audit apriva in alta priorità stanno entrambi fuori dal
+codice che l'audit del 4 settembre ha esaminato — uno nella catena che
+*installa* il progetto, uno in ciò che il progetto *non ha mai avuto*. Il primo
+è poi stato **ridimensionato a Media** da una verifica che ha smentito metà del
+rilievo (⛔ vedi la correzione dentro `A-1`); resta quindi **un solo rilievo di
+alta priorità**, ed è il secondo:
 
-* `A-1` — la chiusura di `A-4` del 4 settembre (le due CVE di `xlsx`) ha risolto
-  la vulnerabilità e, nello stesso movimento, ha reso **ogni installazione del
-  progetto dipendente dalla raggiungibilità di `cdn.sheetjs.com`**. In questa
-  sessione `npm ci` è fallito con `403 Forbidden` su quella URL. ⚠️ **Non è però
-  un guasto in atto**: sul commit di questo audit la CI GitHub e il deploy
-  Vercel sono entrambi verdi, quindi da quei runner il CDN si raggiunge. È un
-  punto singolo di guasto **latente**, e il precedente non è ipotetico — è
-  scritto nel repository: l'audit del 4 settembre descrive il fix «fermo da un
-  mese perché `cdn.sheetjs.com` risponde 403». Nello stesso movimento,
-  `npm audit` ha smesso di poter risolvere la versione del pacchetto e riporta
-  in permanenza due CVE **già chiuse**, mentre l'allow-list che le assorbe
-  motiva l'eccezione con una frase ora falsa («nessun fix su npm»).
+* `A-1` ⚠️ **ridimensionato ad Alta → Media, e la correzione va letta prima del
+  rilievo** — la chiusura di `A-4` del 4 settembre (le due CVE di `xlsx`) ha
+  risolto la vulnerabilità e, nello stesso movimento, ha reso **ogni
+  installazione del progetto dipendente dalla raggiungibilità di
+  `cdn.sheetjs.com`**. In questa sessione `npm ci` è fallito con `403
+  Forbidden` su quella URL, ma **non è un guasto in atto**: sul commit di
+  questo audit la CI GitHub e il deploy Vercel sono entrambi verdi. È un punto
+  singolo di guasto **latente**, con un precedente non ipotetico — l'audit del
+  4 settembre descrive il fix «fermo da un mese» per la stessa ragione.
+  ⛔ La seconda metà del rilievo, quella che gli valeva l'alta priorità
+  («`npm audit` non risolve più la versione e riporta due CVE già corrette»),
+  **era sbagliata**: era stata misurata su un lockfile che il mio stesso
+  ambiente di prova aveva alterato. Sul lockfile vero `npm audit` dice
+  `found 0 vulnerabilities`.
 * `A-2` — l'app **non ha URL**. Nessun `pushState`, nessun `popstate`, nessun
   router: `activeView` vive nel reducer e basta. Per un gestionale è la
   funzione mancante più costosa — un manager non può mandare a un agente il
@@ -122,7 +127,7 @@ affermazioni diverse e solo la prima ha valore.
 
 | ID | Priorità | Rilievo | File / punto |
 |---|---|---|---|
-| **A-1** | 🔴 Alta | `xlsx` è risolto da un **tarball su `cdn.sheetjs.com`**, non dal registry: ogni `npm ci` — CI, build Vercel, ogni macchina nuova — dipende da una terza parte. Oggi funziona (CI e Vercel verdi sul commit di questo audit) e **in questa sessione è fallito con `403 Forbidden`**: è un punto singolo di guasto **latente**, con un precedente di un mese documentato dal repo stesso. Nello stesso movimento `npm audit` non risolve più la versione (`range: "*"`) e riporta in permanenza due CVE **già corrette**, con la motivazione dell'allow-list ora falsa | `package.json:30`, `package-lock.json:6316`, `scripts/verifica-audit/index.js:33-45`, `.github/workflows/ci.yml` |
+| **A-1** | 🟡 Media ⚠️ *ridimensionato da Alta il 5 settembre — la correzione va letta prima del rilievo* | `xlsx` è risolto da un **tarball su `cdn.sheetjs.com`**, non dal registry: ogni `npm ci` — CI, build Vercel, ogni macchina nuova — dipende da una terza parte. Oggi funziona (CI e Vercel verdi sul commit di questo audit) e **in questa sessione è fallito con `403 Forbidden`**: è un punto singolo di guasto **latente**, con un precedente di un mese documentato dal repo stesso. ⛔ La seconda metà del rilievo — «`npm audit` riporta due CVE già corrette» — **era sbagliata**: `npm audit` sul lockfile reale dice `found 0 vulnerabilities`. ⚠️ *Parzialmente chiuso il 5 settembre*: le due voci morte di `ALLOWLIST` sono state tolte; resta da vendorare il tarball | `package.json:30`, `package-lock.json:6316`, `scripts/verifica-audit/index.js`, `.github/workflows/ci.yml` |
 | **A-2** | 🔴 Alta | **L'app non ha URL.** Zero `pushState`/`popstate`/router in 286 file: nessun link condivisibile a una task, a una lista o a un cliente; il tasto Indietro di Android chiude la PWA; il refresh riporta sempre alla dashboard. Il meccanismo di deep-link **esiste già** (`?task=`/`?chat=`) ma viene consumato e cancellato al primo render | `src/state/reducer.js` (`activeView`), `src/hooks/usePushNavigation.js:31-44`, `vercel.json:2` |
 | **M-1** | 🟡 Media | **PWA senza guscio offline.** `public/sw.js` non ha alcun handler `fetch`: l'app gestisce benissimo «vado offline mentre è aperta» (due strisce persistenti) e **non gestisce affatto** «viene aperta da offline» — schermata d'errore del browser, non l'app che spiega | `public/sw.js:2`, `src/main.jsx:22-28` |
 | **M-2** | 🟡 Media | **Il registro di audit su `clients` è parziale e non verificabile.** Nessun trigger su `UPDATE` — nome, email, telefono, indirizzo e note di **885 persone esterne al team** si modificano senza traccia; l'`INSERT` registra solo gli import multi-riga (`if v_n > 1`). `audit_log` ha **0 righe** e nulla distingue «non è successo niente di registrabile» da «ha smesso di funzionare» | DB (`audit_clients_insert`, `pg_trigger` su `clients`), `supabase/migrations/20260826214000_audit_log.sql` |
@@ -139,7 +144,7 @@ affermazioni diverse e solo la prima ha valore.
 
 ## Action plan — da 9 a 10
 
-### A-1 · L'installazione del progetto dipende da un CDN, e l'audit delle dipendenze racconta una storia superata
+### A-1 · L'installazione del progetto dipende da un CDN di terza parte
 
 **Dove.** `package.json:30`, `package-lock.json:6316`,
 `scripts/verifica-audit/index.js:33-45`, `.github/workflows/ci.yml`.
@@ -182,8 +187,8 @@ Chi paga, se e quando il CDN non risponde:
 | Ambienti aziendali con proxy in allow-list | ❌ | `registry.npmjs.org` è quasi sempre ammesso, `cdn.sheetjs.com` quasi mai |
 | Questa sessione, il 5 settembre | ❌ `403` | Nessun `node_modules` |
 
-**Perché resta di alta priorità pur non essendo un'interruzione.** Tre ragioni,
-e la terza è quella che pesa di più:
+**Perché è Media e non Bassa, pur non essendo un'interruzione.** Due ragioni
+— erano tre, e la terza è caduta: vedi la correzione qui sotto.
 
 1. **La probabilità non è nota né controllabile**, e il precedente non è
    ipotetico: SheetJS ha già lasciato il registry npm una volta, ed è quel
@@ -192,36 +197,61 @@ e la terza è quella che pesa di più:
 2. **Il guasto arriverebbe nel momento peggiore.** Un build che non parte è
    tollerabile di martedì; non lo è quando serve deployare una correzione
    urgente, ed è esattamente allora che si scopre di dipendere da un terzo.
-3. **La seconda metà del rilievo è già vera adesso** — non è condizionale.
-   `verifica:audit` afferma oggi, a ogni esecuzione della CI, qualcosa di
-   falso sulla postura di sicurezza del progetto (vedi qui sotto). Questa metà
-   da sola non varrebbe l'alta priorità; sommata a un rimedio che chiude
-   entrambe con quindici minuti e 1,1 MB, sì.
 
-**La seconda metà: `verifica:audit` ora dice il falso.** Ho eseguito
-`npm audit --omit=dev --json` contro il lockfile reale. Poiché `resolved` non
-è una URL di registry, npm **non riesce a risolvere la versione** e riporta:
+Il rimedio costa quindici minuti e 1,1 MB nel repository, e non ha
+controindicazioni: è il rapporto costo/rischio a tenerlo sopra la bassa
+priorità, non un danno in corso.
 
-```json
-"xlsx": { "severity": "high", "range": "*", "fixAvailable": false,
-  "via": [ { "url": ".../GHSA-4r6h-8v6p-xvw6", "range": "<0.19.3" },
-           { "url": ".../GHSA-5pgg-2g8v-p4x9", "range": "<0.20.2" } ] }
+### ⛔ Una correzione a questo stesso rilievo, e come è stata trovata
+
+La prima stesura di `A-1` aveva una **seconda metà, ed era sbagliata**. Diceva
+che `npm audit` non riesce più a risolvere la versione di `xlsx` (`range: "*"`)
+e che `verifica:audit` riporta perciò in permanenza due CVE già corrette,
+assorbendole con una motivazione ora falsa. Su quella metà `A-1` era
+classificato **alta priorità**.
+
+**Non è vero, ed è stato smentito dalla misura più semplice possibile:**
+
+```
+$ npm audit --omit=dev --package-lock-only
+found 0 vulnerabilities
 ```
 
-Entrambe le CVE sono **corrette** in `0.20.3`, che è la versione installata.
-Ma `range: "*"` significa «non so quale versione hai, quindi ti riporto tutto»,
-e i due GHSA sono nell'allow-list di `verifica-audit`, che li assorbe e stampa:
+Il lockfile registra `"version": "0.20.3"` accanto alla URL del CDN, e npm la
+confronta con il database degli advisory esattamente come farebbe per un
+pacchetto del registry. Nessuna CVE riportata, nessuna voce stampata da
+`verifica:audit`, nessuna affermazione falsa in CI.
 
-> `verifica:audit — advisory note e mitigate:`
-> `GHSA-4R6H-8V6P-XVW6 (xlsx) — Prototype Pollution in SheetJS`
-> `    …nessun fix su npm (SheetJS ha lasciato il registry). Mitigata: il parse gira in un Web Worker…`
+**Come era nato l'errore**, perché conta più della correzione: per eseguire la
+suite in un ambiente dove `cdn.sheetjs.com` è bloccato, avevo sostituito
+temporaneamente `xlsx` con la versione da registry (`0.18.5`) — e quel
+`npm install` aveva **riscritto il lockfile**. La prova su `npm audit` è stata
+fatta dopo, con il `package.json` originale ripristinato ma il **lockfile
+ancora modificato**: npm vedeva `xlsx@0.18.5` dal registry e riportava
+correttamente le due CVE. Ho letto quel risultato come una proprietà del
+progetto mentre era una proprietà del mio ambiente di misura.
 
-Quella frase era vera fino al 4 settembre. Oggi non lo è: il fix è **stato
-applicato**. Chi legge l'output della CI apprende che il progetto gira su una
-`xlsx` vulnerabile e mitigata, mentre gira su una `xlsx` corretta. È
-esattamente il difetto che quello script è nato per impedire — «un audit che
-non può che essere rosso non protegge niente» — con il segno invertito: un
-audit che non può che essere *giallo su qualcosa di risolto*.
+È lo stesso errore di metodo che questo documento attribuisce altrove — misurare
+un livello e concludere su un altro — commesso qui dallo strumento che li
+misurava. Il rimedio non è «stare più attenti»: è che una misura fatta su uno
+stato alterato va rifatta sullo stato vero prima di entrare in un documento, e
+`--package-lock-only` su una copia pulita del repository è il modo per farlo.
+
+**Cosa resta di vero, ed è la sola metà del rilievo:** l'installazione dipende
+da un CDN di terza parte. Per questo `A-1` è **Media** e non Alta: manca la
+metà che era «già vera adesso», e ciò che resta è un rischio latente su un
+evento che oggi non si sta verificando.
+
+**Una cosa piccola c'era davvero**, ed è stata chiusa il 5 settembre: le due
+voci di `ALLOWLIST` in `scripts/verifica-audit/index.js` descrivevano CVE
+ormai corrette con la frase «nessun fix su npm … Mitigata». Non venivano mai
+stampate — nessun advisory le raggiungeva — quindi non ingannavano nessun
+lettore della CI; erano però **eccezioni per un rischio che non esiste più**,
+e finché restavano un ritorno a una `xlsx` vulnerabile (un rollback, un merge
+sbagliato, un lockfile rigenerato male) sarebbe passato in silenzio, assorbito
+da loro. Sono state tolte, e l'elenco è ora vuoto: verificato per mutazione —
+con `xlsx@0.18.5` nel lockfile il gate esce **1** e nomina i due GHSA, dove
+prima sarebbe uscito 0.
 
 **La soluzione: vendorare il tarball, non ri-scaricarlo.** Il file è già in
 cache locale con il suo `integrity` sha512 nel lockfile. Portarlo dentro il
@@ -263,46 +293,29 @@ pace: `vendor/` **deve** essere versionato — è il punto.
 > che il progetto ha già fatto altrove — elencare gli host uno per uno invece
 > di descriverli con un pattern — applicata alle dipendenze.
 
-**E l'allow-list va aggiornata nello stesso commit**, altrimenti il rilievo è
-chiuso a metà: sarebbe di nuovo un documento che afferma il falso, che è la
-crepa che `ST-13` ha classificato come alta quando riguardava la sicurezza.
+**L'allow-list è già stata sistemata**, il 5 settembre, e in senso opposto a
+quello che questo rilievo proponeva nella sua prima stesura: le due voci non
+sono state riscritte con una motivazione nuova, sono state **tolte**, e
+`ALLOWLIST` è ora `{}`. Il ragionamento sta nel preambolo di
+`scripts/verifica-audit/index.js`; qui basta la parte che si verifica:
 
-```diff
-- // Ogni voce: perché è nell'elenco e dove vive la mitigazione nel codice.
-- const ALLOWLIST = {
--   'GHSA-4R6H-8V6P-XVW6': { … 'nessun fix su npm …' },
--   'GHSA-5PGG-2G8V-P4X9': { … },
-- };
-+ // ─── PERCHÉ QUESTE DUE VOCI SONO ANCORA QUI DOPO IL FIX ────────────────────
-+ // Le due CVE sono CHIUSE dal 5 settembre: `xlsx` è alla 0.20.3, che le
-+ // corregge entrambe. Restano in elenco per una ragione che NON è la
-+ // mitigazione, ed è importante non confonderle:
-+ //
-+ // `xlsx` non è risolto dal registry (è `file:vendor/xlsx-0.20.3.tgz`), quindi
-+ // `npm audit` non riesce ad attribuirgli una versione e lo riporta con
-+ // `range: "*"` — cioè «tutti gli advisory di questo pacchetto», comprese le
-+ // due già corrette. Assorbirle qui è ciò che tiene il gate utile: un
-+ // advisory NUOVO su SheetJS avrebbe un GHSA diverso, non sarebbe in elenco, e
-+ // farebbe fallire come deve.
-+ //
-+ // ⛔ NON scrivere qui «mitigata dal Worker»: era vero fino al 4 settembre ed
-+ // è la frase che ha reso questo output ingannevole per un giorno. Il Worker
-+ // usa-e-getta e `prototypeGuard.js` restano, ma sono difesa in profondità su
-+ // un pacchetto SANO — non la ragione per cui questa voce è qui.
-+ const ALLOWLIST = {
-+   'GHSA-4R6H-8V6P-XVW6': {
-+     pacchetto: 'xlsx',
-+     motivo: 'CORRETTA in 0.20.3 (installata). In elenco solo perché il ' +
-+       'pacchetto non è risolto dal registry: npm audit non ne conosce la ' +
-+       'versione e riporta ogni advisory di SheetJS con range "*".',
-+   },
-+   'GHSA-5PGG-2G8V-P4X9': {
-+     pacchetto: 'xlsx',
-+     motivo: 'CORRETTA in 0.20.2+ (installata la 0.20.3). Stessa ragione di ' +
-+       'permanenza in elenco della voce precedente.',
-+   },
-+ };
 ```
+# con il lockfile di oggi (xlsx@0.20.3)
+$ npm run verifica:audit
+verifica:audit: OK — nessuna advisory high/critical fuori allow-list.
+
+# per mutazione, con xlsx@0.18.5 nel lockfile
+$ npm audit --omit=dev --json | node scripts/verifica-audit/index.js
+verifica:audit: advisory high/critical NON nell'allow-list:
+  GHSA-4R6H-8V6P-XVW6 (xlsx, high) — Prototype Pollution in sheetJS
+  GHSA-5PGG-2G8V-P4X9 (xlsx, high) — SheetJS ReDoS
+$ echo $?
+1
+```
+
+La seconda metà della prova è quella che conta: con le voci in elenco quel
+comando sarebbe uscito **0**. Un rientro a una `xlsx` vulnerabile passava in
+silenzio, ed è ciò che smette di succedere.
 
 **La verifica che rende il rilievo chiuso e non solo corretto** — e va fatta
 da un ambiente **senza accesso al CDN**, che è la condizione in cui il difetto
@@ -312,14 +325,15 @@ si manifesta:
 rm -rf node_modules
 npm ci          # deve riuscire senza toccare cdn.sheetjs.com
 npm test && npm run lint && npm run verifica:tipi && npm run build
-npm run verifica:audit   # deve stampare le due voci con la motivazione NUOVA
+npm run verifica:audit   # resta verde: l'elenco delle eccezioni è vuoto
 ```
 
-**Cosa non va fatto.** Togliere le due voci dall'allow-list: il gate
-tornerebbe rosso in permanenza sulle stesse due CVE già corrette, e sarebbe
-peggio di adesso. E non va tolto `withPrototypePollutionGuard`: non è un
-ripiego in attesa del fix, è difesa in profondità su un parser che legge file
-di terzi.
+**Cosa non va fatto.** Rimettere le due voci nell'allow-list «per sicurezza»
+— la prima stesura di questo rilievo lo consigliava, sulla premessa sbagliata
+di cui sopra, ed è il contrario di ciò che serve: un'eccezione per una CVE
+corretta non protegge da nulla e nasconde il caso in cui quella CVE torna.
+E non va tolto `withPrototypePollutionGuard`: non è un ripiego in attesa del
+fix, è difesa in profondità su un parser che legge file di terzi.
 
 ---
 
@@ -1092,10 +1106,11 @@ end $$;
 
 | # | Cosa | Perché in questa posizione |
 |---|---|---|
-| 1 | **A-1** (vendorare `xlsx` + allow-list) | È l'unico che può fermare tutto il resto: finché `npm ci` dipende da un CDN, nessuna delle altre correzioni è deployabile in modo affidabile. Va fatto per primo, e da un ambiente che raggiunge il CDN una volta sola |
+| ~~1~~ | **A-1** — metà `ALLOWLIST` ✔ | **Fatta il 5 settembre**: le due voci morte sono state tolte e il gate è verificato per mutazione. La metà «vendorare il tarball» resta, ma **non è più in testa**: con la seconda metà del rilievo smentita, non c'è niente che blocchi il resto, e serve comunque un ambiente che raggiunga il CDN una volta sola |
+| 1 | **A-2** (URL e history) | L'unico rilievo di alta priorità rimasto, e il primo che l'utente *vede*. Va per primo perché tocca l'orchestratore e conviene averlo da solo in un commit |
 | 2 | **B-1**, **B-5** (due migrazioni SQL piccole) | Indipendenti da tutto, verificabili scrivendo davvero su staging, nessun impatto sul client. Si chiudono in un blocco solo, come i «quattro rimedi piccoli e indipendenti» del 4 settembre |
 | 3 | **M-2** (audit su `clients` + sonda) | Terza migrazione dello stesso blocco, ma separata perché è una decisione di prodotto (cosa si registra) e non un rimedio |
-| 4 | **A-2** (URL e history) | Il più grosso dei due alti, e il primo che l'utente *vede*. Va dopo il blocco DB perché tocca l'orchestratore e conviene averlo da solo in un commit |
+| 4 | **A-1** — metà «vendorare il tarball» | Da fare da un ambiente che raggiunge `cdn.sheetjs.com`: nessuna urgenza (CI e Vercel verdi), nessun blocco a valle |
 | 5 | **M-1** (guscio offline) | Dopo A-2: con gli URL, il service worker ha una forma canonica da servire e il caso «riapri sull'ultima vista da offline» diventa provabile |
 | 6 | **M-3** (font in proprio) | Subito dopo M-1, perché è la risorsa che altrimenti manca da offline — e perché restringe la CSP, cosa che si vuole fare quando il resto è stabile |
 | 7 | **B-2**, **B-3**, **B-4** | Tre correzioni di coerenza, nessuna urgente, tutte piccole. B-4 va fatta con l'attenzione al confine `VIETATI_MODULI_API_INTERNI` |
@@ -1119,6 +1134,15 @@ può dare a un sistema che gira in produzione con dati veri. I due punti alti
 non descrivono codice scritto male — descrivono **il bordo del perimetro che
 ventuno audit hanno battuto**: la catena che installa il progetto e la
 funzione che non è mai stata scritta.
+
+⚠️ **Il voto non si è mosso dopo il ridimensionamento di `A-1`**, e vale la
+pena dire perché invece di limarlo di mezzo punto in una direzione o
+nell'altra. La metà smentita di `A-1` non lo reggeva: nove veniva dal quadro
+complessivo — 2.121 test, lint e tipi a zero, RLS verificata riga per riga in
+produzione, zero sink XSS — contro dodici rilievi di cui nessuno critico. Quel
+quadro è identico a prima. Muovere il numero perché *io* ho misurato meglio,
+e non perché *il progetto* sia cambiato, sarebbe far dire al voto qualcosa che
+non riguarda ciò che misura.
 
 Vale la pena dirlo perché la differenza è operativa. Un progetto con debito
 *dentro* migliora rileggendo ciò che ha; questo migliora **guardando dove non

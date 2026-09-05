@@ -68,8 +68,9 @@ I due rilievi che questo audit apriva in alta priorità stanno entrambi fuori da
 codice che l'audit del 4 settembre ha esaminato — uno nella catena che
 *installa* il progetto, uno in ciò che il progetto *non ha mai avuto*. Il primo
 è poi stato **ridimensionato a Media** da una verifica che ha smentito metà del
-rilievo (⛔ vedi la correzione dentro `A-1`); resta quindi **un solo rilievo di
-alta priorità**, ed è il secondo:
+rilievo (⛔ vedi la correzione dentro `A-1`), e il secondo è stato **chiuso lo
+stesso giorno** (✔ vedi «Come è stato chiuso (A-2)» in fondo): non resta
+quindi nessun rilievo di alta priorità aperto. Erano questi due:
 
 * `A-1` ⚠️ **ridimensionato ad Alta → Media, e la correzione va letta prima del
   rilievo** — la chiusura di `A-4` del 4 settembre (le due CVE di `xlsx`) ha
@@ -128,7 +129,7 @@ affermazioni diverse e solo la prima ha valore.
 | ID | Priorità | Rilievo | File / punto |
 |---|---|---|---|
 | **A-1** | 🟡 Media ⚠️ *ridimensionato da Alta il 5 settembre — la correzione va letta prima del rilievo* | `xlsx` è risolto da un **tarball su `cdn.sheetjs.com`**, non dal registry: ogni `npm ci` — CI, build Vercel, ogni macchina nuova — dipende da una terza parte. Oggi funziona (CI e Vercel verdi sul commit di questo audit) e **in questa sessione è fallito con `403 Forbidden`**: è un punto singolo di guasto **latente**, con un precedente di un mese documentato dal repo stesso. ⛔ La seconda metà del rilievo — «`npm audit` riporta due CVE già corrette» — **era sbagliata**: `npm audit` sul lockfile reale dice `found 0 vulnerabilities`. ⚠️ *Parzialmente chiuso il 5 settembre*: le due voci morte di `ALLOWLIST` sono state tolte; resta da vendorare il tarball | `package.json:30`, `package-lock.json:6316`, `scripts/verifica-audit/index.js`, `.github/workflows/ci.yml` |
-| **A-2** | 🔴 Alta | **L'app non ha URL.** Zero `pushState`/`popstate`/router in 286 file: nessun link condivisibile a una task, a una lista o a un cliente; il tasto Indietro di Android chiude la PWA; il refresh riporta sempre alla dashboard. Il meccanismo di deep-link **esiste già** (`?task=`/`?chat=`) ma viene consumato e cancellato al primo render | `src/state/reducer.js` (`activeView`), `src/hooks/usePushNavigation.js:31-44`, `vercel.json:2` |
+| **A-2** ✔ | ~~🔴 Alta~~ **chiuso il 5 settembre** | **L'app non ha URL.** Zero `pushState`/`popstate`/router in 286 file: nessun link condivisibile a una task, a una lista o a un cliente; il tasto Indietro di Android chiude la PWA; il refresh riporta sempre alla dashboard. Il meccanismo di deep-link **esiste già** (`?task=`/`?chat=`) ma viene consumato e cancellato al primo render. **Chiuso**: `src/hooks/useUrlStato.js` — vedi «Come è stato chiuso (A-2)» in fondo | `src/state/reducer.js` (`activeView`), `src/hooks/usePushNavigation.js:31-44`, `vercel.json:2` |
 | **M-1** | 🟡 Media | **PWA senza guscio offline.** `public/sw.js` non ha alcun handler `fetch`: l'app gestisce benissimo «vado offline mentre è aperta» (due strisce persistenti) e **non gestisce affatto** «viene aperta da offline» — schermata d'errore del browser, non l'app che spiega | `public/sw.js:2`, `src/main.jsx:22-28` |
 | **M-2** | 🟡 Media | **Il registro di audit su `clients` è parziale e non verificabile.** Nessun trigger su `UPDATE` — nome, email, telefono, indirizzo e note di **885 persone esterne al team** si modificano senza traccia; l'`INSERT` registra solo gli import multi-riga (`if v_n > 1`). `audit_log` ha **0 righe** e nulla distingue «non è successo niente di registrabile» da «ha smesso di funzionare» | DB (`audit_clients_insert`, `pg_trigger` su `clients`), `supabase/migrations/20260826214000_audit_log.sql` |
 | **M-3** | 🟡 Media | **Google Fonts da CDN di terza parte** in un `<link>` bloccante: l'IP di ogni visitatore raggiunge Google prima di qualunque consenso, i font non sono disponibili offline, e un dominio esterno sta sul percorso critico di rendering di un gestionale che tratta PII di clienti | `index.html:26-31`, `vercel.json:16` (`style-src`/`font-src`) |
@@ -1107,7 +1108,7 @@ end $$;
 | # | Cosa | Perché in questa posizione |
 |---|---|---|
 | ~~1~~ | **A-1** — metà `ALLOWLIST` ✔ | **Fatta il 5 settembre**: le due voci morte sono state tolte e il gate è verificato per mutazione. La metà «vendorare il tarball» resta, ma **non è più in testa**: con la seconda metà del rilievo smentita, non c'è niente che blocchi il resto, e serve comunque un ambiente che raggiunga il CDN una volta sola |
-| 1 | **A-2** (URL e history) | L'unico rilievo di alta priorità rimasto, e il primo che l'utente *vede*. Va per primo perché tocca l'orchestratore e conviene averlo da solo in un commit |
+| ~~1~~ | **A-2** (URL e history) ✔ | **Fatto il 5 settembre**: `src/hooks/useUrlStato.js`, montato dopo `usePushNavigation`. Nessuna dipendenza nuova, 20 casi di test, sei mutazioni verificate |
 | 2 | **B-1**, **B-5** (due migrazioni SQL piccole) | Indipendenti da tutto, verificabili scrivendo davvero su staging, nessun impatto sul client. Si chiudono in un blocco solo, come i «quattro rimedi piccoli e indipendenti» del 4 settembre |
 | 3 | **M-2** (audit su `clients` + sonda) | Terza migrazione dello stesso blocco, ma separata perché è una decisione di prodotto (cosa si registra) e non un rimedio |
 | 4 | **A-1** — metà «vendorare il tarball» | Da fare da un ambiente che raggiunge `cdn.sheetjs.com`: nessuna urgenza (CI e Vercel verdi), nessun blocco a valle |
@@ -1155,3 +1156,103 @@ La cosa più utile che questo documento può lasciare non è l'elenco dei dodici
 rilievi: è la domanda che li ha prodotti tutti — *«qual è il livello che
 nessuno ha ancora interrogato?»* — che al ventitreesimo giro andrà posta di
 nuovo, su un livello che oggi non so nominare.
+
+---
+
+## Come è stato chiuso (A-2)
+
+`src/hooks/useUrlStato.js`, montato in `VoyageDeskInner` **subito dopo**
+`usePushNavigation`. Nessuna dipendenza nuova: la History API e basta, come il
+rilievo prescriveva.
+
+### Cosa sta in URL, e cosa no
+
+`?v=<vista>` e `?task=<id>`. La dashboard non si scrive, così `/` resta `/`.
+Non ci va lo stato effimero — filtri, ricerca, tab, finestra di `useFinestra`:
+sono valori che cambiano a ogni tasto premuto e riempirebbero la cronologia,
+che è il difetto opposto a quello chiuso qui.
+
+⚠️ **`?lista=` è letto e non è scritto, ed è un limite dichiarato.** Un link a
+una lista funziona — l'intent arriva a `SET_VIEW` come `action.lista`, che è il
+meccanismo che `listeTarget` ha già — ma aprire una lista **cliccandola** dentro
+il modulo non aggiorna la barra degli indirizzi: `listaApertaId` è `useState`
+dentro `ListeViaggio.jsx`, e il modulo Liste tiene il proprio stato fuori dal
+reducer **per scelta dichiarata** (`docs/CLAUDE.md`). Sollevarlo qui sarebbe un
+cambio all'architettura di quel modulo travestito da correzione di questo
+rilievo. Il parametro viene quindi CONSUMATO come `?task=`/`?chat=` in
+`usePushNavigation`: la prima normalizzazione lo toglie, così nessuna voce di
+cronologia lo porta e nessun «indietro» lo riesegue.
+
+### I permessi non sono stati toccati, ed è il punto
+
+`SET_VIEW` e `SET_SELECTED_TASK` passano già da `canAccessAdmin`,
+`canAccessListe` e `canViewTask`: un URL scritto a mano verso una vista vietata
+produce il toast di rifiuto e non la vista, **senza un solo controllo nuovo**.
+È anche il motivo per cui la vista iniziale si applica con un `dispatch` invece
+di essere seminata in `makeInitialState`: quella strada salterebbe entrambi i
+guard, e `liste` — a differenza di `admin` — non ha una seconda difesa al
+montaggio. Il commento che in `renderView` avverte di non scrivere «un terzo
+modo di impostare `activeView`» è stato letto prima di scegliere, non dopo.
+
+### Il difetto che i test hanno trovato, e che il rilievo non prevedeva
+
+Lo schema del rilievo aveva il riflesso `stato → URL` con dipendenze
+`[vista, taskId]`. È sbagliato su un caso: un `popstate` **rifiutato dai
+permessi** non muove né `vista` né `taskId`, quindi il riflesso non riparte e
+**la barra degli indirizzi resta a dichiarare una vista che non è montata**.
+Non è teorico — è la stessa classe del rilievo, l'URL che afferma qualcosa di
+falso — ed è emerso scrivendo il caso di test per quel ramo, non leggendo il
+codice. La correzione è un contatore (`passoPop`) fra le dipendenze del
+riflesso: fa ripartire il confronto dopo ogni `popstate`, anche quando lo stato
+non è cambiato.
+
+### Verifica
+
+20 casi in `src/test/hooks/useUrlStato.test.jsx`, e — come per `A-1` del 4
+settembre — **verificati per mutazione**, perché un test che non cattura la
+regressione che dichiara di coprire non protegge niente:
+
+| Mutazione | Esito |
+|---|---|
+| Tolto il gate `pronto` dal riflesso | 2 falliti |
+| `pushState` sempre, mai `replaceState` | 3 falliti |
+| `ultimo` aggiornato DOPO i dispatch di `popstate` | 1 fallito |
+| `daRicerca` non filtra su `VISTE` | 2 falliti |
+| `sostituisci` non alzato nel gestore di `popstate` | 1 fallito |
+| Tolto `passoPop` dalle dipendenze del riflesso | 1 fallito |
+
+⚠️ **Due di quelle righe non erano lì alla prima stesura.** «`ultimo` dopo i
+dispatch» e «`sostituisci` non alzato» passavano entrambe: la prima perché
+l'asserzione era su `history.length`, che non distingue «non ha impilato» da
+«non ha scritto» (la scrittura di troppo era un `replaceState`); la seconda
+perché il ramo che protegge non era raggiungibile finché mancava `passoPop`.
+Contare le CHIAMATE a `pushState`/`replaceState` chiude la prima; il caso del
+`popstate` rifiutato chiude la seconda ed è ciò che ha fatto emergere il
+difetto qui sopra.
+
+⚠️ **E l'armatura di test ha uno stato, non un `vi.fn()`.** La prima stesura
+usava un dispatch spia e falliva su un caso che nell'app funziona: senza uno
+stato che SEGUE il dispatch, il render dopo il mount ha `pronto` già vero e la
+vista ancora vecchia, cioè una combinazione che React non produce mai —
+`impostaPronto` e il `SET_VIEW` iniziale partono dallo stesso effetto e
+finiscono nello stesso render. Una spia avrebbe misurato una proprietà
+dell'armatura, non dell'hook.
+
+Il collegamento fra `VISTE` (nell'hook) e i `case` di `renderView` è a sua
+volta un test: legge lo switch dal sorgente di `VoyageDeskInner.jsx` e lo
+confronta, come `persistenceGuards.test.js` fa con i case del reducer — così
+una vista aggiunta domani non può restare senza link senza che nulla lo dica.
+
+Suite completa: **2.141 test passati** (erano 2.121), lint e `verifica:tipi` a
+zero, `verifica:convenzioni` a 65 controlli, `verifica:bundle` sotto soglia (il
+chunk dell'app sale di 0,56 kB gzip).
+
+### Cosa NON è stato verificato
+
+Non c'è una prova nel BROWSER. L'app senza credenziali Supabase si ferma alla
+schermata di login e `VoyageDeskInner` non monta, quindi la verifica end-to-end
+con Playwright — quella che il 4 settembre ha corretto due errori nel CSS
+proposto per `M-1` — qui non era eseguibile. Le venti prove sono di
+integrazione fra l'hook e un reducer simulato, non fra l'app e un browser: la
+distinzione conta, e la prima cosa da fare su una preview con credenziali è
+premere Indietro.

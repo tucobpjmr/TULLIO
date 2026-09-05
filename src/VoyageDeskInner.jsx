@@ -27,6 +27,7 @@ import { useAppHydration } from "./hooks/useAppHydration.js";
 import { useNotifications } from "./hooks/useNotifications.js";
 import { usePresence } from "./hooks/usePresence.js";
 import { usePushNavigation } from "./hooks/usePushNavigation.js";
+import { useUrlStato } from "./hooks/useUrlStato.js";
 import { useChatData } from "./hooks/useChatData.js";
 // M-3 · Lo stato di UI effimera del guscio (pannelli aperti, ricerca) e i suoi
 // callback stabili: sei useState che non appartengono al reducer di dominio e
@@ -286,6 +287,22 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     tasks: state.tasks,
     dispatch,
     onOpenChat: ui.apriConversazione,
+  });
+
+  // A-2 dell'audit del 5 settembre: la vista e il task aperto vivono anche
+  // nella barra degli indirizzi, così un link si può mandare, il tasto
+  // Indietro torna indietro e un refresh non riporta alla dashboard.
+  //
+  // ⚠️ DOPO `usePushNavigation`, e non e' un dettaglio di stile: gli effetti
+  // girano nell'ordine in cui gli hook sono chiamati, e quello consuma
+  // `?task=`/`?chat=` al mount. Invertirli farebbe riscrivere qui un `?task=`
+  // che l'altro sta per cancellare. Il perche' completo sta nel preambolo di
+  // hooks/useUrlStato.js.
+  useUrlStato({
+    vista: state.activeView,
+    taskId: state.selectedTask?.id ?? null,
+    tasks: state.tasks,
+    dispatch,
   });
 
   useEffect(() => {

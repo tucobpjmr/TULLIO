@@ -5,6 +5,7 @@ import { Avatar } from "../ui/Avatar.jsx";
 import { isUuid } from "../../lib/mappers.js";
 import { sortConversationsByRecent } from "../../lib/chatUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
+import { conTastiera } from "../../lib/a11y.js";
 import { getConversationName, getLastMessage } from "./chatFormat.js";
 import { Modal } from "../ui/Modal.jsx";
 import * as stiliComuni from "../../styles/common.js";
@@ -117,8 +118,10 @@ export const ForwardPicker = ({ msg, conversations, messages, onPick, onClose })
               key={c.id}
               onClick={() => onPick(c.id)}
               style={rowCenterGap10}
-              onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              {...conTastiera(
+                e => e.currentTarget.style.background = "var(--surface2)",
+                e => e.currentTarget.style.background = "transparent",
+              )}
             >
               {c.type === "direct" && otherUid ? (
                 <Avatar memberId={otherUid} size={32} />

@@ -10,6 +10,7 @@ import { getNavItemsForRole, getNavBadges } from "./navHelpers.js";
 import { NavBadge } from "./NavBadge.jsx";
 import { Icona } from "../ui/Icona.jsx";
 import { useDispatch } from "../../state/DispatchContext.jsx";
+import { conTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -136,8 +137,10 @@ export const Sidebar = memo(function Sidebar({ activeView, onOpenBulk, onOpenCha
             transition: "all 0.2s", textAlign: "left",
             justifyContent: col ? "center" : "flex-start",
           }}
-          onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,168,67,0.22)"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,168,67,0.12)"; }}
+          {...conTastiera(
+            e => { e.currentTarget.style.background = "rgba(212,168,67,0.22)"; },
+            e => { e.currentTarget.style.background = "rgba(212,168,67,0.12)"; },
+          )}
         >
           <Icona nome="piuTask" dimensione={17} />
           {!col && <span style={whiteSpace2}>Più task</span>}

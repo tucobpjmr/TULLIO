@@ -45,6 +45,31 @@ import { esitoScrittura } from "../../lib/esitoScrittura.js";
 
 const noop = () => {};
 
+// `esitoScrittura()` ritorna `unknown` di proposito (lib/esitoScrittura.js):
+// il chiamante non deve dare per scontata la FORMA dell'errore. Qui serve
+// solo il messaggio per i cinque toast sotto, quando ce n'è uno leggibile.
+const msgErrore = (e) => (e instanceof Error ? e.message : "");
+
+/**
+ * M-5 dell'audit del 4 settembre: `checkJs` allargato a `src/hooks/` trascina
+ * dentro il programma anche questo modulo (è importato da `useChatData.js`),
+ * ed è emerso che ogni default a `noop` faceva inferire a TypeScript la
+ * FIRMA di `noop` — zero parametri — invece del vero tipo del chiamante. I
+ * tipi qui sotto sono quelli reali passati da `useChatData.js`, non
+ * un'aggiunta cosmetica: senza, `setConversations(prev => …)` risultava «si
+ * aspetta 0 argomenti, ne ha ricevuto 1» su ogni singolo comando del file.
+ *
+ * @param {object} [opts]
+ * @param {(updater: (prev: object[]) => object[]) => void} [opts.setConversations]
+ * @param {(updater: (prev: object) => object) => void} [opts.setMessages]
+ * @param {boolean} [opts.enabled]
+ * @param {() => (string|null)} [opts.getCurrentUserId]
+ * @param {(messaggio: string) => void} [opts.onError]
+ * @param {(messaggio: string) => void} [opts.onSuccess]
+ * @param {(convId: string) => void} [opts.onConversationRead]
+ * @param {(convId: string, msg: object) => void} [opts.marcaInVolo]
+ * @param {(msgId: string) => void} [opts.smarcaInVolo]
+ */
 export function makeChatCommands({
   setConversations = noop,
   setMessages = noop,
@@ -110,7 +135,7 @@ export function makeChatCommands({
       .then(r => {
         const errore = esitoScrittura(r);
         if (errore) {
-          fallito("conv.create", errore, `Chat: creazione conversazione fallita: ${errore.message || ""}`);
+          fallito("conv.create", errore, `Chat: creazione conversazione fallita: ${msgErrore(errore)}`);
           // `sendMessage` distingue "creazione fallita" da "riuscita" leggendo
           // `r.error`: normalizziamo l'esito, così un rifiuto silenzioso della
           // RLS non fa partire l'INSERT del primo messaggio verso una
@@ -137,7 +162,7 @@ export function makeChatCommands({
     }).then(r => {
       const errore = esitoScrittura(r);
       if (errore) {
-        fallito("conv.update", errore, `Chat: aggiornamento conversazione fallito: ${errore.message || ""}`);
+        fallito("conv.update", errore, `Chat: aggiornamento conversazione fallito: ${msgErrore(errore)}`);
       }
     });
   };
@@ -205,7 +230,7 @@ export function makeChatCommands({
         if (snapshot) {
           setConversations(prev => (prev.some(c => c.id === convId) ? prev : [snapshot, ...prev]));
         }
-        fallito("conv.delete", errore, `Chat: eliminazione conversazione fallita: ${errore.message || ""}`);
+        fallito("conv.delete", errore, `Chat: eliminazione conversazione fallita: ${msgErrore(errore)}`);
         return;
       }
       scartaMessaggi();
@@ -337,7 +362,7 @@ export function makeChatCommands({
             ? { ...m, pinned: !!prima.pinned, pinnedBy: prima.pinnedBy ?? null, pinnedAt: prima.pinnedAt ?? null }
             : m)),
         }));
-        fallito("msg.pinned", errore, `Chat: pin fallito: ${errore.message || ""}`);
+        fallito("msg.pinned", errore, `Chat: pin fallito: ${msgErrore(errore)}`);
       }
     });
   };
@@ -441,7 +466,7 @@ export function makeChatCommands({
               (m.id === msgId ? { ...m, reactions: reazioniPrima } : m)),
           }));
         }
-        fallito("toggleReaction", errore, `Chat: reazione non salvata: ${errore.message || ""}`);
+        fallito("toggleReaction", errore, `Chat: reazione non salvata: ${msgErrore(errore)}`);
       }
     });
   };

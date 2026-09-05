@@ -32,7 +32,7 @@ import {
   rowGap8Mb8, rowStartBetween, txtF18Bold,
 } from "./taskSlideOverStyles.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
-import { attivaConTastiera } from "../../lib/a11y.js";
+import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
 
 export const TaskSlideOver = ({ task }) => {
   const dispatch = useDispatch();
@@ -181,8 +181,10 @@ export const TaskSlideOver = ({ task }) => {
           </div>
           <div style={stiliComuni.rowGap6}>
             <button onClick={handleDelete} title="Sposta nel cestino" style={boxF13White}
-              onMouseEnter={e => e.currentTarget.style.background = "rgba(220,38,38,0.4)"}
-              onMouseLeave={e => e.currentTarget.style.background = "rgba(220,38,38,0.15)"}
+              {...conTastiera(
+                e => e.currentTarget.style.background = "rgba(220,38,38,0.4)",
+                e => e.currentTarget.style.background = "rgba(220,38,38,0.15)",
+              )}
             >🗑️</button>
             <button onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })} style={stiliComuni.btnChiudiSuScuro}>✕</button>
           </div>

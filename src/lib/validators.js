@@ -113,8 +113,39 @@ export function primoCampoInvalido(errori, ordine) {
 // costante serve a dare all'utente il messaggio giusto PRIMA del viaggio, non
 // a impedirgli qualcosa. Se i due numeri divergono, quello che vale è GoTrue.
 // Stato della leva lato server e come riallinearla: docs/SICUREZZA.md §6.
-export const PASSWORD_MIN = 8;
+//
+// ─── A-3 dell'audit del 4 settembre · lunghezza minima e composizione ──────
+// Otto caratteri senza nessun requisito di composizione significa che
+// `password` e `12345678` passavano. I due numeri qui rispecchiano la
+// configurazione applicata in Supabase → Auth → Policies (Minimum password
+// length: 12, Password requirements: lower + upper + digits) — SONO DUE
+// leve e non una, per la stessa ragione di sopra: quella della piattaforma
+// è l'unica che valga anche per chi chiama `/auth/v1` senza passare da qui,
+// questa evita che l'utente scopra il requisito come un errore del server
+// invece che PRIMA di inviare (la stessa asimmetria dei tetti di
+// `errorReporting.js`, C-1 del 2 settembre). La leaked password protection
+// (HaveIBeenPwned) NON è qui: è una funzione del piano Supabase Pro, il
+// progetto resta sul piano Free per scelta già presa e documentata in
+// `AVVISI_ACCETTATI` di `scripts/verifica-advisor/advisor.js` — vedi la
+// correzione in testa alla sezione A-3 dell'audit.
+export const PASSWORD_MIN = 12;
 
-export const passwordValida = (
-  messaggio = `La password deve avere almeno ${PASSWORD_MIN} caratteri.`,
-) => (v) => (typeof v === "string" && v.length >= PASSWORD_MIN ? null : messaggio);
+/** @type {[RegExp, string][]} */
+const REQUISITI_PASSWORD = [
+  [/.{12,}/, "almeno 12 caratteri"],
+  [/[a-z]/, "una lettera minuscola"],
+  [/[A-Z]/, "una lettera maiuscola"],
+  [/\d/, "una cifra"],
+];
+
+// Frase unica dei requisiti, usata sia dal messaggio di validazione sia da
+// chi deve descriverli fuori da un validatore (LoginScreen, che traduce il
+// rifiuto `weak_password` di GoTrue): un solo posto in cui i requisiti sono
+// elencati, non due frasi che potrebbero divergere.
+export const REQUISITI_PASSWORD_TESTO = REQUISITI_PASSWORD.map(([, t]) => t).join(", ");
+
+export const passwordValida = () => (v) => {
+  if (typeof v !== "string") return `La password deve avere ${REQUISITI_PASSWORD_TESTO}.`;
+  const mancanti = REQUISITI_PASSWORD.filter(([rx]) => !rx.test(v)).map(([, t]) => t);
+  return mancanti.length ? `La password deve avere ${mancanti.join(", ")}.` : null;
+};

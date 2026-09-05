@@ -142,16 +142,20 @@ export const Users = {
     })).eq('id', id);
   },
   // ----------------- CONTATTI PII (user_contacts) -----------------
-  // email/phone sono in public.user_contacts. RLS: SELECT consentito a tutti gli
-  // utenti autenticati (rubrica interna del team — vedi migrazione
-  // 20260629_user_contacts_select_team.sql); INSERT/UPDATE restano own+admin.
+  // email/phone sono in public.user_contacts. RLS: SELECT consentito al
+  // proprio contatto sempre, e al resto della rubrica solo ai ruoli interni
+  // (admin/manager/agent attivi e approvati — private.can_liste()); il
+  // driver vede solo il proprio (migrazione 20260905115909, M-7 dell'audit
+  // del 4 settembre, che ha chiuso la rubrica aperta a tutti dalla
+  // 20260629_user_contacts_select_team.sql). INSERT/UPDATE restano own+admin.
   // user_contacts non è in realtime e non ha origin_client → niente withOrigin.
   getContacts: async (id) => {
     const supabase = await getSupabase();
     return supabase.from('user_contacts').select('email, phone').eq('user_id', id).maybeSingle();
   },
-  // Rubrica completa: tutte le righe contatti (per Team view e pannello Admin).
-  // RLS lato server filtra ciò che non è leggibile; con la policy "team" vede tutti.
+  // Rubrica completa: tutte le righe contatti che la RLS lascia vedere (per
+  // Team view e pannello Admin) — un driver riceve solo la propria riga, gli
+  // altri ruoli interni tutta la rubrica.
   listContacts: async () => {
     const supabase = await getSupabase();
     return supabase.from('user_contacts').select('user_id, email, phone');

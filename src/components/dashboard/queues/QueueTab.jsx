@@ -1,6 +1,8 @@
 // src/components/dashboard/queues/QueueTab.jsx
 // La linguetta di una coda: icona, etichetta, conteggio, badge urgenze.
 // ─── QUEUE TAB (Dashboard tab card) ───────────────────────────────────────
+import { conTastiera } from "../../../lib/a11y.js";
+
 export const QueueTab = ({ active, onClick, icon, label, count, isMobile, dangerCount }) => {
   return (
     <button
@@ -17,8 +19,10 @@ export const QueueTab = ({ active, onClick, icon, label, count, isMobile, danger
         transition: "background 0.15s, transform 0.1s",
         fontFamily: "inherit",
       }}
-      onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--surface2)"; }}
-      onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
+      {...conTastiera(
+        e => { if (!active) e.currentTarget.style.background = "var(--surface2)"; },
+        e => { if (!active) e.currentTarget.style.background = "transparent"; },
+      )}
     >
       <div style={{ fontSize: isMobile ? 18 : 20 }}>{icon}</div>
       <div style={{ fontSize: isMobile ? 10 : 11, fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>{label}</div>

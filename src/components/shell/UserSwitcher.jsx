@@ -11,6 +11,7 @@ import { Z } from "../../styles/tokens.js";
 import { roleLabel, toDbRole, toSeniority } from "../../lib/taskConstants.js";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
+import { conTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -142,8 +143,10 @@ export const UserSwitcher = () => {
           <button
             onClick={() => { setShowProfile(true); setOpen(false); }}
             style={rowCenterGap10}
-            onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            {...conTastiera(
+              e => e.currentTarget.style.background = "var(--surface2)",
+              e => e.currentTarget.style.background = "transparent",
+            )}
           >
             <span style={txtF16}>👤</span>
             <span style={txtBold}>Modifica profilo</span>
@@ -166,8 +169,10 @@ export const UserSwitcher = () => {
                       border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
                       color: "var(--text)", textAlign: "left",
                     }}
-                    onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--surface2)"; }}
-                    onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
+                    {...conTastiera(
+                      e => { if (!active) e.currentTarget.style.background = "var(--surface2)"; },
+                      e => { if (!active) e.currentTarget.style.background = "transparent"; },
+                    )}
                   >
                     {m.photoUrl ? (
                       <AvatarImg photo={m.photoUrl} style={boxW30H302} />
@@ -206,8 +211,10 @@ export const UserSwitcher = () => {
               color: "var(--danger)", textAlign: "left",
               borderTop: "1px solid var(--border)", marginTop: 4,
             }}
-            onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            {...conTastiera(
+              e => e.currentTarget.style.background = "var(--surface2)",
+              e => e.currentTarget.style.background = "transparent",
+            )}
           >
             <span style={txtF16}>🚪</span>
             <span style={txtBold}>{signingOut ? "Uscita…" : "Esci"}</span>

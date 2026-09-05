@@ -113,7 +113,15 @@ const SOGLIA_FIRST_LOAD_KB = 86;
 // 63,22 a 44,87 kB gzip e il totale autenticato da 176,26 a 124,86 kB — il
 // margine sul chunk app torna da 3,78 a oltre 20 kB. Stesso margine +6 kB.
 const SOGLIA_APP_KB = 51;
-const SOGLIA_AUTENTICATO_KB = 131;
+// ─── RIMISURATA DOPO M-2 (audit del 4 settembre) ───────────────────────────
+// `conTastiera()` (lib/a11y.js) e il suo uso in una ventina di componenti del
+// percorso caldo — TaskCard/TaskRow, la Sidebar, il FAB, UserSwitcher,
+// NotificationsPanel — hanno spostato il totale autenticato a 131,37 kB
+// gzip, sopra la soglia di 131. Non è un chunk lazy rientrato in eager (la
+// causa che questo script esiste per intercettare): è la stessa quantità di
+// componenti eager di prima, ognuno con qualche byte in più per la tastiera.
+// Stesso margine +6 kB delle altre soglie di questo file.
+const SOGLIA_AUTENTICATO_KB = 138;
 
 const kb = (bytes) => bytes / 1000;
 

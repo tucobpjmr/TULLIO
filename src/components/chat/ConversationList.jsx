@@ -14,7 +14,7 @@ import {
   rowCenterBetween2, rowCenterFlex1, rowCenterGap1, rowCenterMiddle, rowCenterMiddle2,
   rowGap6Mt10, txtAbsoluteF13, txtF10Gold, txtF10Muted, txtF40Mb8, txtMutedTxtCenter,
 } from "./conversationListStyles.js";
-import { attivaConTastiera } from "../../lib/a11y.js";
+import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
 
 // ─── CHAT: LIST OF CONVERSATIONS ───────────────────────────────────────────
 export const ConversationList = ({ conversations, messages, onSelect, onNew, onDelete }) => {
@@ -123,8 +123,10 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
               transition: "background 0.15s",
               background: unread > 0 ? "rgba(212,168,67,0.05)" : "transparent",
             }}
-              onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-              onMouseLeave={e => e.currentTarget.style.background = unread > 0 ? "rgba(212,168,67,0.05)" : "transparent"}
+              {...conTastiera(
+                e => e.currentTarget.style.background = "var(--surface2)",
+                e => e.currentTarget.style.background = unread > 0 ? "rgba(212,168,67,0.05)" : "transparent",
+              )}
             >
               {c.type === "direct" ? (
                 <div style={relative2}>
@@ -192,8 +194,10 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
                   title={c.type === "group" ? "Elimina gruppo" : "Elimina conversazione"}
                   aria-label={c.type === "group" ? "Elimina gruppo" : "Elimina conversazione"}
                   style={boxF14Muted}
-                  onMouseEnter={e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.color = "var(--danger)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.opacity = 0.65; e.currentTarget.style.color = "var(--text-muted)"; }}
+                  {...conTastiera(
+                    e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.color = "var(--danger)"; },
+                    e => { e.currentTarget.style.opacity = 0.65; e.currentTarget.style.color = "var(--text-muted)"; },
+                  )}
                 >🗑</button>
               )}
             </div>

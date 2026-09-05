@@ -20,7 +20,7 @@ import { indicizza, matchIndice, terminiRicerca } from "../../lib/searchUtils.js
 import { useFinestra } from "../../hooks/useFinestra.js";
 import { MostraAltri } from "../ui/MostraAltri.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
-import { cellaAzionabile } from "../../lib/a11y.js";
+import { cellaAzionabile, conTastiera } from "../../lib/a11y.js";
 import * as stiliComuni from "../../styles/common.js";
 import {
   borderBottom2, boxF12Bold, boxF12Bold2, boxF13MinW0, mb20, padding2, padding3,
@@ -299,8 +299,10 @@ export const Archive = memo(function Archive({ loading = false }) {
                 <tbody>
                   {finestra.visibili.map(task => (
                     <tr key={task.id} style={borderBottom2}
-                      onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      {...conTastiera(
+                        e => e.currentTarget.style.background = "var(--surface2)",
+                        e => e.currentTarget.style.background = "transparent",
+                      )}
                       {...cellaAzionabile(
                         () => dispatch({ type: "SET_SELECTED_TASK", payload: task }),
                         `Apri ${task.title}`,

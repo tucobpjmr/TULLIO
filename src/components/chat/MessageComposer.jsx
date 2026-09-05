@@ -13,6 +13,7 @@ import { useChatContext } from "./chatContext.js";
 import { VoiceRecorder } from "./message/VoiceRecorder.jsx";
 import { Z } from "../../styles/tokens.js";
 import * as stiliComuni from "../../styles/common.js";
+import { conTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -142,8 +143,10 @@ export const MessageComposer = ({ cv, cvd, fileInputRef, sendText, sendVoice, se
                   { kind: "doc", icon: "📝", label: "Word/Excel", accept: ".doc,.docx,.xls,.xlsx,.csv,.txt,.rtf,.odt" },
                 ].map(opt => (
                   <button key={opt.kind} onClick={() => pickFile(opt.accept)} style={rowCenterGap102}
-                    onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    {...conTastiera(
+                      e => e.currentTarget.style.background = "var(--surface2)",
+                      e => e.currentTarget.style.background = "transparent",
+                    )}
                   >
                     <span style={stiliComuni.txtF18}>{opt.icon}</span> {opt.label}
                   </button>
@@ -185,8 +188,10 @@ export const MessageComposer = ({ cv, cvd, fileInputRef, sendText, sendVoice, se
                         cvd({ type: "CLOSE_TMPL" });
                       }}
                       style={boxWFullR8}
-                      onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      {...conTastiera(
+                        e => e.currentTarget.style.background = "var(--surface2)",
+                        e => e.currentTarget.style.background = "transparent",
+                      )}
                     >
                       <div style={txtF12Bold}>{t.label}</div>
                       <div style={txtF11Muted}>

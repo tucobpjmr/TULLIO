@@ -32,20 +32,21 @@ describe("EMAIL_RX", () => {
   });
 });
 
-// M-4 dell'audit sicurezza del 26 agosto. La regola stava scritta a mano in due
-// componenti; ora c'è una definizione sola, e questi test la inchiodano insieme
-// al fatto che l'unico numero in gioco è PASSWORD_MIN — se domani diventasse 12
-// per allinearsi a GoTrue, nessuna delle asserzioni qui sotto andrebbe riscritta
-// a mano su un numero letterale.
+// M-4 dell'audit sicurezza del 26 agosto, esteso da A-3 dell'audit del 4
+// settembre: lunghezza minima E requisiti di composizione, non solo la
+// prima. Questi test la inchiodano insieme al fatto che l'unico numero in
+// gioco è PASSWORD_MIN — se domani cambiasse per riallinearsi a GoTrue,
+// nessuna delle asserzioni qui sotto andrebbe riscritta a mano su un numero
+// letterale.
 describe("passwordValida", () => {
   it("rifiuta una password più corta del minimo, e lo dice nel messaggio", () => {
-    const errore = passwordValida()("a".repeat(PASSWORD_MIN - 1));
+    const errore = passwordValida()("Aa1" + "a".repeat(PASSWORD_MIN - 4));
     expect(errore).toBeTruthy();
     expect(errore).toContain(String(PASSWORD_MIN));
   });
 
-  it("accetta una password lunga esattamente il minimo", () => {
-    expect(passwordValida()("a".repeat(PASSWORD_MIN))).toBeNull();
+  it("accetta una password lunga esattamente il minimo con tutti i requisiti", () => {
+    expect(passwordValida()("Aa1" + "a".repeat(PASSWORD_MIN - 3))).toBeNull();
   });
 
   it("rifiuta ciò che non è una stringa, invece di leggerne la lunghezza", () => {
@@ -55,14 +56,23 @@ describe("passwordValida", () => {
     expect(passwordValida()(null)).toBeTruthy();
   });
 
-  it("non fa il trim: gli spazi in una password sono caratteri come gli altri", () => {
-    // A differenza di `obbligatorio`/`emailValida`, qui una stringa di soli
-    // spazi lunga abbastanza è una password legittima — è GoTrue a decidere,
-    // e GoTrue conta i byte.
-    expect(passwordValida()(" ".repeat(PASSWORD_MIN))).toBeNull();
+  it("rifiuta una password lunga abbastanza ma senza composizione, e nomina cosa manca", () => {
+    // Lunga il minimo ma di sole minuscole: era il caso che A-3 chiude —
+    // "password"/"12345678" passavano prima di questo fix.
+    const errore = passwordValida()("a".repeat(PASSWORD_MIN));
+    expect(errore).toBeTruthy();
+    expect(errore).toContain("maiuscola");
+    expect(errore).toContain("cifra");
+    // La lunghezza però era già a posto: non ricompare fra ciò che manca.
+    expect(errore).not.toContain(`${PASSWORD_MIN} caratteri`);
   });
 
-  it("usa il messaggio del chiamante quando ne passa uno", () => {
-    expect(passwordValida("troppo corta")("abc")).toBe("troppo corta");
+  it("non fa il trim: gli spazi in una password sono caratteri come gli altri", () => {
+    // A differenza di `obbligatorio`/`emailValida`, qui uno spazio conta
+    // come carattere ai fini della lunghezza — è GoTrue a decidere, e
+    // GoTrue conta i byte. Composizione a parte (una stringa di soli spazi
+    // non ha maiuscole/cifre e viene comunque rifiutata per quello).
+    const errore = passwordValida()("Aa1" + " ".repeat(PASSWORD_MIN - 3));
+    expect(errore).toBeNull();
   });
 });

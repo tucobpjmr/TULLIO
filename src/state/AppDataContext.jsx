@@ -104,6 +104,9 @@ export function AppDataProvider({ team, categories, currentUserId, children }) {
       modificaCliente:      () => P.canEditClient(t, uid),
       eliminaCliente:       () => P.canDeleteClient(t, uid),
       categorieDisponibili: () => P.getAvailableCategories(c, t, uid),
+      // Rubrica interna (M-7 dell'audit del 4 settembre): un driver vede solo
+      // il proprio contatto — vedi lib/permissions.js.
+      vedeContatto:         (targetId) => P.canViewContacts(t, uid, targetId),
     });
 
     return {

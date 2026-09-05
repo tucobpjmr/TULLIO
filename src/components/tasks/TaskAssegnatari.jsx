@@ -15,6 +15,7 @@
 import { useState } from "react";
 import { Avatar } from "../ui/Avatar.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
+import { conTastiera } from "../../lib/a11y.js";
 import { Z } from "../../styles/tokens.js";
 import * as stiliComuni from "../../styles/common.js";
 import {
@@ -54,8 +55,10 @@ export function TaskAssegnatari({ assegnati, disponibili, editable, getMember, o
                   onClick={() => rimuovi(id)}
                   title="Rimuovi assegnatario"
                   style={boxF12Muted}
-                  onMouseEnter={e => e.currentTarget.style.color = "var(--danger)"}
-                  onMouseLeave={e => e.currentTarget.style.color = "var(--text-muted)"}
+                  {...conTastiera(
+                    e => e.currentTarget.style.color = "var(--danger)",
+                    e => e.currentTarget.style.color = "var(--text-muted)",
+                  )}
                 >✕</button>
               )}
             </div>
@@ -90,8 +93,10 @@ export function TaskAssegnatari({ assegnati, disponibili, editable, getMember, o
               key={m.id}
               onClick={() => aggiungi(m.id)}
               style={rowCenterGap8}
-              onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              {...conTastiera(
+                e => e.currentTarget.style.background = "var(--surface2)",
+                e => e.currentTarget.style.background = "transparent",
+              )}
             >
               <Avatar memberId={m.id} size={22} />
               <span style={stiliComuni.flex1}>{m.name}</span>

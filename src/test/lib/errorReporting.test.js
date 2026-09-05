@@ -82,6 +82,53 @@ describe("errorReporting", () => {
     });
   });
 
+  // M-6 dell'audit del 4 settembre: una violazione CSP non produce un errore
+  // JS — l'elemento bloccato semplicemente non si carica — quindi non passa
+  // né da `unhandledrejection` né da `error`. Serve un terzo listener.
+  describe("violazione CSP (M-6)", () => {
+    const emettiViolazioneCsp = (dettagli = {}) => {
+      const ev = new Event("securitypolicyviolation");
+      Object.assign(ev, {
+        violatedDirective: "script-src",
+        blockedURI: "https://evil.example",
+        sourceFile: "",
+        lineNumber: 0,
+        ...dettagli,
+      });
+      document.dispatchEvent(ev);
+    };
+
+    it("logga la violazione in console, con direttiva e URI bloccata", () => {
+      emettiViolazioneCsp();
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining("violazione CSP"),
+        expect.stringContaining("script-src: https://evil.example"),
+        expect.anything(),
+      );
+    });
+
+    it("un `blockedURI` assente (styleattr inline) si legge come tale, non come stringa vuota", () => {
+      emettiViolazioneCsp({ blockedURI: "" });
+      expect(console.error).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining("(inline)"),
+        expect.anything(),
+      );
+    });
+
+    it("non passa dal toast: è un presidio di log/registro, non un messaggio per l'utente", () => {
+      emettiViolazioneCsp();
+      expect(sink).not.toHaveBeenCalled();
+    });
+
+    it("la disinstallazione toglie anche questo listener", () => {
+      disinstalla();
+      const chiamatePrima = console.error.mock.calls.length;
+      expect(() => emettiViolazioneCsp()).not.toThrow();
+      expect(console.error.mock.calls.length).toBe(chiamatePrima);
+    });
+  });
+
   // B-2 · in produzione, un errore di PROGRAMMAZIONE non mostra il testo
   // grezzo (che `ErrorDetails` nasconde nello stesso momento sullo stesso
   // schermo), un errore del DATA LAYER sì — perché porta informazione

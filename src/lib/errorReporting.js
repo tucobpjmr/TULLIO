@@ -304,6 +304,30 @@ function segnala(motivo, origine) {
   sink(messaggioUtente(motivo, codice));
 }
 
+// ─── M-6 (audit del 4 settembre) · una violazione CSP non è un errore JS ───
+// L'elemento bloccato semplicemente non si carica: nessuna eccezione, nessun
+// `unhandledrejection`, niente che i due handler sopra possano vedere.
+// `docs/SICUREZZA.md` dichiarava «Violazioni CSP: 0», ma era una misura fatta
+// a mano una volta in Chromium, non un presidio continuo — una regressione
+// (un `<style>` reintrodotto, una CDN aggiunta, un `worker-src` che smette di
+// bastare) sarebbe silenziosa per l'utente e invisibile a chi mantiene.
+//
+// L'evento `securitypolicyviolation` esiste apposta e non richiede
+// infrastruttura server: si registra come i due sopra e passa dallo stesso
+// canale (stesso codice VD-…, stesso `error_reports`), non da uno nuovo.
+// Non passa da `segnala()` — non è un `Error`, e i filtri anti-rumore
+// (isAbort, isRumoreBrowser, dedup) sono pensati per eccezioni, non per
+// violazioni di policy, che sono già per costruzione un evento raro e reale.
+function onCsp(ev) {
+  const codice = codiceSegnalazione();
+  const dettaglio = `${ev.violatedDirective}: ${ev.blockedURI || "(inline)"}`;
+  console.error(`[VoyageDesk] violazione CSP (${codice}):`, dettaglio, ev);
+  registraSegnalazione(
+    codice, "csp", new Error(dettaglio),
+    `${ev.sourceFile ?? ""}:${ev.lineNumber ?? ""}`,
+  );
+}
+
 /**
  * Aggancia i due handler globali del browser. Va chiamata una volta sola, il
  * più presto possibile (main.jsx, accanto alla registrazione del service
@@ -330,9 +354,11 @@ export function installaHandlerGlobali() {
   // in fase di bubble non li vedremmo — e non potremmo filtrarli. Meglio
   // riceverli e scartarli consapevolmente che non sapere che esistono.
   window.addEventListener("error", onError, true);
+  document.addEventListener("securitypolicyviolation", onCsp);
 
   return () => {
     window.removeEventListener("unhandledrejection", onRejection);
     window.removeEventListener("error", onError, true);
+    document.removeEventListener("securitypolicyviolation", onCsp);
   };
 }

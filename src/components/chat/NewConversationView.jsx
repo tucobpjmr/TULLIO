@@ -7,7 +7,7 @@ import { roleLabel } from "../../lib/taskConstants.js";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { obbligatorio, primoCampoInvalido, validaCampi } from "../../lib/validators.js";
 import * as stiliComuni from "../../styles/common.js";
-import { attivaConTastiera } from "../../lib/a11y.js";
+import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -131,8 +131,10 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
                 onClick={() => createDirect(m.id)}
                 onKeyDown={attivaConTastiera(() => createDirect(m.id))}
                 style={rowCenterGap103}
-                onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                {...conTastiera(
+                  e => e.currentTarget.style.background = "var(--surface2)",
+                  e => e.currentTarget.style.background = "transparent",
+                )}
               >
                 <Avatar memberId={m.id} size={38} />
                 <div style={stiliComuni.flex1}>

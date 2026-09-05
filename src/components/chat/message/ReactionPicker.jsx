@@ -6,6 +6,7 @@ import {
   EMOJI_REACTIONS, EMOJI_EXPANDED, loadRecentReactions, pushRecentReaction,
 } from "../chatReactions.js";
 import { Z } from "../../../styles/tokens.js";
+import { conTastiera } from "../../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -74,7 +75,7 @@ export const ReactionPicker = ({ onPick, onClose }) => {
               <div style={rowGap2Mb8}>
                 {recents.map(e => (
                   <button key={"r" + e} onClick={() => pick(e)} style={emojiBtn}
-                    onMouseEnter={hoverOn} onMouseLeave={hoverOff}>{e}</button>
+                    {...conTastiera(hoverOn, hoverOff)}>{e}</button>
                 ))}
               </div>
             </>
@@ -88,7 +89,7 @@ export const ReactionPicker = ({ onPick, onClose }) => {
           <div style={gridGap2}>
             {EMOJI_EXPANDED.map(e => (
               <button key={e} onClick={() => pick(e)} style={emojiBtn}
-                onMouseEnter={hoverOn} onMouseLeave={hoverOff}>{e}</button>
+                {...conTastiera(hoverOn, hoverOff)}>{e}</button>
             ))}
           </div>
         </>
@@ -96,7 +97,7 @@ export const ReactionPicker = ({ onPick, onClose }) => {
         <>
           {EMOJI_REACTIONS.map(e => (
             <button key={e} onClick={() => pick(e)} style={emojiBtn}
-              onMouseEnter={hoverOn} onMouseLeave={hoverOff}>{e}</button>
+              {...conTastiera(hoverOn, hoverOff)}>{e}</button>
           ))}
           <button
             onClick={() => setExpanded(true)}

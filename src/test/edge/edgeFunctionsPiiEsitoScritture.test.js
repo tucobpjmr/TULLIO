@@ -77,3 +77,39 @@ describe("invite-user — l'esito degli upsert non viene ignorato (M-2)", () => 
     expect(src).toMatch(/problemi\.length/);
   });
 });
+
+// ─── B-5 (audit del 4 settembre) — un fallimento di pulizia PII non resta ──
+// solo in console.error: raggiunge il registro di controllo, che è dove chi
+// amministra il progetto guarda davvero.
+describe("delete-account — la pulizia PII fallita lascia una traccia (B-5)", () => {
+  const src = senzaCommenti(sorgente("delete-account"));
+
+  it("il ban resta l'operazione critica: precede ogni pulizia, e un suo fallimento esce subito", () => {
+    const banIdx = src.indexOf("ban_duration");
+    const puliziaIdx = src.indexOf("Promise.allSettled");
+    expect(banIdx).toBeGreaterThan(-1);
+    expect(puliziaIdx).toBeGreaterThan(banIdx);
+  });
+
+  it("scrive sempre una voce di audit sull'auto-eliminazione, non solo quando qualcosa fallisce", () => {
+    // Un `user.autoeliminato` senza `residui` è la prova che la pulizia È
+    // passata, non solo che nessuno l'ha controllata — vedi il commento nel
+    // sorgente. La chiamata deve precedere il `return` finale (che è dove
+    // vive l'unico ramo condizionale sui residui): se fosse dentro quel
+    // ramo, un'auto-eliminazione senza fallimenti non lascerebbe traccia.
+    expect(src).toMatch(/registraAudit\(/);
+    expect(src).toMatch(/["']user\.autoeliminato["']/);
+    const registraIdx = src.indexOf("registraAudit(");
+    const returnFinaleIdx = src.lastIndexOf("return residui.length");
+    expect(returnFinaleIdx).toBeGreaterThan(-1);
+    expect(registraIdx).toBeLessThan(returnFinaleIdx);
+  });
+
+  it("restituisce un warning quando almeno una pulizia fallisce, come invite-user", () => {
+    expect(src).toMatch(/success:\s*true[\s\S]{0,200}warning/);
+  });
+
+  it("il fallimento resta comunque loggato, non solo scritto nell'audit", () => {
+    expect(src).toMatch(/console\.error\(\s*["']\[delete-account\]/);
+  });
+});

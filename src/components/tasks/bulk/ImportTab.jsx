@@ -17,7 +17,7 @@ import {
 } from "../../../lib/bulkImport.js";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
 import * as stiliComuni from "../../../styles/common.js";
-import { attivaConTastiera } from "../../../lib/a11y.js";
+import { attivaConTastiera, conTastiera } from "../../../lib/a11y.js";
 import {
   boxF12Bold, boxF12Warning, boxF13Danger, boxR8, boxR82, boxStickyBold, boxTxtCenterR12,
   boxW8H8, gridGap8, maxW180, mt4Op085, rowCenterBetween, rowCenterBetween3, rowCenterGap5,
@@ -234,8 +234,10 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
           role="button" tabIndex={0}
           onClick={apriSelezioneFile} onKeyDown={attivaConTastiera(apriSelezioneFile)}
           style={boxTxtCenterR12}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--gold)"; e.currentTarget.style.background = "rgba(212,168,67,0.04)"; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface)"; }}
+          {...conTastiera(
+            e => { e.currentTarget.style.borderColor = "var(--gold)"; e.currentTarget.style.background = "rgba(212,168,67,0.04)"; },
+            e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface)"; },
+          )}
         >
           <div style={txtF40Mb10}>📥</div>
           <div style={txtF14Bold}>Clicca per caricare CSV o Excel</div>

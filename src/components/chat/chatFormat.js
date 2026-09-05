@@ -15,7 +15,7 @@ import { dataBreve, oraBreve } from "../../lib/dates.js";
 export const formatChatTime = (iso) => {
   const d = new Date(iso);
   const now = new Date();
-  const diffMin = Math.floor((now - d) / 60000);
+  const diffMin = Math.floor((now.getTime() - d.getTime()) / 60000);
   if (diffMin < 1) return "Adesso";
   if (diffMin < 60) return `${diffMin} min fa`;
   if (d.toDateString() === now.toDateString()) return oraBreve(d);

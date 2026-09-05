@@ -189,6 +189,19 @@ Tutti `SECURITY DEFINER` + `SET search_path`. Il controllo `active` è stato
 aggiunto in `20260621_rls_hardening_active_users`: prima un utente invitato ma
 non ancora attivato, con il ruolo già scritto, superava i controlli di ruolo.
 
+**B-1 dell'audit del 4 settembre** ha aggiunto due helper della stessa
+famiglia, dedicati a `clients` (che prima ripeteva in linea, in quattro
+policy, la stessa `EXISTS (SELECT 1 FROM users WHERE …)`):
+
+```
+private.can_clienti_scrittura()    role IN (admin, manager, agent) AND active
+private.can_clienti_eliminazione() role IN (admin, manager)        AND active
+```
+
+Rispecchiano `canEditClient`/`canDeleteClient` in `src/lib/permissions.js`,
+sono in `private` (non raggiungibili da PostgREST) e non compaiono
+nell'elenco dei 14 sopra per lo stesso motivo di `is_admin()`/`can_liste()`.
+
 ### Escalation di privilegi bloccata da trigger (📄)
 
 `20260613080033_fix_users_privilege_escalation` — la policy `users_update_self`
@@ -721,6 +734,23 @@ verso Google Fonts (iniettando gli stessi identici blocchi `<style>` di
 `FontLoader` e `ListeStyles`, che altrimenti non montano fuori dall'area
 autenticata), una richiesta di login verso Supabase, e URL `blob:`/`data:` per
 media e immagini.
+
+⚠️ **«0» qui sopra era una misura fatta a mano una volta, non un presidio
+continuo** (M-6 dell'audit del 4 settembre). Una regressione — un `<style>`
+reintrodotto, una CDN aggiunta, un `worker-src` che smette di bastare — non
+produce un errore JS: l'elemento bloccato semplicemente non si carica, ed è
+silenziosa per l'utente e invisibile a chi mantiene finché qualcuno non
+riesegue questa prova a mano. Dal 5 settembre l'evento
+`securitypolicyviolation` è agganciato in `installaHandlerGlobali()`
+(`src/lib/errorReporting.js`) come terzo canale accanto ai due esistenti
+(`unhandledrejection`, `error`): passa dallo stesso `codiceSegnalazione()` e
+dalla stessa tabella `error_reports` che gli admin già leggono, non da un
+canale nuovo. ⛔ **Non è stato aggiunto `report-uri`/`report-to` alla CSP**:
+l'evento `securitypolicyviolation` non ne ha bisogno per scattare (è un
+meccanismo indipendente), e il progetto è statico — un `report-uri` senza un
+endpoint reale a riceverlo produrrebbe solo richieste `POST` silenziosamente
+inutili verso un percorso che i `rewrites` di `vercel.json` fanno comunque
+atterrare su `/`.
 
 **Ripetuta il 13 agosto** sulla policy senza `'unsafe-inline'`, con la stessa
 procedura (build reale servito in locale con l'header, Chromium): 0 violazioni,

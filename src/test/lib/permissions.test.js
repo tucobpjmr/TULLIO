@@ -10,7 +10,7 @@ import {
   getMember, getAssignableTeam, getRoleType,
   isAdmin, isDriver, isJuniorAgent, isSeniorAgent,
   canViewTask, canEditTask, canCreateTaskCategory, canAccessAdmin, canAccessListe,
-  getVisibleTasks, getAvailableCategories,
+  getVisibleTasks, getAvailableCategories, canViewContacts,
 } from "../../lib/permissions.js";
 
 const TEAM = [
@@ -270,5 +270,31 @@ describe("permissions — accesso al modulo Liste viaggio", () => {
     // restituiva true qui, mentre il database (migrazione 20260806130000)
     // rifiuta un pending a prescindere da `active`.
     expect(canAccessListe(TEAM, "attesa")).toBe(false);
+  });
+});
+
+// M-7 dell'audit del 4 settembre — rispecchia la policy RLS
+// user_contacts_select (20260905115909): un driver legge solo il proprio
+// contatto, gli altri ruoli interni (attivi e approvati) leggono la rubrica.
+describe("permissions — canViewContacts (rubrica interna, M-7)", () => {
+  it("il Driver vede il proprio contatto", () => {
+    expect(canViewContacts(TEAM, "driver1", "driver1")).toBe(true);
+  });
+
+  it("il Driver NON vede il contatto di un collega", () => {
+    expect(canViewContacts(TEAM, "driver1", "admin1")).toBe(false);
+  });
+
+  it("admin, manager e agent attivi vedono la rubrica di chiunque", () => {
+    for (const uid of ["admin1", "mgr1", "senior1", "junior1"]) {
+      expect(canViewContacts(TEAM, uid, "driver1"), uid).toBe(true);
+    }
+  });
+
+  it("un utente disattivato non vede nemmeno il proprio, a meno che il target coincida", () => {
+    // canAccessListe(spento) è false, ma targetId === userId vince comunque:
+    // vedere il PROPRIO contatto non passa dal ramo "rubrica di tutti".
+    expect(canViewContacts(TEAM, "spento", "spento")).toBe(true);
+    expect(canViewContacts(TEAM, "spento", "admin1")).toBe(false);
   });
 });

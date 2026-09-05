@@ -4,20 +4,42 @@
 // Gate su `npm audit` con un'allow-list esplicita di advisory NOTE e
 // MITIGATE.
 //
-// Nasce da S-1 dell'audit del 30 agosto: `xlsx@0.18.5` porta due CVE high
+// Nasce da S-1 dell'audit del 30 agosto: `xlsx@0.18.5` portava due CVE high
 // (GHSA-4r6h-8v6p-xvw6, prototype pollution; GHSA-5pgg-2g8v-p4x9, ReDoS) e
-// SheetJS ha lasciato il registry npm — le versioni corrette (0.19.3,
-// 0.20.2+) esistono solo sul CDN del progetto, non su npm. `npm audit` è
-// quindi rosso in permanenza, e senza questo gate resta rosso per SEMPRE:
-// chiunque lo lanci impara a ignorarlo, e il giorno in cui comparirà una
-// SECONDA vulnerabilità — in una dipendenza senza mitigazione — sarà
+// SheetJS ha lasciato il registry npm — le versioni corrette (0.19.3, 0.20.2+)
+// esistono solo sul CDN del progetto. `npm audit` era quindi rosso in
+// permanenza, e senza questo gate sarebbe restato rosso per SEMPRE: chiunque
+// lo lanci impara a ignorarlo, e il giorno in cui comparirà una SECONDA
+// vulnerabilità — in una dipendenza senza mitigazione — sarebbe
 // indistinguibile dal rumore di fondo.
 //
-// Il rischio di xlsx è già mitigato architetturalmente, non ignorato: il
-// parse gira in un Web Worker terminato subito dopo (src/lib/xlsxWorker.js)
-// e src/lib/prototypeGuard.js sorveglia il passaggio di confine confrontando
-// i descrittori di Object/Array/Function. Questo script codifica quella
-// mitigazione come eccezione dichiarata — non come silenzio.
+// ─── A-1 dell'audit del 5 settembre · L'ELENCO È VUOTO, E DEVE RESTARLO ────
+//
+// Le due voci di xlsx ERANO qui e sono state TOLTE. A-4 dell'audit del 4
+// settembre ha portato `xlsx` alla 0.20.3, che corregge entrambe le CVE, e da
+// quel momento le due righe non descrivevano più niente: `npm audit` sul
+// lockfile di oggi riporta `found 0 vulnerabilities` — verificato, non
+// dedotto, perché il lockfile registra `"version": "0.20.3"` accanto alla URL
+// del CDN e npm la confronta con il database degli advisory esattamente come
+// farebbe per un pacchetto del registry.
+//
+// ⚠️ TOGLIERLE NON È PULIZIA: È IL GATE CHE DIVENTA PIÙ STRETTO. Finché
+// restavano, un ritorno a una `xlsx` vulnerabile — un rollback, un merge
+// sbagliato, un lockfile rigenerato male — sarebbe passato in silenzio,
+// assorbito da un'eccezione scritta per un problema che non esisteva più. Ora
+// quel caso fa fallire il controllo, che è ciò per cui esiste.
+//
+// ⛔ NON RIMETTERLE «per sicurezza». Un'eccezione per una CVE già corretta non
+// protegge da nulla e nasconde il caso in cui torna: è la forma che ST-14 ha
+// già chiuso una volta su `auth_leaked_password_protection`, dove il difetto
+// era l'opposto — un avviso vero trattato come rumore noto. Le due sono la
+// stessa cosa vista dai due lati: un elenco di eccezioni dice la verità solo
+// se ogni voce corrisponde a un rischio che c'è ADESSO.
+//
+// Il Worker usa-e-getta (src/lib/xlsxWorker.js) e src/lib/prototypeGuard.js
+// restano al loro posto e NON sono la ragione di questa nota: erano difesa in
+// profondità quando il parser era vulnerabile, e restano difesa in profondità
+// su un parser sano che legge file di terzi.
 //
 //   npm run verifica:audit
 //   (compone `npm audit --json` con questo script via pipe — vedi package.json)
@@ -29,21 +51,11 @@
 // per cui esiste.
 import { readFileSync } from 'node:fs';
 
-// Ogni voce: perché è nell'elenco e dove vive la mitigazione nel codice.
-const ALLOWLIST = {
-  'GHSA-4R6H-8V6P-XVW6': {
-    pacchetto: 'xlsx',
-    motivo: 'Prototype Pollution in SheetJS — nessun fix su npm (SheetJS ha ' +
-      'lasciato il registry). Mitigata: il parse gira in un Web Worker ' +
-      'terminato subito dopo (src/lib/xlsxWorker.js) e ' +
-      'src/lib/prototypeGuard.js sorveglia il passaggio di confine.',
-  },
-  'GHSA-5PGG-2G8V-P4X9': {
-    pacchetto: 'xlsx',
-    motivo: 'SheetJS ReDoS — stesso stato di fix e stessa mitigazione della ' +
-      'voce precedente (Worker + prototypeGuard.js).',
-  },
-};
+// Ogni voce: il GHSA id, il pacchetto, e perché l'eccezione è accettabile
+// ADESSO — non «lo era quando l'ho scritta». Vedi il preambolo: l'elenco è
+// vuoto di proposito, e una voce va aggiunta solo per un advisory che esiste,
+// non è risolvibile, e ha una mitigazione che vive nel codice.
+const ALLOWLIST = {};
 
 function estraiGhsaId(url) {
   if (typeof url !== 'string') return null;

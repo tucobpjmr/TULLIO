@@ -194,6 +194,19 @@ const AUDIT = [
   // Nasce con diciannove rilievi tutti aperti e NESSUN critico, quindi i
   // prefissi sono tre: A (alta), M (media), B (bassa).
   { file: 'AUDIT_ARCHITETTURA_SICUREZZA_2026-09-04.md', prefisso: ['A', 'M', 'B'] },
+  // L'audit di architettura e sicurezza del 5 settembre. Registrato insieme al
+  // documento, per la ragione scritta piu' sopra.
+  //
+  // E' il primo condotto anche contro la CATENA DI BUILD e non solo contro
+  // repository e database: `npm ci` eseguito davvero — ed e' quello che ha
+  // prodotto A-1, che nessuna lettura del sorgente avrebbe trovato perche' il
+  // sorgente e' corretto ed e' l'INSTALLAZIONE a non riuscire. Stesso metodo,
+  // un livello piu' in basso, di quello che il 4 settembre ha applicato al
+  // database.
+  //
+  // Nasce con dodici rilievi tutti aperti e NESSUN critico, quindi i prefissi
+  // sono tre: A (alta), M (media), B (bassa).
+  { file: 'AUDIT_ARCHITETTURA_SICUREZZA_2026-09-05.md', prefisso: ['A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.

@@ -67,9 +67,10 @@ descrivendo:
 * `A-3` — il livello **piattaforma** (impostazioni Supabase Auth) ha una difesa
   spenta che nessun file del repository può accendere, e che nessuno script
   guarda.
-* `A-4` — il livello **dipendenze** porta due CVE note e senza fix su npm, con
-  una mitigazione strutturale ottima e un fix definitivo fermo da un mese
-  perché la rete lo blocca.
+* `A-4` ✔ — il livello **dipendenze** portava due CVE note e senza fix su npm,
+  con una mitigazione strutturale ottima e un fix definitivo fermo da un
+  mese perché la rete lo bloccava. **Chiuso il 5 settembre**, da un runner
+  GitHub-hosted dove `cdn.sheetjs.com` non è bloccato.
 
 Nessuno dei quattro è un errore di scrittura. Tutti e quattro sono punti in cui
 un controllo esiste, funziona, e **guarda un livello solo**.
@@ -102,7 +103,7 @@ un controllo esiste, funziona, e **guarda un livello solo**.
 | **A-1** ✔ | ~~🔴 Alta~~ **chiuso il 4 settembre** | Un'azione **negata dai permessi** ritorna `{ error: null }`: `useSalvataggio` la legge come successo e chiama `alSuccesso()` — la modale si chiude e i dati vengono buttati, con solo un toast rosso a dirlo | `src/hooks/useSyncedDispatch.js:20-24` |
 | **A-2** ✔ | ~~🔴 Alta~~ **chiuso il 4 settembre** | `public.registra_audit()` è eseguibile da **ogni utente autenticato**, senza gate di ruolo né di attività, senza tetti né limite di frequenza — e **nessun percorso dell'app la chiama**. Revocata: migrazione `20260904143756` | DB (`proacl`), `supabase/migrations/20260826214000_audit_log.sql` |
 | **A-3** | 🟡 Media ⚠️ *ridimensionato* | Policy password a soli 8 caratteri, senza requisiti di composizione. La metà «leaked password protection» **non è un rilievo**: è una funzione del piano Supabase **Pro** e una scelta di costo già presa e documentata — vedi la correzione qui sotto | `src/lib/validators.js:44` |
-| **A-4** | 🔴 Alta | `xlsx@0.18.5`: due CVE (`CVE-2023-30533`, `CVE-2024-22363`) **ancora aperte**, mitigate ma non risolte, con il fix fermo da un mese | `package.json:14`, `src/lib/xlsxWorker.js` |
+| **A-4** ✔ | ~~🔴 Alta~~ **chiuso il 5 settembre** | `xlsx@0.18.5`: due CVE (`CVE-2023-30533`, `CVE-2024-22363`), mitigate ma non risolte, con il fix fermo da un mese perché la rete lo bloccava. Risolto installando `xlsx@0.20.3` dal CDN SheetJS da un runner GitHub-hosted | `package.json:30`, `src/lib/xlsxWorker.js` |
 | **M-1** ✔ | ~~🟡 Media~~ **chiuso il 4 settembre** | 21 `outline: "none"` e **nessuna regola `:focus-visible` globale**: fuori dal modulo Liste il focus da tastiera non ha un indicatore proprio | `src/styles/global.css`, 18 file |
 | **M-2** | 🟡 Media | 40 `onMouseEnter` contro 15 `onFocus`: le affordance costruite sull'hover non hanno la controparte da tastiera | `src/components/**` (20 file) |
 | **M-3** ✔ | ~~🟡 Media~~ **chiuso il 4 settembre** | Cinque funzioni trigger (`audit_clients_*`, `audit_users_*`, `audit_liste_truncate`) hanno `EXECUTE` a **`PUBLIC`, `anon` e `authenticated`** — le uniche del progetto rimaste così | DB (`proacl`) |
@@ -433,10 +434,13 @@ I due call site (`auth/UpdatePasswordScreen.jsx:30`,
 
 ---
 
-### A-4 · `xlsx@0.18.5`: due CVE ancora aperte
+### A-4 ✔ · `xlsx@0.18.5`: due CVE, chiuse il 5 settembre
 
-**Dove.** `package.json:14` → `"xlsx": "^0.18.5"`, risolta a `0.18.5` in
-`package-lock.json:6683`.
+> **Chiuso.** Vedi «Come è stato chiuso (A-4)» in fondo al documento. Il resto
+> di questa sezione è il rilievo originale, lasciato per il contesto.
+
+**Dove (all'apertura del rilievo).** `package.json:14` → `"xlsx": "^0.18.5"`,
+risolta a `0.18.5` in `package-lock.json:6683`.
 
 * `GHSA-4r6h-8v6p-xvw6` (CVE-2023-30533) Prototype Pollution — fix in 0.19.3+
 * `GHSA-5pgg-2g8v-p4x9` (CVE-2024-22363) ReDoS — fix in 0.20.2+
@@ -1031,12 +1035,12 @@ realtime, bundle, stili, errori, push, liste, import, CI).
 | ~~3~~ | **A-1** (`{error:null}`) ✔ | — | **Fatto il 4 settembre**: due hook, un contratto nuovo in `lib/esitoScrittura.js`, tre gruppi di test (38 casi) |
 | ~~4~~ | **M-3**, **M-4**, **B-3**, **B-6** ✔ | — | **Fatto il 4 settembre**: migrazione `20260904160804` (M-3), `_shared/erroreInterno.ts` deployato su staging e produzione (M-4), `redigiPii`+`famigliaBrowser` (B-3), `EMAIL_RX` in `invite-user` (B-6) |
 | ~~5~~ | **M-1** (`:focus-visible`) ✔ | — | **Fatto il 4 settembre**: la regola proposta non bastava da sola — vedi «Come è stato chiuso (M-1)» in fondo al documento |
-| 6 | **A-4** (xlsx) | 1 h | Da fare **fuori** da un ambiente con egress filtrato |
+| ~~6~~ | **A-4** (xlsx) ✔ | — | **Fatto il 5 settembre**: `xlsx@0.20.3` dal CDN SheetJS, da un job GitHub Actions una tantum |
 | 7 | **M-2** (hover/focus) | 4 h | 25 punti + la regola di lint come `warn` |
 | 8 | **M-5**, **M-6**, **M-7**, **B-1**, **B-2**, **B-4**, **B-5**, **B-7** | — | Un rilievo per sessione, nell'ordine che conviene |
 | 9 | **M-8** (stili) | — | Solo se arriva il tema scuro o un restyle |
 
-Chiusi 1–6 la valutazione è **9,5**. Con `A-1`, `A-2`, il punto 4 (`M-3`/`M-4`/`B-3`/`B-6`) e il punto 5 (`M-1`) fatti e `A-3` ridotto alla sua metà gratuita, resta il punto 6 (`A-4`). Il mezzo punto restante è `M-8`, ed è il
+Chiusi 1–6 la valutazione è **9,5**. Con `A-1`, `A-2`, il punto 4 (`M-3`/`M-4`/`B-3`/`B-6`), il punto 5 (`M-1`) e il punto 6 (`A-4`) fatti e `A-3` ridotto alla sua metà gratuita, i quattro rilievi alti sono tutti chiusi. Il mezzo punto restante è `M-8`, ed è il
 solo rilievo che chiederei di **non** affrontare finché non c'è una ragione di
 prodotto: il sistema di stili attuale è brutto da leggere e corretto da
 eseguire, e riscriverlo senza una richiesta è il tipo di lavoro che introduce
@@ -1502,3 +1506,43 @@ Oltre al caso minimo, la regola è stata verificata:
 lint come `warn`) resta aperto: è un rilievo distinto nell'ordine di
 esecuzione (punto 7, 4h), non incluso in «M-1». Il correttivo qui sopra
 riguarda solo l'anello di `:focus-visible` globale.
+
+---
+
+## Come è stato chiuso (A-4)
+
+**5 settembre 2026.** Il rilievo era fermo da un mese non per una difficoltà
+tecnica ma per un confine di rete: `cdn.sheetjs.com` risponde 403 dall'ambiente
+in cui l'audit e le sessioni di sviluppo giravano, e SheetJS pubblica lì —
+non sul registry npm — le uniche versioni di `xlsx` senza le due CVE
+(`GHSA-4r6h-8v6p-xvw6`/CVE-2023-30533, `GHSA-5pgg-2g8v-p4x9`/CVE-2024-22363).
+
+**La soluzione non è stata riscrivere codice, ma cambiare rete.** Un workflow
+GitHub Actions una tantum (`.github/workflows/aggiorna-xlsx-a4.yml`,
+lanciato a mano con `workflow_dispatch`) gira su un runner GitHub-hosted, dove
+`cdn.sheetjs.com` è raggiungibile: verifica la reachability, esegue
+`npm install --save https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`,
+aggiorna il commento di `src/lib/xlsxWorker.js` (era «fix da fare», ora
+registra che il fix è applicato), rifà la stessa sequenza di verifica della
+CI (lint, tipi, test, build, bundle, audit) e — solo a verifica passata —
+committa e pusha. Il job è stato lanciato il 5 settembre: verde in 2m13s,
+173 file di test, 2109 asserzioni.
+
+`package.json` ora dichiara `"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"`
+e `package-lock.json` pinna l'URL del tarball, quindi `npm ci` da qui in avanti
+non deve ricontattare il CDN. Il workflow e lo script di supporto
+(`scripts/aggiorna-xlsx-a4.js`) erano dichiaratamente a uso singolo e sono
+stati rimossi nello stesso giro di chiusura.
+
+**La mitigazione strutturale non è stata toccata, per scelta.** Il worker
+usa-e-getta e `withPrototypePollutionGuard` restano: erano difesa in
+profondità quando le CVE erano aperte e lo restano ora, indipendentemente
+dalla versione installata — non erano un ripiego in attesa del fix.
+
+### Cosa NON è stato fatto
+
+`ALLOWLIST` in `scripts/verifica-audit/index.js` non è stata toccata: le due
+voci per `xlsx` restano dichiarate lì, ma sono innocue — con `0.20.3`
+installato `npm audit` non le trova più, quindi il gate passa senza che
+quelle righe intervengano. Toglierle non è necessario e non è stato fatto
+per non aprire un secondo cambiamento nello stesso commit del fix.

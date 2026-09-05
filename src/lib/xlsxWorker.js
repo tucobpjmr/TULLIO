@@ -1,24 +1,26 @@
 // src/lib/xlsxWorker.js
 // L'UNICO modulo del progetto che importa SheetJS.
 //
-// ─── PERCHÉ (A-1 dell'audit sicurezza del 26 agosto) ────────────────────────
+// ─── PERCHÉ (A-1 dell'audit sicurezza del 26 agosto; A-4 del 2 settembre chiuso) ───
 //
-// `xlsx@0.18.5` è l'ultima versione pubblicata sul registry npm — gli autori
-// rilasciano le successive, con i fix, solo sul proprio CDN — e porta due
-// vulnerabilità note:
+// Fino a `xlsx@0.18.5` — l'ultima versione pubblicata sul registry npm, dato
+// che SheetJS rilascia le successive, con i fix, solo sul proprio CDN — il
+// pacchetto portava due vulnerabilità note:
 //   • GHSA-4r6h-8v6p-xvw6 (CVE-2023-30533) Prototype Pollution — fix in 0.19.3+
 //   • GHSA-5pgg-2g8v-p4x9 (CVE-2024-22363) ReDoS                — fix in 0.20.2+
-// L'egress verso `cdn.sheetjs.com` è bloccato da questo ambiente (403,
-// riverificato quattro volte fra il 6 e il 26 agosto), quindi la migrazione
-// alla 0.20.3 non è applicabile qui: resta il fix DEFINITIVO da eseguire
-// appena la rete lo consenta, con `npm install --save
-// https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`.
+// Il fix DEFINITIVO è ora applicato: `xlsx@0.20.3` installato da
+// `npm install --save https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`
+// (l'unico modo di ottenerlo, dato che SheetJS ha lasciato il registry npm).
+// `package-lock.json` pinna l'URL del tarball, quindi `npm ci` non deve
+// ricontattare il CDN.
 //
-// Fino ad allora la difesa era `withPrototypePollutionGuard`, che confronta i
-// descrittori dei prototipi prima e dopo il parse. Funziona, ma va
-// contabilizzata per ciò che è: una RILEVAZIONE A POSTERIORI. Se un gadget si
-// innesca durante il parse, quando il guard se ne accorge è già stato
-// eseguito — nel realm che tiene il token di sessione in `localStorage`.
+// La difesa resta comunque `withPrototypePollutionGuard`, che confronta i
+// descrittori dei prototipi prima e dopo il parse — non un ripiego in attesa
+// del fix, ma difesa in profondità valida indipendentemente dalla versione
+// installata. Funziona, ma va contabilizzata per ciò che è: una RILEVAZIONE A
+// POSTERIORI. Se un gadget si innesca durante il parse, quando il guard se ne
+// accorge è già stato eseguito — nel realm che tiene il token di sessione in
+// `localStorage`.
 //
 // Questo file cambia la categoria della difesa da rilevare a CONTENERE. Il
 // parse avviene in un realm separato e USA-E-GETTA: il worker viene creato per

@@ -131,7 +131,7 @@ affermazioni diverse e solo la prima ha valore.
 | **A-1** | 🟡 Media ⚠️ *ridimensionato da Alta il 5 settembre — la correzione va letta prima del rilievo* | `xlsx` è risolto da un **tarball su `cdn.sheetjs.com`**, non dal registry: ogni `npm ci` — CI, build Vercel, ogni macchina nuova — dipende da una terza parte. Oggi funziona (CI e Vercel verdi sul commit di questo audit) e **in questa sessione è fallito con `403 Forbidden`**: è un punto singolo di guasto **latente**, con un precedente di un mese documentato dal repo stesso. ⛔ La seconda metà del rilievo — «`npm audit` riporta due CVE già corrette» — **era sbagliata**: `npm audit` sul lockfile reale dice `found 0 vulnerabilities`. ⚠️ *Parzialmente chiuso il 5 settembre*: le due voci morte di `ALLOWLIST` sono state tolte; resta da vendorare il tarball | `package.json:30`, `package-lock.json:6316`, `scripts/verifica-audit/index.js`, `.github/workflows/ci.yml` |
 | **A-2** ✔ | ~~🔴 Alta~~ **chiuso il 5 settembre** | **L'app non ha URL.** Zero `pushState`/`popstate`/router in 286 file: nessun link condivisibile a una task, a una lista o a un cliente; il tasto Indietro di Android chiude la PWA; il refresh riporta sempre alla dashboard. Il meccanismo di deep-link **esiste già** (`?task=`/`?chat=`) ma viene consumato e cancellato al primo render. **Chiuso**: `src/hooks/useUrlStato.js` — vedi «Come è stato chiuso (A-2)» in fondo | `src/state/reducer.js` (`activeView`), `src/hooks/usePushNavigation.js:31-44`, `vercel.json:2` |
 | **M-1** | 🟡 Media | **PWA senza guscio offline.** `public/sw.js` non ha alcun handler `fetch`: l'app gestisce benissimo «vado offline mentre è aperta» (due strisce persistenti) e **non gestisce affatto** «viene aperta da offline» — schermata d'errore del browser, non l'app che spiega | `public/sw.js:2`, `src/main.jsx:22-28` |
-| **M-2** | 🟡 Media | **Il registro di audit su `clients` è parziale e non verificabile.** Nessun trigger su `UPDATE` — nome, email, telefono, indirizzo e note di **885 persone esterne al team** si modificano senza traccia; l'`INSERT` registra solo gli import multi-riga (`if v_n > 1`). `audit_log` ha **0 righe** e nulla distingue «non è successo niente di registrabile» da «ha smesso di funzionare» | DB (`audit_clients_insert`, `pg_trigger` su `clients`), `supabase/migrations/20260826214000_audit_log.sql` |
+| **M-2** ✔ | ~~🟡 Media~~ **chiuso il 5 settembre** | **Il registro di audit su `clients` era parziale e non verificabile.** Nessun trigger su `UPDATE` — nome, email, telefono, indirizzo e note di **885 persone esterne al team** si modificavano senza traccia; l'`INSERT` registrava solo gli import multi-riga (`if v_n > 1`). `audit_log` aveva **0 righe** e nulla distingueva «non è successo niente di registrabile» da «ha smesso di funzionare» | DB (`audit_clients_insert`, `pg_trigger` su `clients`), `supabase/migrations/20260826214000_audit_log.sql` |
 | **M-3** | 🟡 Media | **Google Fonts da CDN di terza parte** in un `<link>` bloccante: l'IP di ogni visitatore raggiunge Google prima di qualunque consenso, i font non sono disponibili offline, e un dominio esterno sta sul percorso critico di rendering di un gestionale che tratta PII di clienti | `index.html:26-31`, `vercel.json:16` (`style-src`/`font-src`) |
 | **M-4** | 🟡 Media | **Riportato dal 4 settembre (`M-5`), ancora aperto.** `checkJs` copre `src/lib` + `src/state` + `src/hooks`; `src/components` — **184 file**, la maggioranza del sorgente — resta fuori, e `strict` è `false` | `jsconfig.json:52-56` |
 | **M-5** | 🟡 Media | **Riportato dal 4 settembre (`M-8`), ancora aperto.** 335 `style={{…}}` inline dinamici e ~344 costanti a nomi meccanici, nessun design system, nessun tema scuro | `src/styles/`, 15 × `*Styles.js` |
@@ -1110,7 +1110,7 @@ end $$;
 | ~~1~~ | **A-1** — metà `ALLOWLIST` ✔ | **Fatta il 5 settembre**: le due voci morte sono state tolte e il gate è verificato per mutazione. La metà «vendorare il tarball» resta, ma **non è più in testa**: con la seconda metà del rilievo smentita, non c'è niente che blocchi il resto, e serve comunque un ambiente che raggiunga il CDN una volta sola |
 | ~~1~~ | **A-2** (URL e history) ✔ | **Fatto il 5 settembre**: `src/hooks/useUrlStato.js`, montato dopo `usePushNavigation`. Nessuna dipendenza nuova, 20 casi di test, sei mutazioni verificate |
 | ~~2~~ | **B-1**, **B-5** (due migrazioni SQL piccole) ✔ | **Fatte il 5 settembre**: applicate e verificate scrivendo davvero, prima su staging poi in produzione — vedi «Come sono stati chiusi (B-1, B-5)» in fondo |
-| 3 | **M-2** (audit su `clients` + sonda) | Terza migrazione dello stesso blocco, ma separata perché è una decisione di prodotto (cosa si registra) e non un rimedio |
+| ~~3~~ | **M-2** (audit su `clients` + sonda) ✔ | **Fatta il 5 settembre**: `trg_audit_clients_update` + `public.sonda_audit_clients_update()`, applicate e verificate scrivendo davvero — vedi «Come è stato chiuso (M-2)» in fondo |
 | 4 | **A-1** — metà «vendorare il tarball» | Da fare da un ambiente che raggiunge `cdn.sheetjs.com`: nessuna urgenza (CI e Vercel verdi), nessun blocco a valle |
 | 5 | **M-1** (guscio offline) | Dopo A-2: con gli URL, il service worker ha una forma canonica da servire e il caso «riapri sull'ultima vista da offline» diventa provabile |
 | 6 | **M-3** (font in proprio) | Subito dopo M-1, perché è la risorsa che altrimenti manca da offline — e perché restringe la CSP, cosa che si vuole fare quando il resto è stabile |
@@ -1321,3 +1321,70 @@ Nessuna policy RLS toccata, nessun nuovo permesso concesso: entrambe le
 funzioni restano `SECURITY DEFINER` con lo stesso `EXECUTE` di prima. Il
 comportamento visibile dal client non cambia per un utente attivo e non
 `pending` sotto la soglia delle cinque notifiche di prova l'ora.
+
+---
+
+## Come è stato chiuso (M-2)
+
+`supabase/migrations/20260905130000_audit_clients_update.sql` — il trigger
+`trg_audit_clients_update` + la funzione `audit_clients_update()` (registra
+solo QUALI campi cambiano, mai i valori) più la sonda
+`public.sonda_audit_clients_update()` che rende lo zero di `audit_log`
+interpretabile. Applicata e verificata su `tullio-staging` e poi in
+produzione (`tullio`), non solo letta.
+
+### Un bug trovato eseguendo, non leggendo
+
+Il codice proposto dal rilievo usava `v_campi := v_campi || 'name'` per
+comporre l'array dei campi cambiati. Eseguito per la prima volta su
+staging, ha fallito:
+
+```
+ERROR: 22P02: malformed array literal: "notes"
+DETAIL: Array value must start with "{" or dimension information.
+```
+
+`text[] || 'letterale'` con un letterale non tipizzato risolve l'overload
+`anyarray || anyarray` invece di `anyarray || anyelement`: Postgres prova a
+leggere `'notes'` come un letterale di array (cioè cerca una `{` iniziale) e
+fallisce. La correzione è `array_append(v_campi, 'notes')` — la stessa forma
+già in uso altrove nel progetto (`step_j_fix4.sql` e simili) — non un
+cast `::text`, per restare sulla forma che il resto del repository già usa.
+Senza aver eseguito la migrazione su staging prima di produzione, questo
+sarebbe arrivato in produzione e **ogni** `UPDATE` su `clients` con almeno un
+campo tracciato avrebbe fallito con un errore 500 invece di aggiornare la
+riga — un'interruzione peggiore del difetto che la migrazione doveva
+chiudere.
+
+### Verifica, per mutazione e per esecuzione
+
+Impersonando un agent attivo reale (`set_config('request.jwt.claims', …)` +
+`set local role authenticated`, come i dry-run di
+`docs/MIGRAZIONI_SUPABASE.md`) e chiamando `sonda_audit_clients_update()`:
+
+| Dove | `trigger_ha_scritto` | Righe residue dopo la chiamata |
+|---|---|---|
+| Staging, prima del fix | `ERROR 22P02` | n/a — la chiamata non completava |
+| Staging, dopo il fix | `1` | `0` client, `0` righe di audit |
+| Produzione | `1` | `0` client di prova, **885** clienti reali invariati |
+
+`885` è lo stesso numero che l'apertura di questo rilievo aveva misurato: la
+sonda non ha toccato un solo cliente vero. `audit_log` in produzione resta a
+**0 righe** — ma ora è un'affermazione verificabile («nessuno ha ancora
+modificato un cliente da quando il trigger esiste»), non più un'ambiguità fra
+silenzio e guasto.
+
+### La sonda in CI
+
+`scripts/verifica-audit-vivo/index.js` (`npm run verifica:audit-vivo`),
+agganciata a `.github/workflows/rls.yml` con le stesse credenziali già usate
+dal passo RLS: nessun segreto nuovo. Gira ogni notte, a ogni push che tocchi
+`supabase/migrations/**`, e a richiesta.
+
+### Cosa NON registra, di proposito
+
+`audit_log.details` porta `{"campi": ["email", "notes"]}`, mai i valori
+prima/dopo. Chi ha bisogno del valore precedente ha `updated_at` e un
+backup; duplicare l'email o le note di un cliente in una seconda tabella,
+con una policy di lettura diversa da quella dell'originale, peggiorerebbe
+esattamente il problema che questo registro esiste per mitigare.

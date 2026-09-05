@@ -128,6 +128,15 @@ const FUNZIONI_SECURITY_DEFINER_VERIFICATE = new Set([
   // gli anonimi insieme, potatura a 90 giorni con tetto di 5.000 righe
   // (migrazione 20260903094500).
   'segnala_errore_client',
+  // ─── Sonda di M-2 (audit del 5 settembre) ────────────────────────────────
+  // public.sonda_audit_clients_update() inserisce e aggiorna un cliente di
+  // prova per verificare che trg_audit_clients_update scriva davvero in
+  // audit_log, poi annulla tutto con un rollback interno — nessuna riga
+  // sopravvive alla chiamata, nessun dato restituito oltre un conteggio.
+  // Aperta ad `authenticated` (non `anon`) perché non ha nulla da proteggere
+  // ma richiede comunque un login valido. Usata da .github/workflows/
+  // rls.yml tramite scripts/verifica-audit-vivo/index.js.
+  'sonda_audit_clients_update',
 ]);
 
 // I due soli lint, in AVVISI_ACCETTATI, il cui `name` non basta a giudicare

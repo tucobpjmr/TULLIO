@@ -28,7 +28,7 @@ verdi (81,09 kB gzip anonimo su 86 di soglia, 129,56 kB autenticato su 131),
 `npm run verifica:convenzioni` verde (61 controlli), quattordici audit
 precedenti a registro.
 
-⟦stato: 10/19 chiusi⟧
+⟦stato: 13/19 chiusi⟧
 
 > **Sulla numerazione.** `A-` = alta priorità, `M-` = media, `B-` = bassa, come
 > negli audit dal 12 agosto in poi. Non ci sono `C-`: nessun rilievo critico.
@@ -110,12 +110,12 @@ un controllo esiste, funziona, e **guarda un livello solo**.
 | **M-4** ✔ | ~~🟡 Media~~ **chiuso il 4 settembre** | Le Edge Function restituiscono al client il **messaggio d'errore interno grezzo** (`err.message`, `banErr.message`, `authErr.message`) nel ramo `catch` e su tre 500 | 4 × `supabase/functions/*/index.ts` |
 | **M-5** | 🟡 Media ⚠️ *parzialmente chiuso il 5 settembre (`src/hooks`)* | `checkJs` copre `src/lib` + `src/state` (≈40% del codice non-test) e `strict` è `false`: `src/components` e `src/hooks` — 174 file — non sono controllati | `jsconfig.json:47-50` |
 | **M-6** ✔ | ~~🟡 Media~~ **chiuso il 5 settembre** | La CSP non ha `report-to`/`report-uri`: «0 violazioni CSP» è una misura fatta a mano una volta, non un presidio continuo | `vercel.json:16` |
-| **M-7** | 🟡 Media | `user_contacts_select` è `using (true)`: **anche un driver** legge email e telefono di tutto il team, benché il ruolo sia escluso per disegno da ogni altro dato | DB, `supabase/migrations/20260629222802_user_contacts_select_team.sql` |
+| **M-7** ✔ | ~~🟡 Media~~ **chiuso il 5 settembre** | `user_contacts_select` è `using (true)`: **anche un driver** legge email e telefono di tutto il team, benché il ruolo sia escluso per disegno da ogni altro dato | DB, `supabase/migrations/20260629222802_user_contacts_select_team.sql` |
 | **M-8** | 🟡 Media | 344 costanti di stile a nomi meccanici (`boxF125Warning`, `rowCenterBetween4`) + 335 stili inline dinamici, nessun design system, nessun tema scuro | `src/styles/`, 15 × `*Styles.js` |
-| **B-1** | 🟢 Bassa | Le quattro policy di `clients` ripetono `users.role = ANY(ARRAY[...])` in linea invece di usare un helper `private.can_clienti()`, contro il principio che il progetto applica ovunque | DB (`pg_policies`) |
+| **B-1** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | Le quattro policy di `clients` ripetono `users.role = ANY(ARRAY[...])` in linea invece di usare un helper `private.can_clienti()`, contro il principio che il progetto applica ovunque | DB (`pg_policies`) |
 | **B-2** | 🟢 Bassa | `useEffect(..., [enabled, delay, ...deps])`: uno spread in un array di dipendenze — React solleva se la lunghezza cambia, e nessun lint può verificarlo | `src/hooks/useDebouncedTableSubscription.js:97` |
 | **B-3** ✔ | ~~🟢 Bassa~~ **chiuso il 4 settembre** | `redigiPii()` redige `message` e `stack` ma **non** `url` e `user_agent`, che finiscono grezzi in `error_reports` | `src/lib/errorReporting.js:55-59` |
-| **B-4** | 🟢 Bassa | `task_history.actor_id` è una FK senza indice di copertura; sette indici non sono mai stati usati | advisor prod |
+| **B-4** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** *(solo l'indice di copertura)* | `task_history.actor_id` è una FK senza indice di copertura; sette indici non sono mai stati usati | advisor prod |
 | **B-5** | 🟢 Bassa | `delete-account` banna l'utente (irreversibile) e poi ripulisce la PII in `allSettled`: se la pulizia fallisce, l'utente è bloccato fuori e i suoi dati restano | `supabase/functions/delete-account/index.ts` |
 | **B-6** ✔ | ~~🟢 Bassa~~ **chiuso il 4 settembre** | `invite-user` non valida il formato dell'email prima di passarla a GoTrue, mentre valida ruolo, capacity e colore | `supabase/functions/invite-user/index.ts` |
 | **B-7** | 🟢 Bassa | `docs/` ha 40 handoff + 21 audit: l'indice distingue vigente da storico, ma la ricerca di «qual è la regola oggi» costa | `docs/` |
@@ -918,6 +918,19 @@ export const canViewContacts = (team, userId, targetId) =>
 oggi mostrano i pulsanti a chiunque, e un caso in
 `src/test/integration/rls.test.js`.
 
+✅ **Chiuso il 5 settembre** (decisione di prodotto: il driver non deve
+vedere la rubrica) — vedi «Come è stato chiuso (M-7, B-1, B-4)» in fondo al
+documento. ⚠️ **La nota qui sopra su `ContactMenuItem.jsx`/`ContactActions.jsx`
+era imprecisa**: verificato il call graph, nessuno dei due componenti
+renderizza mai la rubrica del team — sono generici (ricevono un `phone` dal
+chiamante) e l'unico punto che passa loro un contatto di `user_contacts`
+(`AdminTeamTab.jsx`) è già dentro `AdminView`, riservata a `canAccessAdmin()`.
+Non c'era un secondo schermo da correggere; `canViewContacts()` è stata
+comunque aggiunta a `permissions.js` (e `io.vedeContatto()` in
+`AppDataContext.jsx`) perché quel file è dichiaratamente lo specchio di ogni
+policy RLS del progetto, pronta per il giorno in cui un altro schermo
+mostrasse la rubrica a chi non è admin.
+
 ---
 
 ### M-8 · Il sistema di stili
@@ -984,16 +997,20 @@ perché vada aggredito adesso.
 
 ### Rilievi di bassa priorità
 
-**B-1 · `clients` ripete la logica di ruolo in linea.** Le quattro policy
-scrivono `EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid() AND users.role
-= ANY(ARRAY['admin','manager','agent']))` invece di chiamare un helper, mentre
-ogni altra tabella usa `private.is_admin()` / `is_active_user()` /
-`can_liste()`. Funzionalmente sono equivalenti (la RESTRICTIVE `rls_active_only`
-aggiunge attivo+approvato), ma è la stessa domanda scritta in cinque posti —
-esattamente ciò che il preambolo di `canAccessListe` in `permissions.js` esiste
-per evitare. Rimedio: `private.can_clienti_scrittura()` e
-`private.can_clienti_eliminazione()`, che rispecchino le due funzioni già in
-`permissions.js`, e riscrivere le policy come `using ((select private.can_clienti_scrittura()))`.
+**B-1 · `clients` ripete la logica di ruolo in linea.** ✔ **Chiuso il 5
+settembre.** Le quattro policy scrivevano `EXISTS (SELECT 1 FROM users WHERE
+users.id = auth.uid() AND users.role = ANY(ARRAY['admin','manager','agent']))`
+invece di chiamare un helper, mentre ogni altra tabella usa
+`private.is_admin()` / `is_active_user()` / `can_liste()`. Funzionalmente
+erano equivalenti (la RESTRICTIVE `rls_active_only` aggiunge attivo+approvato),
+ma era la stessa domanda scritta in cinque posti — esattamente ciò che il
+preambolo di `canAccessListe` in `permissions.js` esiste per evitare.
+Migrazione `20260905115917`: `private.can_clienti_scrittura()` (select/insert/
+update) e `private.can_clienti_eliminazione()` (delete, solo admin/manager),
+che rispecchiano `canEditClient`/`canDeleteClient` già in `permissions.js`.
+Verificato su staging e produzione con inserimenti/eliminazioni di prova
+impersonando un agent e un driver (vedi «Come è stato chiuso (M-7, B-1, B-4)»
+in fondo al documento).
 
 **B-2 · Spread in un array di dipendenze.**
 `src/hooks/useDebouncedTableSubscription.js:97`:
@@ -1012,13 +1029,16 @@ non è scritta da nessuna parte, e il commento sulla tabella dice «non deve
 contenere PII oltre a quella già presente in users». Rimedio: passare anche
 `url` da `redigiPii`, e troncare `userAgent` alla sola famiglia di browser.
 
-**B-4 · Indici.** `task_history.actor_id` è una FK senza indice di copertura:
-ogni `DELETE` su `users` fa una scansione. Sette indici non sono mai stati usati
-(`idx_users_active`, `idx_tasks_assignees`, `idx_lista_history_actor_id`,
-`rate_limit_finestra`, `audit_log_at_desc`, `audit_log_actor_at`,
-`idx_users_invited_by`, `idx_lista_beneficiari_created_by`). ⚠️ «Mai usato» su
-`audit_log` e `rate_limit` significa «tabella ancora giovane», non «indice
-inutile»: da rivalutare fra qualche mese, non da rimuovere ora.
+**B-4 · Indici.** ⚠️ **Solo la prima metà chiusa il 5 settembre.**
+`task_history.actor_id` era una FK senza indice di copertura: ogni `DELETE` su
+`users` faceva una scansione sequenziale. Migrazione `20260905115923`:
+`idx_task_history_actor_id`, applicata e verificata su staging e produzione.
+**I sette indici "mai usati" non sono stati toccati** e restano da
+rivalutare, non da rimuovere ora — `idx_users_active`, `idx_tasks_assignees`,
+`idx_lista_history_actor_id`, `rate_limit_finestra`, `audit_log_at_desc`,
+`audit_log_actor_at`, `idx_users_invited_by`,
+`idx_lista_beneficiari_created_by`. ⚠️ «Mai usato» su `audit_log` e
+`rate_limit` significa «tabella ancora giovane», non «indice inutile».
 
 **B-5 · `delete-account`: ban prima, pulizia poi.** Il ban di dieci anni è
 applicato e verificato; la pulizia della PII (`users`, `user_contacts`,
@@ -1060,7 +1080,8 @@ realtime, bundle, stili, errori, push, liste, import, CI).
 | ~~6~~ | **A-4** (xlsx) ✔ | — | **Fatto il 5 settembre**: `xlsx@0.20.3` dal CDN SheetJS, da un job GitHub Actions una tantum |
 | ~~7~~ | **M-2** (hover/focus) ✔ | — | **Fatto il 5 settembre**: `conTastiera()` in `lib/a11y.js`, applicato ai siti reali; i pochi hover puramente decorativi (nessuna azione propria) disattivano la regola riga per riga col perché. Regola aggiunta direttamente come `error` — l'arretrato era a zero nello stesso commit |
 | ~~8a~~ | **M-6** (CSP) ✔ | — | **Fatto il 5 settembre**: `securitypolicyviolation` agganciato in `installaHandlerGlobali()`, stesso canale (`codiceSegnalazione` + `error_reports`) dei due handler esistenti. Niente `report-uri`/`report-to` in `vercel.json` — vedi la nota nel corpo del rilievo |
-| 8b | **M-7**, **B-1**, **B-2**, **B-4**, **B-5**, **B-7** | — | ⚠️ **A-3 e M-5 avanzati parzialmente il 5 settembre** (vedi le due sezioni «Come è stato avanzato» in fondo): A-3 chiude la metà client (validatore a 12 caratteri + composizione), resta aperta la metà piattaforma che nessuno strumento di questa sessione può applicare; M-5 allarga `checkJs` a `src/hooks` (passo 1 di 3) |
+| ~~8c~~ | **M-7**, **B-1**, **B-4** ✔ | — | **Fatti il 5 settembre** (tre migrazioni, staging poi produzione): `user_contacts_select` esclude il driver (M-7, decisione di prodotto), `private.can_clienti_scrittura()`/`can_clienti_eliminazione()` sostituiscono la logica di ruolo in linea sulle quattro policy di `clients` (B-1), indice di copertura su `task_history.actor_id` (B-4, solo questa metà — i sette indici mai usati restano da rivalutare). Vedi «Come è stato chiuso (M-7, B-1, B-4)» in fondo |
+| 8d | **B-2**, **B-5**, **B-7** | — | ⚠️ **A-3 e M-5 avanzati parzialmente il 5 settembre** (vedi le due sezioni «Come è stato avanzato» in fondo): A-3 chiude la metà client (validatore a 12 caratteri + composizione), resta aperta la metà piattaforma che nessuno strumento di questa sessione può applicare; M-5 allarga `checkJs` a `src/hooks` (passo 1 di 3) |
 | 9 | **M-8** (stili) | — | Solo se arriva il tema scuro o un restyle |
 
 Chiusi 1–6 la valutazione è **9,5**. Con `A-1`, `A-2`, il punto 4 (`M-3`/`M-4`/`B-3`/`B-6`), il punto 5 (`M-1`) e il punto 6 (`A-4`) fatti e `A-3` ridotto alla sua metà gratuita, i quattro rilievi alti sono tutti chiusi. Il mezzo punto restante è `M-8`, ed è il
@@ -1798,3 +1819,95 @@ CSP (M-6)» da 4 casi: direttiva+URI nel log, `blockedURI` assente letto come
 `npm run verifica:tipi`, `npm run build` + `npm run verifica:bundle`.
 `docs/SICUREZZA.md` §8 aggiornato per non dichiarare più «Violazioni CSP: 0»
 come se fosse un fatto permanente.
+
+---
+
+## Come è stato chiuso (M-7, B-1, B-4)
+
+**5 settembre 2026.** Tre migrazioni indipendenti, applicate e verificate su
+staging (`itanvnroxgjdxrplngam`) prima e produzione (`vmxvnxsqfisucugcpqlc`)
+dopo, con lo stesso schema di prova su entrambe.
+
+### M-7 · decisione di prodotto: il driver non vede la rubrica
+
+Confermata esplicitamente prima di scrivere la migrazione (il rilievo stesso
+poneva la domanda senza rispondere). `user_contacts_select` ora richiede
+`user_id = auth.uid() OR private.can_liste()`: il driver legge solo la
+propria riga, gli altri ruoli interni (admin/manager/agent, attivi e
+approvati) tutta la rubrica — invariato rispetto a prima.
+
+**Verificato per riga, non per policy letta.** Su staging: un driver vede
+1 riga di `user_contacts` su 3 totali (solo la propria), un agent attivo le
+vede tutte e 3. La differenza è la prova che conta — leggere la definizione
+della policy dice cosa DOVREBBE succedere, eseguirla come i due ruoli dice
+cosa succede davvero.
+
+**La nota del rilievo su `ContactMenuItem.jsx`/`ContactActions.jsx` era
+imprecisa.** Verificato il call graph prima di toccare quei file: nessuno dei
+due sa di chi sia il contatto che rende — ricevono un `phone`/`label` dal
+chiamante. L'unico call site che passa loro un contatto di `user_contacts`
+(non di `clients`, un'entità diversa) è `AdminTeamTab.jsx`, che carica
+`contactsMap` con `useCaricamento` **dentro un componente già raggiungibile
+solo da `canAccessAdmin()`** — un driver non monta mai quell'albero. Non
+c'era quindi un secondo schermo da correggere lato client; il gap era
+puramente a livello RLS, esattamente come per gli advisor su RPC "non
+sfruttabili ma da sistemare comunque" di M-3.
+
+`canViewContacts(team, userId, targetId)` è stata comunque aggiunta a
+`src/lib/permissions.js` (e `io.vedeContatto(targetId)` in
+`AppDataContext.jsx`), perché quel file dichiara di essere lo specchio di
+OGNI policy RLS del progetto — non un file che cresce solo quando c'è un
+consumatore immediato. Quattro casi in `src/test/lib/permissions.test.js`
+la blindano: il driver vede il proprio contatto ma non quello di un collega,
+i ruoli interni vedono tutto, un utente disattivato non vede nemmeno il
+proprio finché il target non coincide con sé stesso.
+
+### B-1 · gli helper `can_clienti_*`, verificati con INSERT/DELETE veri
+
+`private.can_clienti_scrittura()` (admin/manager/agent) sostituisce l'
+`EXISTS (SELECT 1 FROM users WHERE …)` in linea su `clients_select`/
+`_insert`/`_update`; `private.can_clienti_eliminazione()` (solo admin/
+manager) su `clients_delete`. Rispecchiano `canEditClient`/`canDeleteClient`,
+già presenti in `permissions.js` da A-1 dell'audit del 14 agosto — B-1 non
+introduce una regola nuova, allinea il database alla stessa disciplina delle
+altre tabelle.
+
+**Verificato scrivendo, non solo leggendo `pg_get_expr`.** Su staging: un
+agent attivo può `INSERT` in `clients` (verificato, poi rollback), un driver
+riceve `42501: new row violates row-level security policy` sullo stesso
+`INSERT`. Sulla `DELETE`: un agent (che ha scrittura ma non eliminazione) su
+una riga inserita da `service_role` esegue un `DELETE` che tocca zero righe
+— la riga resta, senza errore esplicito, che è la firma di un rifiuto RLS su
+un comando riuscito (la stessa distinzione che `esitoScrittura()` esiste per
+non confondere lato client).
+
+### B-4 · solo l'indice, per scelta dichiarata dal rilievo stesso
+
+`idx_task_history_actor_id` copre la FK `task_history.actor_id → users(id)
+ON DELETE SET NULL`, verificato presente su entrambi i database dopo
+l'applicazione. **I sette indici "mai usati" non sono stati toccati**: il
+rilievo stesso li marca "da rivalutare fra qualche mese, non da rimuovere
+ora" — su `audit_log`/`rate_limit` (tabelle nate il 26 agosto e il 3
+settembre) "mai usato" oggi significa "tabella giovane", non "indice
+inutile". Chiudere B-4 con la sola metà azionabile non è una chiusura
+parziale mascherata da completa: è l'unica azione che il rilievo prescriveva
+per oggi.
+
+### Verifica comune alle tre
+
+`npm test` (2117 passati, incluso il nuovo blocco `canViewContacts` da 4
+casi), `npm run lint`, `npm run verifica:tipi`, `npm run build` +
+`npm run verifica:bundle`, `npm run verifica:convenzioni`.
+`mcp__Supabase__get_advisors` rieseguito su produzione dopo le tre
+migrazioni: nessun nuovo WARN — `can_clienti_scrittura()`/
+`can_clienti_eliminazione()` vivono in `private`, non raggiungibile da
+PostgREST, come `is_admin()`/`can_liste()`.
+
+### Una nota sui nomi dei file
+
+Come per A-2 e M-3, i tre file sono nati con un timestamp scelto a mano
+(`20260905090200`/`…0300`/`…0400`) e rinominati sulla versione che lo
+strumento ha registrato nel ledger di produzione dopo l'applicazione
+(`20260905115909`/`…115917`/`…115923`), insieme a ogni riferimento interno
+che si autocitava (il commento della policy `user_contacts_select`, i tre
+punti in `src/` che citano quella migrazione per numero).

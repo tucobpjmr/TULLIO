@@ -201,6 +201,15 @@ export const canAccessListe = (team, userId) => {
 export const getVisibleTasks = (team, tasks, userId) =>
   (tasks || []).filter(t => canViewTask(team, t, userId));
 
+// ─── RUBRICA INTERNA ─────────────────────────────────────────────────────────
+// Rispecchia la policy RLS `user_contacts_select` (20260905115909, M-7
+// dell'audit del 4 settembre): il driver vede solo il proprio contatto — è
+// l'unico dato del sistema su cui il suo ruolo non aveva una restrizione, e
+// non per scelta, ma perché la policy che apriva la rubrica a tutto il team
+// (29 giugno) è più vecchia della restrizione del ruolo driver.
+export const canViewContacts = (team, userId, targetId) =>
+  targetId === userId || canAccessListe(team, userId);
+
 // ─── CATEGORIE DISPONIBILI ───────────────────────────────────────────────────
 // Il Driver opera solo su "transfer": gli altri ruoli vedono l'intero
 // dizionario. `categories` è esplicito per la stessa ragione del team.

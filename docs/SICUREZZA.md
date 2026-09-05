@@ -189,6 +189,19 @@ Tutti `SECURITY DEFINER` + `SET search_path`. Il controllo `active` è stato
 aggiunto in `20260621_rls_hardening_active_users`: prima un utente invitato ma
 non ancora attivato, con il ruolo già scritto, superava i controlli di ruolo.
 
+**B-1 dell'audit del 4 settembre** ha aggiunto due helper della stessa
+famiglia, dedicati a `clients` (che prima ripeteva in linea, in quattro
+policy, la stessa `EXISTS (SELECT 1 FROM users WHERE …)`):
+
+```
+private.can_clienti_scrittura()    role IN (admin, manager, agent) AND active
+private.can_clienti_eliminazione() role IN (admin, manager)        AND active
+```
+
+Rispecchiano `canEditClient`/`canDeleteClient` in `src/lib/permissions.js`,
+sono in `private` (non raggiungibili da PostgREST) e non compaiono
+nell'elenco dei 14 sopra per lo stesso motivo di `is_admin()`/`can_liste()`.
+
 ### Escalation di privilegi bloccata da trigger (📄)
 
 `20260613080033_fix_users_privilege_escalation` — la policy `users_update_self`

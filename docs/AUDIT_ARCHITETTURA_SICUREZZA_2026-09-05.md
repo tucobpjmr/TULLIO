@@ -71,9 +71,12 @@ ciò che il progetto *non ha mai avuto*:
 * `A-1` — la chiusura di `A-4` del 4 settembre (le due CVE di `xlsx`) ha risolto
   la vulnerabilità e, nello stesso movimento, ha reso **ogni installazione del
   progetto dipendente dalla raggiungibilità di `cdn.sheetjs.com`**. In questa
-  sessione `npm ci` è fallito con `403 Forbidden` su quella URL. Non è una
-  ricostruzione: è successo qui, ed è la stessa rete-classe che l'audit del 4
-  settembre aveva descritto come «ferma da un mese». Nello stesso movimento,
+  sessione `npm ci` è fallito con `403 Forbidden` su quella URL. ⚠️ **Non è però
+  un guasto in atto**: sul commit di questo audit la CI GitHub e il deploy
+  Vercel sono entrambi verdi, quindi da quei runner il CDN si raggiunge. È un
+  punto singolo di guasto **latente**, e il precedente non è ipotetico — è
+  scritto nel repository: l'audit del 4 settembre descrive il fix «fermo da un
+  mese perché `cdn.sheetjs.com` risponde 403». Nello stesso movimento,
   `npm audit` ha smesso di poter risolvere la versione del pacchetto e riporta
   in permanenza due CVE **già chiuse**, mentre l'allow-list che le assorbe
   motiva l'eccezione con una frase ora falsa («nessun fix su npm»).
@@ -119,7 +122,7 @@ affermazioni diverse e solo la prima ha valore.
 
 | ID | Priorità | Rilievo | File / punto |
 |---|---|---|---|
-| **A-1** | 🔴 Alta | `xlsx` è risolto da un **tarball su `cdn.sheetjs.com`**, non dal registry: `npm ci` fallisce ovunque quel CDN non sia raggiungibile — **riprodotto in questa sessione, `403 Forbidden`** — e con esso la CI, il build Vercel e ogni nuovo sviluppatore. Nello stesso movimento `npm audit` non risolve più la versione (`range: "*"`) e riporta in permanenza due CVE **già corrette**, con la motivazione dell'allow-list ora falsa | `package.json:30`, `package-lock.json:6316`, `scripts/verifica-audit/index.js:33-45`, `.github/workflows/ci.yml` |
+| **A-1** | 🔴 Alta | `xlsx` è risolto da un **tarball su `cdn.sheetjs.com`**, non dal registry: ogni `npm ci` — CI, build Vercel, ogni macchina nuova — dipende da una terza parte. Oggi funziona (CI e Vercel verdi sul commit di questo audit) e **in questa sessione è fallito con `403 Forbidden`**: è un punto singolo di guasto **latente**, con un precedente di un mese documentato dal repo stesso. Nello stesso movimento `npm audit` non risolve più la versione (`range: "*"`) e riporta in permanenza due CVE **già corrette**, con la motivazione dell'allow-list ora falsa | `package.json:30`, `package-lock.json:6316`, `scripts/verifica-audit/index.js:33-45`, `.github/workflows/ci.yml` |
 | **A-2** | 🔴 Alta | **L'app non ha URL.** Zero `pushState`/`popstate`/router in 286 file: nessun link condivisibile a una task, a una lista o a un cliente; il tasto Indietro di Android chiude la PWA; il refresh riporta sempre alla dashboard. Il meccanismo di deep-link **esiste già** (`?task=`/`?chat=`) ma viene consumato e cancellato al primo render | `src/state/reducer.js` (`activeView`), `src/hooks/usePushNavigation.js:31-44`, `vercel.json:2` |
 | **M-1** | 🟡 Media | **PWA senza guscio offline.** `public/sw.js` non ha alcun handler `fetch`: l'app gestisce benissimo «vado offline mentre è aperta» (due strisce persistenti) e **non gestisce affatto** «viene aperta da offline» — schermata d'errore del browser, non l'app che spiega | `public/sw.js:2`, `src/main.jsx:22-28` |
 | **M-2** | 🟡 Media | **Il registro di audit su `clients` è parziale e non verificabile.** Nessun trigger su `UPDATE` — nome, email, telefono, indirizzo e note di **885 persone esterne al team** si modificano senza traccia; l'`INSERT` registra solo gli import multi-riga (`if v_n > 1`). `audit_log` ha **0 righe** e nulla distingue «non è successo niente di registrabile» da «ha smesso di funzionare» | DB (`audit_clients_insert`, `pg_trigger` su `clients`), `supabase/migrations/20260826214000_audit_log.sql` |
@@ -154,24 +157,46 @@ si installa**. Ho potuto eseguire test, lint, tipi e build solo dopo aver
 sostituito temporaneamente quella riga con la versione da registry — e l'ho
 ripristinata prima di scrivere.
 
-**Perché è di alta priorità.** Non è la rete di questa sessione a essere
-esotica. È la stessa classe di blocco che l'audit del 4 settembre ha descritto
-per esteso — «il fix è fermo da un mese perché `cdn.sheetjs.com` risponde 403»
-— e che ha richiesto un workflow GitHub Actions una tantum per essere aggirata.
-La correzione ha rimosso la CVE e ha lasciato in piedi la **causa**: il
-pacchetto non è su npm, e ora ogni `npm ci` del progetto ne dipende.
+⚠️ **DOVE FUNZIONA, E PERCHÉ IL RILIEVO RESTA.** Va detto subito, perché
+cambia come si legge tutto il resto: **oggi la catena funziona**. Il commit che
+porta questo documento ha la CI GitHub verde (`npm ci` riuscito, incluso il
+download dal CDN) e il deploy Vercel `Ready`. Non è quindi un guasto in atto, e
+chi legge «`npm ci` è fallito» senza questo paragrafo si farebbe l'idea
+sbagliata: il rilievo non è che il progetto sia rotto, è che **la sua
+installabilità dipende da qualcuno che non è il progetto**.
 
-Chi paga, e quando:
+Non è nemmeno la rete di questa sessione a essere esotica. È la stessa classe
+di blocco che l'audit del 4 settembre ha descritto per esteso — «il fix è fermo
+da un mese perché `cdn.sheetjs.com` risponde 403» — e che ha richiesto un
+workflow GitHub Actions una tantum per essere aggirata. La correzione ha
+rimosso la CVE e ha lasciato in piedi la **causa**: il pacchetto non è su npm,
+e ora ogni `npm ci` del progetto ne dipende.
 
-| Chi | Cosa succede se il CDN non risponde |
-|---|---|
-| CI (`.github/workflows/ci.yml`, primo step `npm ci`) | Ogni PR rossa, per una ragione che non c'entra con la PR |
-| Build Vercel | **Deploy impossibile** — compresa una correzione urgente |
-| Nuovo sviluppatore, o una macchina nuova | Non arriva al primo `npm run dev` |
-| Ambienti aziendali con proxy in allow-list | `registry.npmjs.org` è quasi sempre ammesso, `cdn.sheetjs.com` quasi mai |
+Chi paga, se e quando il CDN non risponde:
 
-La probabilità del guasto non è nota e non è controllabile: dipende da una
-terza parte che ha già lasciato npm una volta.
+| Chi | Stato oggi | Cosa succede se il CDN non risponde |
+|---|---|---|
+| CI (`.github/workflows/ci.yml`, primo step `npm ci`) | ✅ verde | Ogni PR rossa, per una ragione che non c'entra con la PR |
+| Build Vercel | ✅ `Ready` | **Deploy impossibile** — compresa una correzione urgente |
+| Nuovo sviluppatore, o una macchina nuova | ? | Non arriva al primo `npm run dev` |
+| Ambienti aziendali con proxy in allow-list | ❌ | `registry.npmjs.org` è quasi sempre ammesso, `cdn.sheetjs.com` quasi mai |
+| Questa sessione, il 5 settembre | ❌ `403` | Nessun `node_modules` |
+
+**Perché resta di alta priorità pur non essendo un'interruzione.** Tre ragioni,
+e la terza è quella che pesa di più:
+
+1. **La probabilità non è nota né controllabile**, e il precedente non è
+   ipotetico: SheetJS ha già lasciato il registry npm una volta, ed è quel
+   trasloco ad aver creato la situazione. La seconda decisione della stessa
+   organizzazione avrebbe lo stesso effetto, senza preavviso.
+2. **Il guasto arriverebbe nel momento peggiore.** Un build che non parte è
+   tollerabile di martedì; non lo è quando serve deployare una correzione
+   urgente, ed è esattamente allora che si scopre di dipendere da un terzo.
+3. **La seconda metà del rilievo è già vera adesso** — non è condizionale.
+   `verifica:audit` afferma oggi, a ogni esecuzione della CI, qualcosa di
+   falso sulla postura di sicurezza del progetto (vedi qui sotto). Questa metà
+   da sola non varrebbe l'alta priorità; sommata a un rimedio che chiude
+   entrambe con quindici minuti e 1,1 MB, sì.
 
 **La seconda metà: `verifica:audit` ora dice il falso.** Ho eseguito
 `npm audit --omit=dev --json` contro il lockfile reale. Poiché `resolved` non

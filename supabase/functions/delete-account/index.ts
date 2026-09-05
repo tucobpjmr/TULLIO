@@ -21,6 +21,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { entroLimite } from "../_shared/rateLimit.ts";
 import { erroreInterno } from "../_shared/erroreInterno.ts";
+import { registraAudit } from "../_shared/audit.ts";
 
 Deno.serve(async (req: Request) => {
   const cors = corsHeaders(req);
@@ -75,6 +76,11 @@ Deno.serve(async (req: Request) => {
     // richiesta il cui passo critico (il ban) è già andato a buon fine;
     // un errore qui lascia l'account comunque inaccessibile, solo con la
     // pulizia PII da ricontrollare.
+    // B-5 dell'audit del 4 settembre: i nomi qui devono restare nello stesso
+    // ordine dell'array sotto — sono la sola chiave che lega un fallimento
+    // `Promise.allSettled` (che non porta un'etichetta) alla pulizia che
+    // rappresenta.
+    const PULIZIE = ["profilo", "contatti (email/telefono)", "iscrizioni push", "avatar"];
     const results = await Promise.allSettled([
       adminClient.from("users").update({
         active: false,
@@ -94,12 +100,38 @@ Deno.serve(async (req: Request) => {
       // è un errore, quindi non serve verificare prima se esiste.
       adminClient.storage.from("avatars").remove([`${user.id}/avatar.jpg`]),
     ]);
-    for (const r of results) {
-      if (r.status === "rejected") console.error("[delete-account] pulizia PII", r.reason);
-      else if (r.value?.error) console.error("[delete-account] pulizia PII", r.value.error.message);
-    }
+    const residui: string[] = [];
+    results.forEach((r, i) => {
+      if (r.status === "rejected") {
+        console.error("[delete-account] pulizia PII", PULIZIE[i], r.reason);
+        residui.push(PULIZIE[i]);
+      } else if (r.value?.error) {
+        console.error("[delete-account] pulizia PII", PULIZIE[i], r.value.error.message);
+        residui.push(PULIZIE[i]);
+      }
+    });
 
-    return json({ success: true });
+    // Il ban è già irreversibile e riuscito: l'utente è comunque fuori. Ma
+    // prima questo fallimento finiva SOLO in console.error — leggibile da chi
+    // ha accesso ai log della funzione, non da chi amministra il progetto dal
+    // pannello. L'audit_log è il posto che gli admin guardano davvero, ed è
+    // scritto anche quando `residui` è vuoto: un `user.autoeliminato` senza
+    // residui è la prova che la pulizia È passata, non solo che nessuno l'ha
+    // controllata.
+    await registraAudit(adminClient, user.id, "user.autoeliminato", { type: "user", id: user.id },
+      residui.length ? { residui } : {});
+
+    // Nessun `warning` quando `residui` è vuoto: un campo `warning: null` a
+    // fianco di `success: true` chiederebbe a ogni chiamante di sapere che è
+    // innocuo. La sua assenza è già il messaggio "nessun avviso" — stessa
+    // forma di `invite-user` sull'upsert del profilo.
+    return residui.length
+      ? json({
+        success: true,
+        warning: `Account eliminato, ma la pulizia di alcuni dati non è riuscita: ${residui.join(", ")}. `
+          + "Chi amministra il progetto può verificare dal registro di controllo.",
+      })
+      : json({ success: true });
   } catch (err: unknown) {
     return json(erroreInterno("delete-account", err), 500);
   }

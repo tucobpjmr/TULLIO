@@ -28,7 +28,7 @@ verdi (81,09 kB gzip anonimo su 86 di soglia, 129,56 kB autenticato su 131),
 `npm run verifica:convenzioni` verde (61 controlli), quattordici audit
 precedenti a registro.
 
-⟦stato: 13/19 chiusi⟧
+⟦stato: 15/19 chiusi⟧
 
 > **Sulla numerazione.** `A-` = alta priorità, `M-` = media, `B-` = bassa, come
 > negli audit dal 12 agosto in poi. Non ci sono `C-`: nessun rilievo critico.
@@ -113,10 +113,10 @@ un controllo esiste, funziona, e **guarda un livello solo**.
 | **M-7** ✔ | ~~🟡 Media~~ **chiuso il 5 settembre** | `user_contacts_select` è `using (true)`: **anche un driver** legge email e telefono di tutto il team, benché il ruolo sia escluso per disegno da ogni altro dato | DB, `supabase/migrations/20260629222802_user_contacts_select_team.sql` |
 | **M-8** | 🟡 Media | 344 costanti di stile a nomi meccanici (`boxF125Warning`, `rowCenterBetween4`) + 335 stili inline dinamici, nessun design system, nessun tema scuro | `src/styles/`, 15 × `*Styles.js` |
 | **B-1** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | Le quattro policy di `clients` ripetono `users.role = ANY(ARRAY[...])` in linea invece di usare un helper `private.can_clienti()`, contro il principio che il progetto applica ovunque | DB (`pg_policies`) |
-| **B-2** | 🟢 Bassa | `useEffect(..., [enabled, delay, ...deps])`: uno spread in un array di dipendenze — React solleva se la lunghezza cambia, e nessun lint può verificarlo | `src/hooks/useDebouncedTableSubscription.js:97` |
+| **B-2** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | `useEffect(..., [enabled, delay, ...deps])`: uno spread in un array di dipendenze — React solleva se la lunghezza cambia, e nessun lint può verificarlo | `src/hooks/useDebouncedTableSubscription.js:97` |
 | **B-3** ✔ | ~~🟢 Bassa~~ **chiuso il 4 settembre** | `redigiPii()` redige `message` e `stack` ma **non** `url` e `user_agent`, che finiscono grezzi in `error_reports` | `src/lib/errorReporting.js:55-59` |
 | **B-4** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** *(solo l'indice di copertura)* | `task_history.actor_id` è una FK senza indice di copertura; sette indici non sono mai stati usati | advisor prod |
-| **B-5** | 🟢 Bassa | `delete-account` banna l'utente (irreversibile) e poi ripulisce la PII in `allSettled`: se la pulizia fallisce, l'utente è bloccato fuori e i suoi dati restano | `supabase/functions/delete-account/index.ts` |
+| **B-5** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | `delete-account` banna l'utente (irreversibile) e poi ripulisce la PII in `allSettled`: se la pulizia fallisce, l'utente è bloccato fuori e i suoi dati restano | `supabase/functions/delete-account/index.ts` |
 | **B-6** ✔ | ~~🟢 Bassa~~ **chiuso il 4 settembre** | `invite-user` non valida il formato dell'email prima di passarla a GoTrue, mentre valida ruolo, capacity e colore | `supabase/functions/invite-user/index.ts` |
 | **B-7** | 🟢 Bassa | `docs/` ha 40 handoff + 21 audit: l'indice distingue vigente da storico, ma la ricerca di «qual è la regola oggi» costa | `docs/` |
 
@@ -1012,14 +1012,15 @@ Verificato su staging e produzione con inserimenti/eliminazioni di prova
 impersonando un agent e un driver (vedi «Come è stato chiuso (M-7, B-1, B-4)»
 in fondo al documento).
 
-**B-2 · Spread in un array di dipendenze.**
+**B-2 · Spread in un array di dipendenze.** ✔ **Chiuso il 5 settembre.**
 `src/hooks/useDebouncedTableSubscription.js:97`:
 `}, [enabled, delay, ...deps]);` — React solleva se la lunghezza cambia fra due
 render, e `react-hooks/exhaustive-deps` non può verificare un array a lunghezza
-variabile. Oggi tutti i chiamanti passano `deps` a lunghezza costante. Rimedio:
-serializzare (`[enabled, delay, JSON.stringify(deps)]`) o documentare
-l'invariante con un `if (import.meta.env.DEV)` che confronti la lunghezza con
-quella del render precedente e sollevi con un messaggio chiaro.
+variabile. Applicato il primo dei due rimedi proposti:
+`[enabled, delay, JSON.stringify(deps)]` — tutti gli otto call site di oggi
+passano un solo valore serializzabile (un booleano o un id), quindi
+`JSON.stringify` è equivalente a un confronto per valore di ogni elemento,
+con la lunghezza dell'array fissa a 3 per costruzione.
 
 **B-3 · `redigiPii` non copre `url` e `user_agent`.**
 `src/lib/errorReporting.js:55-59` redige email e telefoni da `message` e
@@ -1040,14 +1041,17 @@ rivalutare, non da rimuovere ora — `idx_users_active`, `idx_tasks_assignees`,
 `idx_lista_beneficiari_created_by`. ⚠️ «Mai usato» su `audit_log` e
 `rate_limit` significa «tabella ancora giovane», non «indice inutile».
 
-**B-5 · `delete-account`: ban prima, pulizia poi.** Il ban di dieci anni è
-applicato e verificato; la pulizia della PII (`users`, `user_contacts`,
-`push_subscriptions`, avatar) è in `Promise.allSettled` e i fallimenti finiscono
-solo in `console.error`. L'utente resta bloccato fuori con i propri dati dentro,
-e nessuno lo sa. Rimedio: restituire un `warning` nella risposta quando almeno
-una pulizia fallisce — come già fa `invite-user` per l'upsert del profilo — e
-scrivere una voce `user.autoeliminato` con l'elenco dei residui via
-`registraAudit`, così chi amministra ha dove guardare.
+**B-5 · `delete-account`: ban prima, pulizia poi.** ✔ **Chiuso il 5
+settembre.** Il ban di dieci anni è applicato e verificato; la pulizia della
+PII (`users`, `user_contacts`, `push_subscriptions`, avatar) è in
+`Promise.allSettled` e i fallimenti finivano solo in `console.error`.
+L'utente restava bloccato fuori con i propri dati dentro, e nessuno lo sapeva.
+Applicato: un `warning` nella risposta quando almeno una pulizia fallisce —
+come già fa `invite-user` per l'upsert del profilo — e una voce
+`user.autoeliminato` con l'elenco dei residui via `registraAudit`, scritta
+**sempre** (anche a zero residui: è la prova che la pulizia è passata, non
+solo che nessuno l'ha controllata). Vedi «Come è stato chiuso (B-5)» in
+fondo al documento.
 
 **B-6 · `invite-user` non valida il formato dell'email.** Valida ruolo (contro
 un `Set`), capacity (1–100), colore (regex esadecimale) e poi passa `email` a
@@ -1081,7 +1085,8 @@ realtime, bundle, stili, errori, push, liste, import, CI).
 | ~~7~~ | **M-2** (hover/focus) ✔ | — | **Fatto il 5 settembre**: `conTastiera()` in `lib/a11y.js`, applicato ai siti reali; i pochi hover puramente decorativi (nessuna azione propria) disattivano la regola riga per riga col perché. Regola aggiunta direttamente come `error` — l'arretrato era a zero nello stesso commit |
 | ~~8a~~ | **M-6** (CSP) ✔ | — | **Fatto il 5 settembre**: `securitypolicyviolation` agganciato in `installaHandlerGlobali()`, stesso canale (`codiceSegnalazione` + `error_reports`) dei due handler esistenti. Niente `report-uri`/`report-to` in `vercel.json` — vedi la nota nel corpo del rilievo |
 | ~~8c~~ | **M-7**, **B-1**, **B-4** ✔ | — | **Fatti il 5 settembre** (tre migrazioni, staging poi produzione): `user_contacts_select` esclude il driver (M-7, decisione di prodotto), `private.can_clienti_scrittura()`/`can_clienti_eliminazione()` sostituiscono la logica di ruolo in linea sulle quattro policy di `clients` (B-1), indice di copertura su `task_history.actor_id` (B-4, solo questa metà — i sette indici mai usati restano da rivalutare). Vedi «Come è stato chiuso (M-7, B-1, B-4)» in fondo |
-| 8d | **B-2**, **B-5**, **B-7** | — | ⚠️ **A-3 e M-5 avanzati parzialmente il 5 settembre** (vedi le due sezioni «Come è stato avanzato» in fondo): A-3 chiude la metà client (validatore a 12 caratteri + composizione), resta aperta la metà piattaforma che nessuno strumento di questa sessione può applicare; M-5 allarga `checkJs` a `src/hooks` (passo 1 di 3) |
+| ~~8d~~ | **B-2**, **B-5** ✔ | — | **Fatti il 5 settembre**: B-2 serializza `deps` (`JSON.stringify`) invece dello spread a lunghezza variabile; B-5 aggiunge `warning` + voce `user.autoeliminato` su `delete-account`, deployata su staging e produzione. Vedi «Come è stato chiuso» in fondo |
+| 8e | **B-7** | — | ⚠️ **A-3 e M-5 avanzati parzialmente il 5 settembre** (vedi le due sezioni «Come è stato avanzato» in fondo): A-3 chiude la metà client (validatore a 12 caratteri + composizione), resta aperta la metà piattaforma che nessuno strumento di questa sessione può applicare; M-5 allarga `checkJs` a `src/hooks` (passo 1 di 3) |
 | 9 | **M-8** (stili) | — | Solo se arriva il tema scuro o un restyle |
 
 Chiusi 1–6 la valutazione è **9,5**. Con `A-1`, `A-2`, il punto 4 (`M-3`/`M-4`/`B-3`/`B-6`), il punto 5 (`M-1`) e il punto 6 (`A-4`) fatti e `A-3` ridotto alla sua metà gratuita, i quattro rilievi alti sono tutti chiusi. Il mezzo punto restante è `M-8`, ed è il
@@ -1911,3 +1916,68 @@ strumento ha registrato nel ledger di produzione dopo l'applicazione
 (`20260905115909`/`…115917`/`…115923`), insieme a ogni riferimento interno
 che si autocitava (il commento della policy `user_contacts_select`, i tre
 punti in `src/` che citano quella migrazione per numero).
+
+---
+
+## Come è stato chiuso (B-2)
+
+**5 settembre 2026.** Applicato il primo dei due rimedi proposti dal
+rilievo: `}, [enabled, delay, JSON.stringify(deps)]);` invece di
+`[enabled, delay, ...deps]`.
+
+Misurati tutti gli otto call site prima di scegliere: `useAppHydration.js`
+(sei), `useNotifications.js` e `useChatData.js` passano `deps: [enabled]`,
+`TaskHistoryPanel.jsx` passa `deps: [taskId]` — un solo valore
+serializzabile ovunque (booleano o stringa), mai un oggetto o una funzione.
+`JSON.stringify` su un array così è equivalente a un confronto per valore di
+ogni elemento, con il vantaggio che la lunghezza dell'array di dipendenze
+diventa fissa (3) per costruzione: React non può più sollevare per un
+cambio di lunghezza, e `react-hooks/exhaustive-deps` continua comunque a
+non poter verificare il contenuto di `deps` — motivo per cui
+l'`eslint-disable-next-line` sulla riga resta, con la ragione aggiornata.
+
+Non è stato scelto il secondo rimedio (un controllo `DEV` che confronti la
+lunghezza col render precedente) perché avrebbe solo diagnosticato il
+sintomo lasciando il difetto: la serializzazione lo elimina alla radice per
+ogni chiamante presente e futuro, a costo zero sui call site di oggi.
+
+Verificato con `npm run lint`, `npm run verifica:tipi`, l'intera cartella
+`src/test/realtime/` (157 casi) e la suite completa (2117 test).
+
+## Come è stato chiuso (B-5)
+
+**5 settembre 2026.** Deployata su staging (`itanvnroxgjdxrplngam`) e poi
+produzione (`vmxvnxsqfisucugcpqlc`), stesso contenuto (stesso hash
+`ezbr_sha256` su entrambe).
+
+`delete-account/index.ts`: le quattro pulizie di `Promise.allSettled` sono
+ora abbinate per posizione a un array `PULIZIE` di etichette leggibili
+(`"profilo"`, `"contatti (email/telefono)"`, `"iscrizioni push"`,
+`"avatar"`), e ogni fallimento (sia `rejected` sia un `{ error }` nel
+risultato) finisce in un array `residui`. Due conseguenze, non una:
+
+1. **`registraAudit(..., "user.autoeliminato", ...)` è scritta SEMPRE**,
+   prima del `return` finale — non dentro il ramo che controlla `residui`.
+   Un'auto-eliminazione senza residui produce comunque la voce, coi
+   `details` vuoti: è la prova che la pulizia è passata, non l'assenza di
+   prova che sia stata guardata.
+2. **La risposta include `warning` solo quando `residui.length > 0`** —
+   nessun `warning: null` a fianco di `success: true` sul percorso comune,
+   che avrebbe chiesto a ogni chiamante di sapere che è innocuo.
+
+**Perché non un test end-to-end.** Una chiamata reale a `delete-account`
+banna l'utente per dieci anni — irreversibile. Verificare il comportamento
+richiederebbe sacrificare un account di staging reale per una singola
+prova, che non è stato fatto. La verifica è quindi **statica**, sulla stessa
+falsariga di M-1/M-2 in `src/test/edge/edgeFunctionsPiiEsitoScritture.test.js`
+(i file TypeScript con import `jsr:`/`npm:` non entrano nel perimetro di
+Vitest): quattro nuovi casi in quel file leggono il sorgente e verificano —
+il ban precede la pulizia, `registraAudit`/`"user.autoeliminato"` compaiono
+e precedono il `return` finale, la risposta include `warning` insieme a
+`success: true`, il fallimento resta anche in `console.error`. Uniti ai sei
+di M-1/M-2 fanno 10 casi nel file.
+
+Verificato con `npm test` (2117 passati), `npm run lint`,
+`npm run verifica:tipi`, e il contenuto della funzione riletto da entrambi
+i progetti dopo il deploy (`get_edge_function`), byte per byte identico a
+quanto scritto in `supabase/functions/delete-account/`.

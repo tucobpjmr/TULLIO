@@ -343,8 +343,16 @@ export function useDebouncedTableSubscription(
       chiaviCanale.forEach(dimenticaCanale);
       ricaricaRef.current = null;
     };
+    // B-2 dell'audit del 4 settembre: `[enabled, delay, ...deps]` aveva
+    // lunghezza variabile — React solleva se cambia fra due render, e
+    // `react-hooks/exhaustive-deps` non può verificare un array che non sa
+    // quanto sia lungo. Serializzare `deps` fissa la lunghezza dell'array a
+    // 3 per costruzione: tutti i chiamanti di oggi passano valori
+    // serializzabili (booleani, un id), quindi `JSON.stringify` è
+    // equivalente a un confronto per valore di ogni elemento — la stessa
+    // proprietà che l'array spread dava, senza il rischio sulla lunghezza.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, delay, ...deps]);
+  }, [enabled, delay, JSON.stringify(deps)]);
 
   // Identità STABILE fra i render: il chiamante la mette dentro l'oggetto che
   // passa alle viste memoizzate, e una funzione nuova a ogni render le

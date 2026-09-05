@@ -135,11 +135,11 @@ affermazioni diverse e solo la prima ha valore.
 | **M-3** | 🟡 Media | **Google Fonts da CDN di terza parte** in un `<link>` bloccante: l'IP di ogni visitatore raggiunge Google prima di qualunque consenso, i font non sono disponibili offline, e un dominio esterno sta sul percorso critico di rendering di un gestionale che tratta PII di clienti | `index.html:26-31`, `vercel.json:16` (`style-src`/`font-src`) |
 | **M-4** | 🟡 Media | **Riportato dal 4 settembre (`M-5`), ancora aperto.** `checkJs` copre `src/lib` + `src/state` + `src/hooks`; `src/components` — **184 file**, la maggioranza del sorgente — resta fuori, e `strict` è `false` | `jsconfig.json:52-56` |
 | **M-5** | 🟡 Media | **Riportato dal 4 settembre (`M-8`), ancora aperto.** 335 `style={{…}}` inline dinamici e ~344 costanti a nomi meccanici, nessun design system, nessun tema scuro | `src/styles/`, 15 × `*Styles.js` |
-| **B-1** | 🟢 Bassa | `private.can_clienti_scrittura()` e `can_clienti_eliminazione()` — introdotte **ieri** da `B-1` del 4 settembre — sono le uniche `private.can_*` che **non** contengono `active AND NOT pending`: `can_liste()`, `can_use_task_category()`, `can_view_global_queue()` ce l'hanno tutte. Oggi non è sfruttabile (`rls_active_only` le AND-a), ma il nome promette una risposta completa che il corpo non dà | DB (`private.can_clienti_scrittura`, `can_clienti_eliminazione`) |
+| **B-1** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | `private.can_clienti_scrittura()` e `can_clienti_eliminazione()` — introdotte **ieri** da `B-1` del 4 settembre — erano le uniche `private.can_*` che **non** contenevano `active AND NOT pending`: `can_liste()`, `can_use_task_category()`, `can_view_global_queue()` ce l'hanno tutte. Non era sfruttabile (`rls_active_only` le AND-a), ma il nome prometteva una risposta completa che il corpo non dava | DB (`private.can_clienti_scrittura`, `can_clienti_eliminazione`) |
 | **B-2** | 🟢 Bassa | Due punti del codice leggono `payload.old.task_id` su un evento `DELETE`, dove Supabase consegna **solo la chiave primaria**. Oggi entrambi degradano in sicurezza, ma il meccanismo è scritto nei commenti come funzionante e verrà ricopiato | `src/components/tasks/TaskHistoryPanel.jsx:82`, `src/hooks/useAppHydration.js:492` |
 | **B-3** | 🟢 Bassa | `ProfileEditor` riscrive a mano le cinque cose che `useSalvataggio` esiste per non far riscrivere, e sul freno al doppio invio usa un `useState` dove l'hook documenta che serve un `ref`: due affermazioni contraddittorie sulla stessa regola, nello stesso repository | `src/components/shell/ProfileEditor.jsx:110,142` vs `src/hooks/useSalvataggio.js:71-77` |
 | **B-4** | 🟢 Bassa | `avatarUrlCache` e `signedUrlCache` sono `Map` di modulo mai svuotate: `signOut()` non ricarica la pagina, quindi le signed URL (TTL 1 h) di un utente sopravvivono al login del successivo nella stessa scheda | `src/lib/api/storage.js:18,22`, `src/auth/AuthContext.jsx:277` |
-| **B-5** | 🟢 Bassa | `public.send_test_push()` è l'unica porta privilegiata del progetto **senza rate limit**: le quattro Edge Function passano tutte da `entroLimite`, questa no, e ogni chiamata fa partire un Web Push reale | DB (`send_test_push`), `supabase/functions/_shared/rateLimit.ts` |
+| **B-5** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | `public.send_test_push()` era l'unica porta privilegiata del progetto **senza rate limit**: le quattro Edge Function passano tutte da `entroLimite`, questa no, e ogni chiamata faceva partire un Web Push reale | DB (`send_test_push`), `supabase/functions/_shared/rateLimit.ts` |
 
 ---
 
@@ -1109,7 +1109,7 @@ end $$;
 |---|---|---|
 | ~~1~~ | **A-1** — metà `ALLOWLIST` ✔ | **Fatta il 5 settembre**: le due voci morte sono state tolte e il gate è verificato per mutazione. La metà «vendorare il tarball» resta, ma **non è più in testa**: con la seconda metà del rilievo smentita, non c'è niente che blocchi il resto, e serve comunque un ambiente che raggiunga il CDN una volta sola |
 | ~~1~~ | **A-2** (URL e history) ✔ | **Fatto il 5 settembre**: `src/hooks/useUrlStato.js`, montato dopo `usePushNavigation`. Nessuna dipendenza nuova, 20 casi di test, sei mutazioni verificate |
-| 2 | **B-1**, **B-5** (due migrazioni SQL piccole) | Indipendenti da tutto, verificabili scrivendo davvero su staging, nessun impatto sul client. Si chiudono in un blocco solo, come i «quattro rimedi piccoli e indipendenti» del 4 settembre |
+| ~~2~~ | **B-1**, **B-5** (due migrazioni SQL piccole) ✔ | **Fatte il 5 settembre**: applicate e verificate scrivendo davvero, prima su staging poi in produzione — vedi «Come sono stati chiusi (B-1, B-5)» in fondo |
 | 3 | **M-2** (audit su `clients` + sonda) | Terza migrazione dello stesso blocco, ma separata perché è una decisione di prodotto (cosa si registra) e non un rimedio |
 | 4 | **A-1** — metà «vendorare il tarball» | Da fare da un ambiente che raggiunge `cdn.sheetjs.com`: nessuna urgenza (CI e Vercel verdi), nessun blocco a valle |
 | 5 | **M-1** (guscio offline) | Dopo A-2: con gli URL, il service worker ha una forma canonica da servire e il caso «riapri sull'ultima vista da offline» diventa provabile |
@@ -1256,3 +1256,68 @@ proposto per `M-1` — qui non era eseguibile. Le venti prove sono di
 integrazione fra l'hook e un reducer simulato, non fra l'app e un browser: la
 distinzione conta, e la prima cosa da fare su una preview con credenziali è
 premere Indietro.
+
+---
+
+## Come sono stati chiusi (B-1, B-5)
+
+Due migrazioni indipendenti, applicate e verificate **scrivendo davvero**,
+prima su `tullio-staging` e poi in produzione (`tullio`) — mai dedotto dal
+solo testo della migrazione, come chiede la procedura di
+`docs/MIGRAZIONI_SUPABASE.md`.
+
+`supabase/migrations/20260905120000_can_clienti_active_pending.sql` e
+`supabase/migrations/20260905120100_send_test_push_rate_limit.sql`; entrambe
+registrate in `supabase_migrations.schema_migrations` su entrambi i progetti.
+
+### B-1 · `can_clienti_scrittura()` / `can_clienti_eliminazione()`
+
+Aggiunto `active and coalesce(pending, false) = false` al corpo di entrambe,
+sulla falsariga di `can_liste()`. Verificato su staging impersonando tre
+utenti reali (dry-run transazionale, `set_config('request.jwt.claims', …)` +
+`set local role authenticated`, poi `rollback`):
+
+| Utente (staging) | Prima della migrazione | Dopo |
+|---|---|---|
+| agent, `pending=true` | `scrittura=true` ⚠️ (il buco che il rilievo descriveva) | `scrittura=false` |
+| agent, attivo | `scrittura=true` | invariato |
+| driver, attivo | `scrittura=false` | invariato |
+
+La riga di mezzo è la prova che il rilievo era reale: prima della migrazione
+un agent **mai approvato** passava `can_clienti_scrittura()`. Applicata poi in
+produzione e riverificata sui tre ruoli attivi realmente presenti in team
+(nessun utente `pending` esiste oggi in produzione, quindi quella riga
+specifica resta verificata solo su staging — è la stessa che la riverifica
+riproverebbe se e quando un invito resterà in sospeso).
+
+### B-5 · `send_test_push()` senza rate limit
+
+Aggiunta la stessa chiamata a `rate_limit_incrementa` che usano le quattro
+Edge Function (`'send-test-push:' || v_uid`, finestra 60 minuti, soglia 5).
+Verificato su staging chiamando `send_test_push()` sei volte di seguito dentro
+una singola transazione poi annullata (nessuna riga scritta, nessun
+`net.http_post` mai committato quindi mai eseguito da `pg_net`):
+
+```
+ok:1c52eec0-… | ok:463eacb1-… | ok:1255ff45-… | ok:d6ecae8e-… | ok:79500ef4-…
+| errore:Troppe notifiche di prova: riprova fra un po'
+```
+
+Cinque riuscite, la sesta rifiutata: il tetto dichiarato nel commento della
+migrazione. ⚠️ **Lo stesso test non è stato ripetuto in produzione**, di
+proposito: sei chiamate reali a `send_test_push()` su un utente vero avrebbero
+comunque generato le notifiche interne (cancellate e riscritte a ogni
+chiamata) e, se quell'utente avesse un dispositivo registrato, tentato un Web
+Push reale — l'esito che il rate limit deve prevenire, non riprodurre per
+verificarlo. In produzione la verifica è stata **statica**:
+`pg_get_functiondef('public.send_test_push()'::regprocedure)` confrontato
+carattere per carattere con il corpo applicato, più `get_advisors('security')`
+per escludere un nuovo WARN — nessuno, tutti i 15 esiti erano già accettati
+per nome in `scripts/verifica-advisor/advisor.js`.
+
+### Cosa NON è cambiato
+
+Nessuna policy RLS toccata, nessun nuovo permesso concesso: entrambe le
+funzioni restano `SECURITY DEFINER` con lo stesso `EXECUTE` di prima. Il
+comportamento visibile dal client non cambia per un utente attivo e non
+`pending` sotto la soglia delle cinque notifiche di prova l'ora.

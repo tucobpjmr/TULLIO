@@ -89,7 +89,7 @@ dove sta il controllo di ruolo. Verificato uno per uno, **rileggendo
 | `importa_backup(jsonb, uuid)` | `private.is_admin()`, dal 15 agosto (migrazione `20260815231000`) | ok |
 | `rimuovi_beneficiario_lista(uuid, uuid)` | `private.can_liste()` | ok |
 | `sposta_titolare_lista(uuid, uuid, uuid)` | `private.can_liste()` | ok |
-| `send_test_push()` | `private.is_active_user()`, scrive solo sulla propria riga | ok |
+| `send_test_push()` | `private.is_active_user()`, scrive solo sulla propria riga, `rate_limit_incrementa` a 5/ora per chiamante (B-5 dell'audit del 5 settembre) | ok |
 | ~~`registra_audit(text, text, text, jsonb)`~~ | **non più esposta**: riservata a `service_role` dal 4 settembre (migrazione `20260904143756`, A-2 dell'audit del 4 settembre). La riga che stava qui — «nessun parametro attore, lo ricava da `auth.uid()`, quindi non è firmabile per conto d'altri» — era vera e non bastava: `action`, `target_type`, `target_id` e `details` li sceglieva il chiamante, la funzione non aveva né tetti di lunghezza né limite di frequenza, e passavano anche un utente **disattivato** e un invitato **pending** (una `SECURITY DEFINER` non attraversa la RLS, quindi `rls_active_only` non si applica). Non poter firmare per conto d'altri conta poco su un registro che chiunque può riempire. Revocata invece che messa dietro un gate perché **non aveva un chiamante legittimo**: nessun percorso dell'app la usa (i trigger di riga girano come proprietario, le Edge Function inseriscono direttamente via `_shared/audit.ts`). Tolta anche da `FUNZIONI_SECURITY_DEFINER_VERIFICATE`, così un eventuale nuovo `GRANT` fa fallire `verifica:advisor` | ✔ chiusa il 4 settembre |
 | `get_vapid_public_key()` | nessuna — **ed è corretto**: restituisce la metà *pubblica* della coppia VAPID, che il browser deve avere per sottoscriversi | ok |
 | `get_migrazioni_applicate()` | nessuna — voluto, vedi sopra: non espone nulla che non sia già nel repo. Raggiungibile anche da `anon` | ok |
@@ -191,11 +191,15 @@ non ancora attivato, con il ruolo già scritto, superava i controlli di ruolo.
 
 **B-1 dell'audit del 4 settembre** ha aggiunto due helper della stessa
 famiglia, dedicati a `clients` (che prima ripeteva in linea, in quattro
-policy, la stessa `EXISTS (SELECT 1 FROM users WHERE …)`):
+policy, la stessa `EXISTS (SELECT 1 FROM users WHERE …)`). Fino al 5 settembre
+guardavano solo il ruolo; **B-1 dell'audit del 5 settembre** ha aggiunto
+`active AND NOT pending` al corpo di entrambe — non sfruttabile nel frattempo
+perché la RESTRICTIVE `rls_active_only` lo imponeva comunque su `clients`, ma
+il nome delle funzioni prometteva un verdetto che il corpo non dava:
 
 ```
-private.can_clienti_scrittura()    role IN (admin, manager, agent) AND active
-private.can_clienti_eliminazione() role IN (admin, manager)        AND active
+private.can_clienti_scrittura()    role IN (admin, manager, agent) AND active AND NOT pending
+private.can_clienti_eliminazione() role IN (admin, manager)        AND active AND NOT pending
 ```
 
 Rispecchiano `canEditClient`/`canDeleteClient` in `src/lib/permissions.js`,

@@ -111,6 +111,23 @@ export const SOGLIA_RIPRESA_MS = 30_000;
 // proprio flag di caricamento. Ometterne una lascia una vista che gira per
 // sempre sotto uno scheletro, che è il difetto peggiore dei due che questa
 // opzione evita.
+// M-5 dell'audit del 4 settembre: `filterEvent` e `applyRow` non hanno un
+// valore di default, quindi senza questo JSDoc `checkJs` non li vede affatto
+// nel tipo delle opzioni (li infersce solo dagli argomenti CON default) — e
+// segnala «la proprietà non esiste» a ogni chiamante che li passa davvero,
+// cioè `useAppHydration.js`.
+/**
+ * @param {string|string[]} tables
+ * @param {(isCurrent: () => boolean, tabelle: Set<string>|null) => (void|Promise<void>)} reload
+ * @param {object} [opts]
+ * @param {boolean} [opts.enabled]
+ * @param {number} [opts.delay]
+ * @param {any[]} [opts.deps]
+ * @param {(payload: object) => boolean} [opts.filterEvent]
+ * @param {(tabella: string, payload: object) => boolean} [opts.applyRow]
+ * @param {boolean} [opts.saltaPrimoCaricamento]
+ * @param {boolean} [opts.senzaCanale]
+ */
 export function useDebouncedTableSubscription(
   tables,
   reload,

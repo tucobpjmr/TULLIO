@@ -108,7 +108,7 @@ export function AccountSicurezza() {
                   id={nuovaPwdId}
                   inputWFull={inputWFull} autoComplete="new-password"
                   value={stato.pwd.bozza.nuova} onChange={e => accountDispatch({ type: "SET_PWD_CAMPO", campo: "nuova", valore: e.target.value })}
-                  placeholder={`Minimo ${PASSWORD_MIN} caratteri`}
+                  placeholder={`Minimo ${PASSWORD_MIN} caratteri, con maiuscole, minuscole e cifre`}
                   show={stato.pwd.rivela} onToggle={() => accountDispatch({ type: "TOGGLE_RIVELA_PWD" })}
                   onFocus={e => e.target.style.borderColor = "var(--gold)"}
                   onBlur={e => e.target.style.borderColor = "var(--border)"}

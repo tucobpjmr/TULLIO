@@ -23,7 +23,12 @@
 // le funzioni pure — permessi, mapper, reducer — cioè dove un tipo sbagliato
 // costa di più. `include` si allarga una cartella alla volta, e la regola è la
 // stessa di max-lines: si allarga quando la cartella nuova è a zero, non
-// prima. `src/components/` e `src/hooks/` sono il prossimo passo.
+// prima.
+//
+// ─── M-5 dell'audit del 4 settembre · src/hooks/ si allarga ────────────────
+// Diciannove file, quasi tutti con JSDoc già scritto: allargato qui perché a
+// zero errori all'attivazione, non prima. `src/components/` (140 file) resta
+// il prossimo passo — è un salto di scala diverso, non solo di numero.
 {
   "compilerOptions": {
     "checkJs": true,
@@ -47,7 +52,8 @@
   },
   "include": [
     "src/lib/**/*.js",
-    "src/state/**/*.js"
+    "src/state/**/*.js",
+    "src/hooks/**/*.js"
   ],
   "exclude": [
     "node_modules"

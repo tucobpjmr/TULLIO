@@ -28,7 +28,18 @@ import { fromDbNotification, isUuid } from "../lib/mappers.js";
 import { fondiScrittureInVolo } from "../state/pendingWrites.js";
 import { useDebouncedTableSubscription } from "./useDebouncedTableSubscription.js";
 
+/**
+ * @typedef {{ id: string, userId: string, type: string, payload: object,
+ *   read: boolean, createdAt: string }} Notifica
+ */
+
 export function useNotifications({ enabled, onError }) {
+  // M-5 dell'audit del 4 settembre: `useState([])` da solo inferisce `never[]`,
+  // e `fondiScrittureInVolo` (generica su `T extends {id: string}`) risolve
+  // `T` al vincolo minimo quando uno dei due array è `never[]` — da qui in
+  // giù `notifications` veniva letto come se avesse solo `id`, segnalando
+  // `n.read` come proprietà inesistente più sotto in questo file.
+  /** @type {[Notifica[], (v: Notifica[]|((prev: Notifica[]) => Notifica[])) => void]} */
   const [notifications, setNotifications] = useState([]);
   // ─── B-1 (audit del 28 agosto) · il badge conta OLTRE la finestra ─────────
   //
@@ -124,7 +135,13 @@ export function useNotifications({ enabled, onError }) {
       onError(`Notifiche: caricamento fallito: ${error.message || ""}`);
       return;
     }
-    const arrivate = (data || []).map(fromDbNotification);
+    // `fromDbNotification` ritorna `null` solo per una riga falsy — qui non
+    // può accadere (le righe vengono da una SELECT), ma il suo tipo di
+    // ritorno è `Notifica|null` e senza filtrarlo `fondiScrittureInVolo`
+    // riceverebbe `T` ambiguo fra i due array e cadrebbe sul solo vincolo
+    // `{id: string}` — da qui in giù `.read` sparirebbe dal tipo.
+    /** @type {Notifica[]} */
+    const arrivate = (data || []).map(fromDbNotification).filter(Boolean);
     // La copia del registro si prende QUI e non dentro l'updater: così
     // l'updater resta una funzione pura del suo `prev` — la stessa disciplina
     // per cui B-1 (28 agosto, primo passaggio, sulla campanella) ha tolto da

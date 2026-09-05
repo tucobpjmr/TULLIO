@@ -177,21 +177,15 @@ const vinceIlTurno = (ordine, turno) => {
  * `quandoSaltare` è per `clients`, la cui idratazione non parte finché una
  * vista non l'ha chiesta.
  *
- * ─── M-3 (audit del 28 agosto) · `gen` e `alTermine` ───────────────────────
- * Le due opzioni che servono a un'entità con PIÙ DI UNO SCRITTORE, e oggi ce
- * n'è una sola: `clients`, scritta anche da `caricaClienti`. Sono generiche e
- * non conoscenza dei clienti travestita da parametro:
- *
- *   · `gen` è il ref della generazione condivisa con gli altri scrittori della
- *     stessa fetta. Si compone in AND con `isCurrent()` — quello ordina le
- *     richieste dello stesso effetto, questo TUTTE quelle che finiscono nella
- *     stessa `action`.
- *   · `alTermine` è l'attesa da chiudere oltre al flag di entità, su OGNI
- *     esito: con due scrittori, il flag di chi non ha vinto resterebbe alzato
- *     per sempre. Vedi `chiudiAttesaClienti`.
- *
- * Chi non le passa non cambia di una virgola: `gen` assente significa
- * «scrittore unico», che è il caso di `notices` e `message_templates`.
+ * M-3 (28 agosto) · `gen`/`alTermine` servono a un'entità con PIÙ DI UNO
+ * SCRITTORE (oggi solo `clients`, scritta anche da `caricaClienti`): `gen` è
+ * il ref di generazione condiviso fra gli scrittori, in AND con `isCurrent()`
+ * (che ordina le richieste dello stesso effetto, questo tutte quelle della
+ * stessa `action`); `alTermine` chiude l'attesa oltre al flag di entità — con
+ * due scrittori, quello di chi non ha vinto resterebbe alzato per sempre
+ * (vedi `chiudiAttesaClienti`). Assenti insieme = scrittore unico, il caso di
+ * `notices`/`message_templates`.
+ * @param {{ entita: string, tag: string, etichetta: string, list: () => Promise<{data: object[]|null, error: object|null}>, mapper: (row: object) => object, action: string, dispatch: (action: object) => void, onError: (messaggio: string) => void, segnaCaricata: (entita: string) => void, segnaEsito?: (entita: string, messaggio?: string|null) => void, quandoSaltare?: () => boolean, gen?: {current: number}, alTermine?: () => void }} opts
  */
 const idratazione = ({
   entita, tag, etichetta, list, mapper, action,
@@ -236,6 +230,7 @@ const idratazione = ({
  * gestito (il chiamante non ricarica), `false` per cadere sul reload completo.
  * `quandoIgnorare` è la terza risposta possibile: gestito, e la cosa giusta da
  * fare è nulla.
+ * @param {{ action: string, mapper: (row: object) => object, dispatch: (action: object) => void, quandoIgnorare?: () => boolean }} opts
  */
 const applicaRiga = ({ action, mapper, dispatch, quandoIgnorare }) => (_tbl, payload) => {
   if (quandoIgnorare?.()) return true;

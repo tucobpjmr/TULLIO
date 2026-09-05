@@ -102,13 +102,13 @@ un controllo esiste, funziona, e **guarda un livello solo**.
 |---|---|---|---|
 | **A-1** ✔ | ~~🔴 Alta~~ **chiuso il 4 settembre** | Un'azione **negata dai permessi** ritorna `{ error: null }`: `useSalvataggio` la legge come successo e chiama `alSuccesso()` — la modale si chiude e i dati vengono buttati, con solo un toast rosso a dirlo | `src/hooks/useSyncedDispatch.js:20-24` |
 | **A-2** ✔ | ~~🔴 Alta~~ **chiuso il 4 settembre** | `public.registra_audit()` è eseguibile da **ogni utente autenticato**, senza gate di ruolo né di attività, senza tetti né limite di frequenza — e **nessun percorso dell'app la chiama**. Revocata: migrazione `20260904143756` | DB (`proacl`), `supabase/migrations/20260826214000_audit_log.sql` |
-| **A-3** | 🟡 Media ⚠️ *ridimensionato* | Policy password a soli 8 caratteri, senza requisiti di composizione. La metà «leaked password protection» **non è un rilievo**: è una funzione del piano Supabase **Pro** e una scelta di costo già presa e documentata — vedi la correzione qui sotto | `src/lib/validators.js:44` |
+| **A-3** | 🟡 Media ⚠️ *ridimensionato, parzialmente chiuso il 5 settembre* | Policy password a soli 8 caratteri, senza requisiti di composizione. La metà «leaked password protection» **non è un rilievo**: è una funzione del piano Supabase **Pro** e una scelta di costo già presa e documentata — vedi la correzione qui sotto | `src/lib/validators.js:44` |
 | **A-4** ✔ | ~~🔴 Alta~~ **chiuso il 5 settembre** | `xlsx@0.18.5`: due CVE (`CVE-2023-30533`, `CVE-2024-22363`), mitigate ma non risolte, con il fix fermo da un mese perché la rete lo bloccava. Risolto installando `xlsx@0.20.3` dal CDN SheetJS da un runner GitHub-hosted | `package.json:30`, `src/lib/xlsxWorker.js` |
 | **M-1** ✔ | ~~🟡 Media~~ **chiuso il 4 settembre** | 21 `outline: "none"` e **nessuna regola `:focus-visible` globale**: fuori dal modulo Liste il focus da tastiera non ha un indicatore proprio | `src/styles/global.css`, 18 file |
 | **M-2** ✔ | ~~🟡 Media~~ **chiuso il 5 settembre** | 40 `onMouseEnter` contro 15 `onFocus`: le affordance costruite sull'hover non hanno la controparte da tastiera | `src/components/**` (20 file) |
 | **M-3** ✔ | ~~🟡 Media~~ **chiuso il 4 settembre** | Cinque funzioni trigger (`audit_clients_*`, `audit_users_*`, `audit_liste_truncate`) hanno `EXECUTE` a **`PUBLIC`, `anon` e `authenticated`** — le uniche del progetto rimaste così | DB (`proacl`) |
 | **M-4** ✔ | ~~🟡 Media~~ **chiuso il 4 settembre** | Le Edge Function restituiscono al client il **messaggio d'errore interno grezzo** (`err.message`, `banErr.message`, `authErr.message`) nel ramo `catch` e su tre 500 | 4 × `supabase/functions/*/index.ts` |
-| **M-5** | 🟡 Media | `checkJs` copre `src/lib` + `src/state` (≈40% del codice non-test) e `strict` è `false`: `src/components` e `src/hooks` — 174 file — non sono controllati | `jsconfig.json:47-50` |
+| **M-5** | 🟡 Media ⚠️ *parzialmente chiuso il 5 settembre (`src/hooks`)* | `checkJs` copre `src/lib` + `src/state` (≈40% del codice non-test) e `strict` è `false`: `src/components` e `src/hooks` — 174 file — non sono controllati | `jsconfig.json:47-50` |
 | **M-6** | 🟡 Media | La CSP non ha `report-to`/`report-uri`: «0 violazioni CSP» è una misura fatta a mano una volta, non un presidio continuo | `vercel.json:16` |
 | **M-7** | 🟡 Media | `user_contacts_select` è `using (true)`: **anche un driver** legge email e telefono di tutto il team, benché il ruolo sia escluso per disegno da ogni altro dato | DB, `supabase/migrations/20260629222802_user_contacts_select_team.sql` |
 | **M-8** | 🟡 Media | 344 costanti di stile a nomi meccanici (`boxF125Warning`, `rowCenterBetween4`) + 335 stili inline dinamici, nessun design system, nessun tema scuro | `src/styles/`, 15 × `*Styles.js` |
@@ -431,6 +431,17 @@ I due call site (`auth/UpdatePasswordScreen.jsx:30`,
    già presa. Se un domani il progetto passasse al piano Pro, il passo è
    toglierlo da lì e riattivare la protezione dalla dashboard — ed è già
    scritto nel commento accanto alla voce.
+
+⚠️ **Chiuso solo per la metà client (passo 2) il 5 settembre** — vedi «Come è
+stato chiuso (A-3)» in fondo al documento. **Il passo 1 (piattaforma) resta
+aperto**: nessuno strumento disponibile in questa sessione può cambiare le
+impostazioni di Supabase Auth (Minimum password length → 12, Password
+requirements → lower+upper+digits) — è una configurazione di dashboard, non
+di codice, e va applicata a mano da chi amministra il progetto. Finché non lo
+è, il minimo **effettivo** resta quello di GoTrue oggi (8 caratteri, nessuna
+composizione): il client mostra e richiede di più, ma un client diverso da
+questa app (o una chiamata diretta a `/auth/v1`) può ancora impostare una
+password debole. Il rilievo non è chiuso finché non lo è anche lì.
 
 ---
 
@@ -790,6 +801,11 @@ Il criterio da non rilassare: si allarga **quando la cartella nuova è a zero**,
 e nello stesso commit. Diciassette errori chiusi all'attivazione, non
 silenziati, è il precedente da tenere.
 
+⚠️ **Passo 1 fatto il 5 settembre** — vedi «Come è stato avanzato (M-5)» in
+fondo al documento. Passi 2 (`src/components`) e 3 (`strict: true`) restano
+aperti: il primo è un salto di scala (140 file contro 19), il secondo va
+fatto per ultimo per la stessa ragione con cui l'audit lo mette in coda.
+
 ---
 
 ### M-6 · La CSP non riporta le violazioni
@@ -1037,7 +1053,7 @@ realtime, bundle, stili, errori, push, liste, import, CI).
 | ~~5~~ | **M-1** (`:focus-visible`) ✔ | — | **Fatto il 4 settembre**: la regola proposta non bastava da sola — vedi «Come è stato chiuso (M-1)» in fondo al documento |
 | ~~6~~ | **A-4** (xlsx) ✔ | — | **Fatto il 5 settembre**: `xlsx@0.20.3` dal CDN SheetJS, da un job GitHub Actions una tantum |
 | ~~7~~ | **M-2** (hover/focus) ✔ | — | **Fatto il 5 settembre**: `conTastiera()` in `lib/a11y.js`, applicato ai siti reali; i pochi hover puramente decorativi (nessuna azione propria) disattivano la regola riga per riga col perché. Regola aggiunta direttamente come `error` — l'arretrato era a zero nello stesso commit |
-| 8 | **M-5**, **M-6**, **M-7**, **B-1**, **B-2**, **B-4**, **B-5**, **B-7** | — | Un rilievo per sessione, nell'ordine che conviene |
+| 8 | **M-5**, **M-6**, **M-7**, **B-1**, **B-2**, **B-4**, **B-5**, **B-7** | — | ⚠️ **A-3 e M-5 avanzati parzialmente il 5 settembre** (vedi le due sezioni «Come è stato avanzato» in fondo): A-3 chiude la metà client (validatore a 12 caratteri + composizione), resta aperta la metà piattaforma che nessuno strumento di questa sessione può applicare; M-5 allarga `checkJs` a `src/hooks` (passo 1 di 3) |
 | 9 | **M-8** (stili) | — | Solo se arriva il tema scuro o un restyle |
 
 Chiusi 1–6 la valutazione è **9,5**. Con `A-1`, `A-2`, il punto 4 (`M-3`/`M-4`/`B-3`/`B-6`), il punto 5 (`M-1`) e il punto 6 (`A-4`) fatti e `A-3` ridotto alla sua metà gratuita, i quattro rilievi alti sono tutti chiusi. Il mezzo punto restante è `M-8`, ed è il
@@ -1631,3 +1647,98 @@ NotificationsPanel…) ha spostato il totale a 131,37 kB, sopra soglia di
 esiste per intercettare), lo stesso insieme di componenti di prima con
 qualche byte in più per la tastiera. Stesso margine +6 kB delle altre soglie
 del file. `npm run verifica:convenzioni` verde (63 controlli).
+
+---
+
+## Come è stato chiuso (A-3, metà client)
+
+**5 settembre 2026.** Solo il passo 2 dei tre proposti — il passo 1
+(piattaforma) resta aperto, vedi la nota nel corpo del rilievo.
+
+`src/lib/validators.js`: `PASSWORD_MIN` passa da 8 a 12, `passwordValida()`
+perde il parametro di messaggio personalizzato (nessun chiamante lo usava
+per un testo diverso da quello di default — i due call site,
+`UpdatePasswordScreen.jsx` e `AccountSicurezza.jsx`, chiamavano già
+`passwordValida()` senza argomenti) e verifica quattro requisiti — lunghezza,
+minuscola, maiuscola, cifra — elencando nel messaggio **solo quelli
+mancanti**, non l'intero elenco: una password di 11 caratteri tutti
+minuscoli legge «manca una maiuscola, una cifra», non anche «12 caratteri»
+se la lunghezza non è il problema.
+
+`REQUISITI_PASSWORD_TESTO` (la frase con tutti e quattro, per esteso) è
+condivisa con `LoginScreen.jsx`, che la usa per tradurre il rifiuto
+`weak_password` di GoTrue — lo stesso principio di `PASSWORD_MIN` prima di
+questo fix: un solo posto che elenca i requisiti, non due frasi che
+potrebbero divergere.
+
+**Due test esistenti sono stati riscritti, non solo estesi.** Il vecchio
+`passwordValida()("a".repeat(PASSWORD_MIN))` assumeva che lunghezza minima
+bastasse — con la composizione ora richiesta, dodici `a` minuscole è
+esattamente il caso che A-3 esiste per rifiutare, e il test lo asserisce
+esplicitamente invece di dare per scontato che passi. Il test sul messaggio
+personalizzato è stato tolto: quel parametro non esiste più.
+
+Verificato con `npm test` (2109 passati), `npm run lint`,
+`npm run verifica:tipi`, `npm run build` + `npm run verifica:bundle`.
+
+## Come è stato avanzato (M-5)
+
+**5 settembre 2026.** Solo il passo 1 dei tre proposti (`src/hooks`); passi 2
+(`src/components`) e 3 (`strict: true`) restano aperti.
+
+`src/hooks/**/*.js` è entrato in `include`. Come già per `src/lib`/`src/state`
+all'attivazione, gli errori trovati sono stati **chiusi nello stesso commit,
+non silenziati** — ed erano più di quanto il conteggio «19 file» lasciasse
+credere: `tsc` type-checka anche i moduli importati transitivamente da un
+file incluso, anche se non sono loro stessi sotto `src/hooks/`. Due file di
+`src/components/chat/` (`chatCommands.js`, `chatFormat.js`, importati da
+`useChatData.js`) sono entrati nel programma per questa via e portavano
+errori latenti mai visti prima:
+
+* **`chatFormat.js`** — `now - d` fra due `Date` non tipizza (TypeScript non
+  overloada `-` su `Date`, anche se il motore JS lo fa via `valueOf`):
+  `now.getTime() - d.getTime()`.
+* **`chatCommands.js`** — ogni parametro di `makeChatCommands` di default a
+  un `noop` condiviso (`const noop = () => {}`) faceva inferire a TypeScript
+  la FIRMA di `noop` — zero argomenti — invece del vero tipo passato da
+  `useChatData.js`: `setConversations(prev => …)` risultava «si aspetta 0
+  argomenti, ne ha ricevuto 1» su ogni singolo comando del file. Un blocco
+  `@param` con i tipi reali risolve la classe intera in un colpo. Un secondo
+  difetto dello stesso file: `esitoScrittura()` ritorna `unknown` di
+  proposito (il chiamante non deve assumere la forma dell'errore), e
+  `errore.message` letto direttamente cinque volte non tipizza — estratto in
+  `msgErrore(e) => (e instanceof Error ? e.message : "")`.
+* **`useDebouncedTableSubscription.js`** — `filterEvent`/`applyRow` non
+  hanno un valore di default nella destrutturazione delle opzioni, quindi
+  senza un JSDoc esplicito `checkJs` non li vede affatto nel tipo delle
+  opzioni (li infersce solo dagli argomenti CON default): ogni chiamante che
+  li passava davvero — `useAppHydration.js`, in cinque punti — falliva con
+  «la proprietà non esiste».
+* **`useAppHydration.js`** — due helper locali (`applicaRiga`, `idratazione`)
+  con la stessa forma: un parametro destrutturato senza JSDoc, quindi il tipo
+  inferito rendeva OBBLIGATORIE proprietà che i call site omettevano
+  legittimamente (`quandoIgnorare`, `segnaEsito`, `quandoSaltare`, `gen`,
+  `alTermine` — tutte opzionali per disegno, vedi il commento sopra
+  `idratazione` su «chi non le passa non cambia di una virgola»).
+* **`useNotifications.js`** — `useState([])` da solo inferisce `never[]`, e
+  la generica `fondiScrittureInVolo<T extends {id: string}>` risolve `T` al
+  solo vincolo quando uno dei due array passati è `never[]`: da lì in poi
+  `notifications` perdeva il campo `read`. Tipizzato lo stato esplicitamente
+  (`@type` sulla dichiarazione) e filtrati i `null` che `fromDbNotification`
+  può restituire (`.filter(Boolean)` + `@type` sul risultato), che senza
+  quel filtro rendevano ambiguo lo stesso parametro generico.
+
+**Il tetto fisico è stato quasi toccato per la stessa ragione.**
+`useAppHydration.js` era a 849 righe fisiche (soglia 850) prima di questo
+fix: i JSDoc aggiunti per `idratazione` (13 proprietà) e `applicaRiga` (4)
+lo avrebbero portato a 871. Non è stata alzata la soglia — la regola del
+progetto è che non si alza mai per assorbire un file — ma i due blocchi
+`@param` sono stati compattati in un tipo inline su una riga sola invece che
+uno per proprietà, e il commento narrativo su `gen`/`alTermine` (M-3
+dell'audit del 28 agosto) è stato riscritto più conciso senza perdere
+l'informazione. Il file è sceso a 844 righe.
+
+Verificato con `npm run verifica:tipi` (zero errori), `npm test` (2109
+passati), `npm run lint`, `npm run build` + `npm run verifica:bundle`,
+`npm run verifica:convenzioni` (il controllo sul tetto fisico è tornato
+verde).

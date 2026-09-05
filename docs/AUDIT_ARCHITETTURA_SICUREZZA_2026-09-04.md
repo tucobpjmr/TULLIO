@@ -28,7 +28,7 @@ verdi (81,09 kB gzip anonimo su 86 di soglia, 129,56 kB autenticato su 131),
 `npm run verifica:convenzioni` verde (61 controlli), quattordici audit
 precedenti a registro.
 
-⟦stato: 15/19 chiusi⟧
+⟦stato: 16/19 chiusi⟧
 
 > **Sulla numerazione.** `A-` = alta priorità, `M-` = media, `B-` = bassa, come
 > negli audit dal 12 agosto in poi. Non ci sono `C-`: nessun rilievo critico.
@@ -118,7 +118,7 @@ un controllo esiste, funziona, e **guarda un livello solo**.
 | **B-4** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** *(solo l'indice di copertura)* | `task_history.actor_id` è una FK senza indice di copertura; sette indici non sono mai stati usati | advisor prod |
 | **B-5** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | `delete-account` banna l'utente (irreversibile) e poi ripulisce la PII in `allSettled`: se la pulizia fallisce, l'utente è bloccato fuori e i suoi dati restano | `supabase/functions/delete-account/index.ts` |
 | **B-6** ✔ | ~~🟢 Bassa~~ **chiuso il 4 settembre** | `invite-user` non valida il formato dell'email prima di passarla a GoTrue, mentre valida ruolo, capacity e colore | `supabase/functions/invite-user/index.ts` |
-| **B-7** | 🟢 Bassa | `docs/` ha 40 handoff + 21 audit: l'indice distingue vigente da storico, ma la ricerca di «qual è la regola oggi» costa | `docs/` |
+| **B-7** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | `docs/` ha 40 handoff + 21 audit: l'indice distingue vigente da storico, ma la ricerca di «qual è la regola oggi» costa | `docs/` |
 
 ---
 
@@ -1061,12 +1061,13 @@ posto di uno del progetto. Rimedio: la stessa `EMAIL_RX` di
 `src/lib/validators.js`, copiata (le Edge Function non importano da `src/`) con
 il commento che dice da dove viene.
 
-**B-7 · Navigabilità di `docs/`.** 40 handoff + 21 audit. `INDEX.md` distingue
-già vigente da storico, ed è più di quanto facciano quasi tutti i progetti. Il
-costo residuo è trovare *la regola di oggi* su un argomento: la risposta è
-sparsa fra `CLAUDE.md`, l'audit che l'ha introdotta e quello che l'ha corretta.
-Rimedio a costo basso: spostare gli handoff anteriori a settembre in
-`docs/handoff/archivio/` e aggiungere in `INDEX.md` una tabella
+**B-7 · Navigabilità di `docs/`.** ✅ **Chiuso il 5 settembre** — vedi «Come è
+stato chiuso (B-7)» in fondo al documento. 40 handoff + 21 audit. `INDEX.md`
+distingue già vigente da storico, ed è più di quanto facciano quasi tutti i
+progetti. Il costo residuo è trovare *la regola di oggi* su un argomento: la
+risposta è sparsa fra `CLAUDE.md`, l'audit che l'ha introdotta e quello che
+l'ha corretta. Rimedio a costo basso: spostare gli handoff anteriori a
+settembre in `docs/handoff/archivio/` e aggiungere in `INDEX.md` una tabella
 «argomento → documento vigente» per i dieci temi ricorrenti (permessi, RLS,
 realtime, bundle, stili, errori, push, liste, import, CI).
 
@@ -1086,7 +1087,8 @@ realtime, bundle, stili, errori, push, liste, import, CI).
 | ~~8a~~ | **M-6** (CSP) ✔ | — | **Fatto il 5 settembre**: `securitypolicyviolation` agganciato in `installaHandlerGlobali()`, stesso canale (`codiceSegnalazione` + `error_reports`) dei due handler esistenti. Niente `report-uri`/`report-to` in `vercel.json` — vedi la nota nel corpo del rilievo |
 | ~~8c~~ | **M-7**, **B-1**, **B-4** ✔ | — | **Fatti il 5 settembre** (tre migrazioni, staging poi produzione): `user_contacts_select` esclude il driver (M-7, decisione di prodotto), `private.can_clienti_scrittura()`/`can_clienti_eliminazione()` sostituiscono la logica di ruolo in linea sulle quattro policy di `clients` (B-1), indice di copertura su `task_history.actor_id` (B-4, solo questa metà — i sette indici mai usati restano da rivalutare). Vedi «Come è stato chiuso (M-7, B-1, B-4)» in fondo |
 | ~~8d~~ | **B-2**, **B-5** ✔ | — | **Fatti il 5 settembre**: B-2 serializza `deps` (`JSON.stringify`) invece dello spread a lunghezza variabile; B-5 aggiunge `warning` + voce `user.autoeliminato` su `delete-account`, deployata su staging e produzione. Vedi «Come è stato chiuso» in fondo |
-| 8e | **B-7** | — | ⚠️ **A-3 e M-5 avanzati parzialmente il 5 settembre** (vedi le due sezioni «Come è stato avanzato» in fondo): A-3 chiude la metà client (validatore a 12 caratteri + composizione), resta aperta la metà piattaforma che nessuno strumento di questa sessione può applicare; M-5 allarga `checkJs` a `src/hooks` (passo 1 di 3) |
+| ~~8e~~ | **B-7** ✔ | — | **Fatto il 5 settembre**: tabella «argomento → documento vigente» in `INDEX.md` per i dieci temi ricorrenti. Vedi «Come è stato chiuso (B-7)» in fondo — include anche perché lo split `docs/handoff/archivio/` non è stato fatto |
+| — | **A-3**, **M-5** | — | ⚠️ **Avanzati parzialmente il 5 settembre**, nessuno dei due chiuso del tutto (vedi le rispettive sezioni in fondo): A-3 chiude la metà client (validatore a 12 caratteri + composizione), resta aperta la metà piattaforma che nessuno strumento di questa sessione può applicare; M-5 allarga `checkJs` a `src/hooks` (passo 1 di 3) |
 | 9 | **M-8** (stili) | — | Solo se arriva il tema scuro o un restyle |
 
 Chiusi 1–6 la valutazione è **9,5**. Con `A-1`, `A-2`, il punto 4 (`M-3`/`M-4`/`B-3`/`B-6`), il punto 5 (`M-1`) e il punto 6 (`A-4`) fatti e `A-3` ridotto alla sua metà gratuita, i quattro rilievi alti sono tutti chiusi. Il mezzo punto restante è `M-8`, ed è il
@@ -1981,3 +1983,45 @@ Verificato con `npm test` (2117 passati), `npm run lint`,
 `npm run verifica:tipi`, e il contenuto della funzione riletto da entrambi
 i progetti dopo il deploy (`get_edge_function`), byte per byte identico a
 quanto scritto in `supabase/functions/delete-account/`.
+
+## Come è stato chiuso (B-7)
+
+**5 settembre 2026.** Il rimedio proposto aveva due metà; solo una era
+ancora da fare.
+
+**La prima metà era già fatta, e la premessa del rilievo era superata.**
+«40 handoff + 21 audit» descriveva un `docs/` senza sotto-cartelle — ma
+`docs/handoff/` esiste già (41 file, uno in più da quando il rilievo è
+stato scritto) e `docs/HANDOFF.md` in cima è solo un puntatore legacy verso
+l'ultimo handoff attivo. `INDEX.md` distingueva già vigente («Vigente — da
+leggere», «Riferimento di dominio») da storico («Storico — non normativo»,
+che linka `handoff/` e dice esplicitamente che un handoff è un log e non
+una specifica). Non c'era una seconda cartella da separare: c'era da
+verificarlo, non da rifarlo.
+
+**Lo spostamento in `docs/handoff/archivio/` non è stato fatto, per una
+ragione misurata e non per pigrizia.** Il rimedio proponeva di separare gli
+handoff «anteriori a settembre» da quelli recenti. Controllando le date:
+tutti e 41 i file in `docs/handoff/` sono datati fra il 9 giugno e l'8
+agosto 2026 — **zero** sono di settembre. Una cartella `archivio/` che
+contenesse il 100% di `handoff/` non separerebbe niente: sposterebbe 41
+file dietro un livello in più di percorso, per un lettore che deve comunque
+aprirli tutti per trovare qualcosa. Lo split ha senso solo quando esiste
+un handoff *recente* da cui distinguere quelli vecchi — cioè da quando
+questa sessione (o una successiva) ne scriverà uno. Rifarlo ora sarebbe
+stato lavoro che si autodistrugge al primo handoff nuovo.
+
+**La seconda metà — la tabella «argomento → documento vigente» — è quella
+che mancava davvero**, ed è stata aggiunta in `INDEX.md` fra «Riferimento
+di dominio» e «Audit»: dieci righe (permessi, RLS, realtime, bundle, stili,
+errori, push, liste, import, CI), ciascuna con il documento o la sezione di
+`CLAUDE.md` che porta la regola oggi. Due dei dieci temi (push, CI) non
+avevano nessun documento a cui puntare: invece di inventarne uno,
+la tabella lo dice — push vive nel codice e in due handoff che l'hanno
+introdotta, CI nel workflow stesso (`.github/workflows/ci.yml`) e negli
+script `verifica:*`. Un indice che nasconde i buchi che descrive sarebbe
+meno onesto di uno che non esiste.
+
+Nessun codice toccato: `npm run verifica:convenzioni` resta l'unico
+controllo pertinente (i numeri scritti nei due documenti), verificato dopo
+la modifica.

@@ -43,8 +43,9 @@ export function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected, lis
     // Questo div non è un affordance cliccabile: gestisce solo l'hover
     // (bordo/ombra) dell'intera card. L'apertura della scheda vive sul div
     // figlio subito sotto, con il proprio role/tabIndex/onKeyDown — qui non
-    // c'è un'azione da rendere raggiungibile da tastiera.
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
+    // c'è un'azione da rendere raggiungibile da tastiera (M-2 dell'audit del
+    // 4 settembre: stesso ragionamento, per la stessa ragione).
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions, no-restricted-syntax
     <div
       style={{
         background: "var(--card)", borderRadius: 12, padding: "16px 18px",

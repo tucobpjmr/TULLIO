@@ -3,6 +3,7 @@
 // componente — vedi docs/CLAUDE.md). Nessun cambiamento di comportamento: una
 // voce (Chiama/SMS/WhatsApp) del menu aperto da ContactActions.
 import * as stiliComuni from "../../styles/common.js";
+import { conTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -18,8 +19,10 @@ export const ContactMenuItem = ({ href, onClick, icon, label, target, rel }) => 
     rel={rel}
     onClick={onClick}
     style={rowCenterGap10}
-    onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+    {...conTastiera(
+      e => e.currentTarget.style.background = "var(--surface2)",
+      e => e.currentTarget.style.background = "transparent",
+    )}
   >
     <span style={stiliComuni.txtF15}>{icon}</span>{label}
   </a>

@@ -29,6 +29,7 @@ import { useState } from "react";
 // debounce, la guardia di staleness e la degradazione senza rete).
 import { useRicercaClienti } from "../../hooks/useRicercaClienti.js";
 import { Z } from "../../styles/tokens.js";
+import { conTastiera } from "../../lib/a11y.js";
 
 const MAX_SUGGERIMENTI = 6;
 
@@ -152,8 +153,10 @@ export function ClientSuggestions({ matches, visible, onPick, compact = false })
             borderBottom: "1px solid var(--border)", background: "transparent",
             cursor: "pointer", fontFamily: "inherit",
           }}
-          onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+          {...conTastiera(
+            e => e.currentTarget.style.background = "var(--surface2)",
+            e => e.currentTarget.style.background = "transparent",
+          )}
         >
           <span style={{ fontSize: v.nome, fontWeight: 600, color: "var(--text)" }}>{c.name}</span>
           {(c.phone || c.city || c.email) && (

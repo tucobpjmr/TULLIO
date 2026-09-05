@@ -17,7 +17,7 @@ import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "../tasks/arc
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
-import { attivaConTastiera, cellaAzionabile } from "../../lib/a11y.js";
+import { attivaConTastiera, cellaAzionabile, conTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -243,8 +243,10 @@ export const ArchivedListe = ({ isMobile }) => {
                 const s = saldi[l.id] || { saldo: 0 };
                 return (
                   <tr key={l.id} style={borderBottom2}
-                    onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    {...conTastiera(
+                      e => e.currentTarget.style.background = "var(--surface2)",
+                      e => e.currentTarget.style.background = "transparent",
+                    )}
                     {...cellaAzionabile(() => apri(l), `Apri lista ${l.clients?.name || ""}`)}
                   >
                     <td style={txtBoldHeading}>{l.clients?.name || "—"}</td>

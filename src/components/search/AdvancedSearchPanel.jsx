@@ -26,7 +26,7 @@ import {
 } from "./advancedSearchPanelStyles.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 import { useCaricamento } from "../../hooks/useCaricamento.js";
-import { attivaConTastiera } from "../../lib/a11y.js";
+import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
 
 // Esportato per i test: la ricerca globale è l'unico punto che cerca insieme
 // task e liste viaggio, ed è quello dove le due ricerche devono coincidere.
@@ -336,8 +336,10 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
                     transition: "background 0.15s", background: "#fff",
                     opacity: t.deletedAt ? 0.6 : 1,
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                  onMouseLeave={e => e.currentTarget.style.background = "#fff"}
+                  {...conTastiera(
+                    e => e.currentTarget.style.background = "var(--surface2)",
+                    e => e.currentTarget.style.background = "#fff",
+                  )}
                 >
                   <div style={{
                     width: 28, height: 28, borderRadius: 6,
@@ -401,8 +403,10 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
                   transition: "background 0.15s", background: "#fff",
                   opacity: l.deleted_at ? 0.6 : 1,
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                onMouseLeave={e => e.currentTarget.style.background = "#fff"}
+                {...conTastiera(
+                  e => e.currentTarget.style.background = "var(--surface2)",
+                  e => e.currentTarget.style.background = "#fff",
+                )}
               >
                 <div style={rowCenterMiddle}>🧾</div>
                 <div className="vd-flex-1-min0">

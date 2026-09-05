@@ -67,3 +67,30 @@ export const cellaAzionabile = (onAziona, etichetta) => ({
   onClick: onAziona,
   onKeyDown: attivaConTastiera(onAziona),
 });
+
+// ─── M-2 dell'audit del 4 settembre · l'hover non basta ────────────────────
+// Quaranta `onMouseEnter` contro quindici `onFocus`: venticinque affordance
+// visive (sfondo, colore, sollevamento di una card) esistevano SOLO per chi
+// usa il mouse. Il difetto non è l'assenza di un gestore — è che il codice ne
+// scrive uno diverso per ogni coppia enter/leave, e copiarlo per la tastiera
+// significherebbe raddoppiare ogni handler invece di condividerlo.
+//
+// `conTastiera(onEnter, onLeave)` prende le due funzioni che l'app già scrive
+// per `onMouseEnter`/`onMouseLeave` — che siano una mutazione diretta dello
+// stile (`e => e.currentTarget.style.background = "…"`) o un setter di stato
+// (`() => setHovered(true)`) — e le rimette anche su `onFocus`/`onBlur`: un
+// FocusEvent porta lo stesso `currentTarget` di un MouseEvent, quindi la
+// stessa funzione serve a entrambi senza bisogno di saperlo.
+//
+// Non è la stessa cosa di `evidenziaConTastiera(imposta)` che il rilievo
+// proponeva (un solo booleano): la maggioranza dei call site di QUESTA
+// codebase non passa da uno stato React, muta lo stile direttamente — e un
+// helper che pretendesse un booleano li avrebbe costretti a introdurne uno
+// solo per usarlo. Accettare le due funzioni intere copre entrambi i casi
+// con la stessa primitiva.
+export const conTastiera = (onEnter, onLeave) => ({
+  onMouseEnter: onEnter,
+  onMouseLeave: onLeave,
+  onFocus: onEnter,
+  onBlur: onLeave,
+});

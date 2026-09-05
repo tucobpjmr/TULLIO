@@ -6,6 +6,7 @@ import { SwipeActions } from "../../tasks/SwipeActions.jsx";
 import { TaskCard } from "../../tasks/TaskCard.jsx";
 import { PRIORITIES } from "../../../lib/taskConstants.js";
 import { formatDate, isOverdue } from "../../../lib/taskUtils.js";
+import { conTastiera } from "../../../lib/a11y.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { QUEUE_PAGINA, useOpenTask } from "./queueShared.js";
 import { useFinestra } from "../../../hooks/useFinestra.js";
@@ -173,8 +174,10 @@ export const UnassignedQueue = ({ tasks, onTake, uid, loading = false }) => {
                     <button
                       onClick={e => { e.stopPropagation(); onTake(t); }}
                       style={rowCenterMiddle2}
-                      onMouseEnter={e => { e.currentTarget.style.background = "var(--gold-light)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "var(--gold)"; }}
+                      {...conTastiera(
+                        e => { e.currentTarget.style.background = "var(--gold-light)"; },
+                        e => { e.currentTarget.style.background = "var(--gold)"; },
+                      )}
                     >
                       🙋 Prendi in carico
                     </button>

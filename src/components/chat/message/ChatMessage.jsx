@@ -13,7 +13,7 @@ import { VoicePlayer } from "./VoicePlayer.jsx";
 import { MessageTextContent } from "./MessageTextContent.jsx";
 import { Z } from "../../../styles/tokens.js";
 import * as stiliComuni from "../../../styles/common.js";
-import { attivaConTastiera } from "../../../lib/a11y.js";
+import { attivaConTastiera, conTastiera } from "../../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -94,10 +94,25 @@ export const ChatMessage = memo(function ChatMessage({ msg, prevMsg, conv, allMe
     // già dei <button> nativi propri. `role="group"` — non "button" — perché
     // qui non c'è nulla da attivare con Invio/Spazio: è un contenitore, non
     // un controllo.
+    //
+    // M-2 dell'audit del 4 settembre: la barra è montata SOLO quando
+    // `hovered` è vero (riga più sotto), quindi senza `onFocus` chi naviga da
+    // tastiera non poteva MAI raggiungerla — a differenza del post-it di
+    // NoticeBoard, qui i bottoni non esistevano affatto nel DOM finché non
+    // arrivava un mouseenter. `onFocus` fa apparire la barra quando il focus
+    // entra nel gruppo (bubbla dai bottoni figli come un mouseenter);
+    // `onBlur` la richiude solo quando il focus ESCE dal gruppo — non a ogni
+    // passaggio fra un bottone e l'altro dentro la barra stessa, che
+    // altrimenti la richiuderebbe sotto al focus che sta per raggiungerla.
     <div
       role="group"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => { setHovered(false); setShowReactions(false); }}
+      {...conTastiera(
+        () => setHovered(true),
+        (e) => {
+          if (e.currentTarget.contains(e.relatedTarget)) return;
+          setHovered(false); setShowReactions(false);
+        },
+      )}
       style={{
         display: "flex", flexDirection: isMine ? "row-reverse" : "row",
         gap: 8, marginTop: showAvatar ? 12 : 2, alignItems: "flex-end",

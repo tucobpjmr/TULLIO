@@ -11,7 +11,7 @@ import { Z } from "../../styles/tokens.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { dataBreve } from "../../lib/dates.js";
 import * as stiliComuni from "../../styles/common.js";
-import { attivaConTastiera } from "../../lib/a11y.js";
+import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
 import {
   boxF11Bold, boxF16R4, gridGap16, marginLeft2, padding2, rowAbsoluteGap2, rowCenterBetween,
   rowCenterGap5, rowCenterGap6, rowCenterGap62, rowCenterMiddle, rowGap4Mt8, txtAbsoluteF18,
@@ -170,7 +170,11 @@ export const NoticeBoard = ({ notices, loading = false }) => {
               // `role="group"`: onMouseEnter/onMouseLeave qui sono solo l'effetto
               // "sollevamento" al passaggio del mouse — il post-it non fa nulla
               // se ci clicchi sopra. Le azioni vere sono i <button> dentro
-              // (reagisci/pin/modifica/elimina), già nativamente da tastiera.
+              // (reagisci/pin/modifica/elimina), già nativamente da tastiera e
+              // SEMPRE montati (a differenza della barra hover di ChatMessage):
+              // niente da rendere raggiungibile qui — M-2 dell'audit del 4
+              // settembre.
+              // eslint-disable-next-line no-restricted-syntax
               <div
                 key={n.id}
                 role="group"
@@ -257,8 +261,10 @@ export const NoticeBoard = ({ notices, loading = false }) => {
                           setReactingId(null);
                         }}
                         style={boxF16R4}
-                        onMouseEnter={e => { e.currentTarget.style.background = "rgba(15,32,68,0.08)"; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+                        {...conTastiera(
+                          e => { e.currentTarget.style.background = "rgba(15,32,68,0.08)"; },
+                          e => { e.currentTarget.style.background = "none"; },
+                        )}
                       >{em}</button>
                     ))}
                   </div>

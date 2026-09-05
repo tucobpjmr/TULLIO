@@ -195,6 +195,12 @@ export const Trash = memo(function Trash({ loading = false }) {
             </thead>
             <tbody>
               {finestra.visibili.map(task => (
+                // La riga non è azionabile (nessun onClick): le azioni sono i
+                // bottoni "Ripristina"/"Elimina" nell'ultima colonna, già
+                // raggiungibili da tastiera per conto proprio. L'hover qui è
+                // solo l'evidenziazione della riga sotto il cursore — M-2
+                // dell'audit del 4 settembre.
+                // eslint-disable-next-line no-restricted-syntax
                 <tr key={task.id} style={borderBottom2}
                   onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}

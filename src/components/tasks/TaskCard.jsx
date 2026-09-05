@@ -32,7 +32,7 @@
 
 import { memo } from "react";
 import { CategoryPill } from "./CategoryPill.jsx";
-import { attivaConTastiera } from "../../lib/a11y.js";
+import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -97,8 +97,7 @@ export const TaskCard = memo(function TaskCard({
       title={tooltip}
       onClick={openAll}
       onKeyDown={openAll ? attivaConTastiera(openAll) : undefined}
-      onMouseEnter={hoverLift ? lift(true) : undefined}
-      onMouseLeave={hoverLift ? lift(false) : undefined}
+      {...(hoverLift ? conTastiera(lift(true), lift(false)) : null)}
       style={{
         background: "var(--card)", borderRadius: radius, border,
         ...(accent ? { borderLeft: `3px solid ${accent}` } : null),

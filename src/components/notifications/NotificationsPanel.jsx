@@ -13,7 +13,7 @@ import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { PushToggle } from "./PushToggle.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
-import { attivaConTastiera } from "../../lib/a11y.js";
+import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -188,8 +188,10 @@ export const NotificationsPanel = ({ onClose, notifications, isReal, onMarkRead,
               transition: "background 0.2s",
               cursor: isNavigable(n) || (isReal && !n.read) ? "pointer" : "default",
             }}
-            onMouseEnter={e => { if (isNavigable(n)) e.currentTarget.style.background = "rgba(212,168,67,0.12)"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = n.read ? "transparent" : "rgba(212,168,67,0.07)"; }}
+            {...conTastiera(
+              e => { if (isNavigable(n)) e.currentTarget.style.background = "rgba(212,168,67,0.12)"; },
+              e => { e.currentTarget.style.background = n.read ? "transparent" : "rgba(212,168,67,0.07)"; },
+            )}
           >
             <span style={txtF18}>{NOTIF_ICONS[n.type] || "🔔"}</span>
             <div className="vd-flex-1-min0">
@@ -207,8 +209,10 @@ export const NotificationsPanel = ({ onClose, notifications, isReal, onMarkRead,
                   title="Elimina notifica"
                   aria-label="Elimina notifica"
                   style={boxF13Muted2}
-                  onMouseEnter={e => { e.currentTarget.style.opacity = 1; }}
-                  onMouseLeave={e => { e.currentTarget.style.opacity = 0.6; }}
+                  {...conTastiera(
+                    e => { e.currentTarget.style.opacity = 1; },
+                    e => { e.currentTarget.style.opacity = 0.6; },
+                  )}
                 >✕</button>
               )}
             </div>

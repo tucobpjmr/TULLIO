@@ -103,6 +103,34 @@ const CELLA_TABELLA_CLICCABILE_SENZA_TASTIERA = {
     + 'disattiva la regola con il perché accanto, come in Archive.jsx.',
 };
 
+// M-2 dell'audit del 4 settembre. Quaranta `onMouseEnter` contro quindici
+// `onFocus`: le affordance costruite sull'hover — sfondo che cambia, card che
+// si solleva — non avevano la controparte da tastiera. `conTastiera()` in
+// lib/a11y.js è il modo di non doverselo ricordare (spread sulle props); la
+// regola sotto intercetta il caso in cui qualcuno scriva di nuovo la coppia
+// a mano dimenticando la tastiera.
+//
+// `error` fin dall'inizio e non `warn` promossa in seguito: tutti i call
+// site esistenti sono stati convertiti a `conTastiera()` — o, dove l'hover è
+// puramente decorativo (l'azione vive su un figlio con il proprio
+// role/tabIndex/onKeyDown, come in ClienteCard.jsx/ChatMessage.jsx/
+// NoticeBoard.jsx/Trash.jsx), disattivati riga per riga col perché — nello
+// stesso commit che introduce la regola. La stessa disciplina di
+// jsx-a11y/no-static-element-interactions all'attivazione.
+const HOVER_SENZA_TASTIERA = {
+  selector: 'JSXOpeningElement'
+    + ':has(JSXAttribute[name.name="onMouseEnter"])'
+    + ':not(:has(JSXAttribute[name.name="onFocus"]))',
+  message:
+    'Effetto visivo legato al solo hover: chi naviga da tastiera non lo vede. '
+    + 'Usa conTastiera(onEnter, onLeave) da lib/a11y.js (spread sulle props: '
+    + '{...conTastiera(...)}). Se l\'effetto è puramente decorativo (l\'elemento '
+    + 'non è lui stesso azionabile — l\'azione vive su un figlio con il proprio '
+    + 'role/tabIndex/onKeyDown), disattiva la regola con il perché accanto, '
+    + 'come in ClienteCard.jsx. Vedi M-2 in '
+    + 'docs/AUDIT_ARCHITETTURA_SICUREZZA_2026-09-04.md.',
+};
+
 const VIETATO_APPGLOBALS = {
   group: ['**/state/appGlobals', '**/state/appGlobals.js'],
   message:
@@ -486,7 +514,8 @@ export default [
         ],
       }],
       'no-restricted-syntax': ['error', STILE_INLINE_COSTANTE, VIETATO_CONTEXT_VALUE_LETTERALE,
-        VIETATO_COMMON_NOMINATO, VIETATO_DISPATCH_PROP, CELLA_TABELLA_CLICCABILE_SENZA_TASTIERA],
+        VIETATO_COMMON_NOMINATO, VIETATO_DISPATCH_PROP, CELLA_TABELLA_CLICCABILE_SENZA_TASTIERA,
+        HOVER_SENZA_TASTIERA],
     },
   },
   // Il confine vale per i COMPONENTI. Non per src/hooks/ (è lì che i dati

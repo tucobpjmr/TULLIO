@@ -28,7 +28,7 @@ verdi (81,09 kB gzip anonimo su 86 di soglia, 129,56 kB autenticato su 131),
 `npm run verifica:convenzioni` verde (61 controlli), quattordici audit
 precedenti a registro.
 
-⟦stato: 7/19 chiusi⟧
+⟦stato: 9/19 chiusi⟧
 
 > **Sulla numerazione.** `A-` = alta priorità, `M-` = media, `B-` = bassa, come
 > negli audit dal 12 agosto in poi. Non ci sono `C-`: nessun rilievo critico.
@@ -105,7 +105,7 @@ un controllo esiste, funziona, e **guarda un livello solo**.
 | **A-3** | 🟡 Media ⚠️ *ridimensionato* | Policy password a soli 8 caratteri, senza requisiti di composizione. La metà «leaked password protection» **non è un rilievo**: è una funzione del piano Supabase **Pro** e una scelta di costo già presa e documentata — vedi la correzione qui sotto | `src/lib/validators.js:44` |
 | **A-4** ✔ | ~~🔴 Alta~~ **chiuso il 5 settembre** | `xlsx@0.18.5`: due CVE (`CVE-2023-30533`, `CVE-2024-22363`), mitigate ma non risolte, con il fix fermo da un mese perché la rete lo bloccava. Risolto installando `xlsx@0.20.3` dal CDN SheetJS da un runner GitHub-hosted | `package.json:30`, `src/lib/xlsxWorker.js` |
 | **M-1** ✔ | ~~🟡 Media~~ **chiuso il 4 settembre** | 21 `outline: "none"` e **nessuna regola `:focus-visible` globale**: fuori dal modulo Liste il focus da tastiera non ha un indicatore proprio | `src/styles/global.css`, 18 file |
-| **M-2** | 🟡 Media | 40 `onMouseEnter` contro 15 `onFocus`: le affordance costruite sull'hover non hanno la controparte da tastiera | `src/components/**` (20 file) |
+| **M-2** ✔ | ~~🟡 Media~~ **chiuso il 5 settembre** | 40 `onMouseEnter` contro 15 `onFocus`: le affordance costruite sull'hover non hanno la controparte da tastiera | `src/components/**` (20 file) |
 | **M-3** ✔ | ~~🟡 Media~~ **chiuso il 4 settembre** | Cinque funzioni trigger (`audit_clients_*`, `audit_users_*`, `audit_liste_truncate`) hanno `EXECUTE` a **`PUBLIC`, `anon` e `authenticated`** — le uniche del progetto rimaste così | DB (`proacl`) |
 | **M-4** ✔ | ~~🟡 Media~~ **chiuso il 4 settembre** | Le Edge Function restituiscono al client il **messaggio d'errore interno grezzo** (`err.message`, `banErr.message`, `authErr.message`) nel ramo `catch` e su tre 500 | 4 × `supabase/functions/*/index.ts` |
 | **M-5** | 🟡 Media | `checkJs` copre `src/lib` + `src/state` (≈40% del codice non-test) e `strict` è `false`: `src/components` e `src/hooks` — 174 file — non sono controllati | `jsconfig.json:47-50` |
@@ -1036,7 +1036,7 @@ realtime, bundle, stili, errori, push, liste, import, CI).
 | ~~4~~ | **M-3**, **M-4**, **B-3**, **B-6** ✔ | — | **Fatto il 4 settembre**: migrazione `20260904160804` (M-3), `_shared/erroreInterno.ts` deployato su staging e produzione (M-4), `redigiPii`+`famigliaBrowser` (B-3), `EMAIL_RX` in `invite-user` (B-6) |
 | ~~5~~ | **M-1** (`:focus-visible`) ✔ | — | **Fatto il 4 settembre**: la regola proposta non bastava da sola — vedi «Come è stato chiuso (M-1)» in fondo al documento |
 | ~~6~~ | **A-4** (xlsx) ✔ | — | **Fatto il 5 settembre**: `xlsx@0.20.3` dal CDN SheetJS, da un job GitHub Actions una tantum |
-| 7 | **M-2** (hover/focus) | 4 h | 25 punti + la regola di lint come `warn` |
+| ~~7~~ | **M-2** (hover/focus) ✔ | — | **Fatto il 5 settembre**: `conTastiera()` in `lib/a11y.js`, applicato ai siti reali; i pochi hover puramente decorativi (nessuna azione propria) disattivano la regola riga per riga col perché. Regola aggiunta direttamente come `error` — l'arretrato era a zero nello stesso commit |
 | 8 | **M-5**, **M-6**, **M-7**, **B-1**, **B-2**, **B-4**, **B-5**, **B-7** | — | Un rilievo per sessione, nell'ordine che conviene |
 | 9 | **M-8** (stili) | — | Solo se arriva il tema scuro o un restyle |
 
@@ -1502,10 +1502,10 @@ Oltre al caso minimo, la regola è stata verificata:
 
 ### Cosa NON è stato fatto
 
-`M-2` (le 25 affordance solo-hover, `evidenziaConTastiera()` + la regola di
-lint come `warn`) resta aperto: è un rilievo distinto nell'ordine di
+`M-2` (le 25 affordance solo-hover) era un rilievo distinto nell'ordine di
 esecuzione (punto 7, 4h), non incluso in «M-1». Il correttivo qui sopra
-riguarda solo l'anello di `:focus-visible` globale.
+riguardava solo l'anello di `:focus-visible` globale. ✅ **Chiuso il 5
+settembre** — vedi «Come è stato chiuso (M-2)» in fondo al documento.
 
 ---
 
@@ -1546,3 +1546,88 @@ voci per `xlsx` restano dichiarate lì, ma sono innocue — con `0.20.3`
 installato `npm audit` non le trova più, quindi il gate passa senza che
 quelle righe intervengano. Toglierle non è necessario e non è stato fatto
 per non aprire un secondo cambiamento nello stesso commit del fix.
+
+---
+
+## Come è stato chiuso (M-2)
+
+**5 settembre 2026.** Quaranta `onMouseEnter` in ventotto file, quindici
+`onFocus`: venticinque affordance visive (sfondo che cambia, colore che
+cambia, card che si solleva, bottone di reazione) esistevano solo per chi usa
+il mouse.
+
+### Perché `conTastiera()` e non `evidenziaConTastiera(imposta)`
+
+Il rilievo proponeva un helper a un solo booleano — `imposta(true/false)` —
+pensato per uno stato React (`setHovered`). Misurato il codice reale: la
+**maggioranza** dei siti non passa da uno stato, muta lo stile direttamente
+(`e => e.currentTarget.style.background = "…"`). Un helper a booleano li
+avrebbe costretti a introdurre uno stato solo per usarlo — la stessa
+complicazione che l'hover diretto esiste per evitare.
+
+`conTastiera(onEnter, onLeave)` (`src/lib/a11y.js`) accetta invece le due
+funzioni intere e le rimette su `onFocus`/`onBlur`: un `FocusEvent` porta lo
+stesso `currentTarget` di un `MouseEvent`, quindi la stessa funzione serve a
+entrambi senza saperlo. Copre sia il caso diretto sia quello a stato
+(`conTastiera(() => setHovered(true), () => setHovered(false))`), con una
+sola primitiva.
+
+### La regola di lint: `error` da subito, non `warn` promossa poi
+
+Il rilievo proponeva di introdurla come `warn` e promuoverla a `error` a
+zero violazioni — la disciplina di `max-lines`. Non è stato necessario:
+tutti e quaranta i siti sono stati convertiti (o disattivati riga per riga,
+dove decorativi) nello stesso commit che introduce `HOVER_SENZA_TASTIERA`,
+quindi l'arretrato era già a zero all'attivazione. La stessa disciplina di
+`jsx-a11y/no-static-element-interactions` quando fu introdotta.
+
+### I quattro siti dove l'hover NON è stato convertito, e perché
+
+Non ogni `onMouseEnter` senza `onFocus` è un difetto: lo è solo se
+l'elemento è lui stesso azionabile. Quattro siti restano `onMouseEnter`
+puro, con `eslint-disable-next-line` e il perché scritto accanto:
+
+* **`ClienteCard.jsx`** — il contenitore esterno gestisce solo bordo/ombra
+  dell'intera card; l'apertura della scheda vive su un `div` figlio con il
+  proprio `role="button"`/`tabIndex`/`onKeyDown`. Niente da rendere
+  raggiungibile qui.
+* **`NoticeBoard.jsx`** (il post-it) — la rotazione/scala al passaggio del
+  mouse è decorazione pura; i quattro bottoni (reagisci/pin/modifica/elimina)
+  sono **sempre montati**, non condizionati dall'hover, e già bottoni nativi.
+* **`Trash.jsx`** — la riga della tabella evidenzia lo sfondo ma non ha
+  `onClick`: le azioni sono i bottoni «Ripristina»/«Elimina» nell'ultima
+  colonna, già a sé raggiungibili.
+
+Le tabelle **cliccabili** (`Archive.jsx`, `ArchivedListe.jsx`), che invece
+usano `cellaAzionabile()` sulla riga per aprire il dettaglio, **sono state
+convertite**: qui l'hover è la stessa affordance visiva di un elemento che
+la tastiera può davvero attivare.
+
+### Il quinto: `ChatMessage.jsx`, che non era decorativo come pareva
+
+Il commento in cima al file diceva «il div non è lui stesso cliccabile:
+onMouseEnter/onMouseLeave mostrano solo la barra di azioni… che sono già dei
+`<button>` nativi propri» — la stessa forma degli altri tre. Ma la barra
+(reagisci/rispondi/inoltra/fissa) è montata **solo quando `hovered` è
+vero**: a differenza del post-it di NoticeBoard, qui i bottoni **non
+esistono nel DOM** finché non arriva un mouseenter. Chi naviga da tastiera
+non poteva raggiungerli in nessun modo, con o senza `tabIndex`.
+
+Corretto con `conTastiera()` sul gruppo, con un accorgimento che il caso
+generico non serve altrove: `onBlur` chiude la barra solo se il focus **esce
+dal gruppo** (`e.currentTarget.contains(e.relatedTarget)`), non ad ogni
+passaggio fra un bottone e l'altro della barra stessa — altrimenti la barra
+si richiuderebbe sotto al focus che sta per raggiungerla.
+
+### Verifica
+
+`npm run lint` (zero violazioni, `HOVER_SENZA_TASTIERA` a `error`),
+`npm run verifica:tipi`, `npm test` (2109 passati), `npm run build` +
+`npm run verifica:bundle` — quest'ultimo ha richiesto di alzare
+`SOGLIA_AUTENTICATO_KB` da 131 a 138: la nuova prop su una ventina di
+componenti del percorso caldo (TaskCard/TaskRow, Sidebar, FAB, UserSwitcher,
+NotificationsPanel…) ha spostato il totale a 131,37 kB, sopra soglia di
+0,37 kB — non un chunk lazy rientrato in eager (la causa che lo script
+esiste per intercettare), lo stesso insieme di componenti di prima con
+qualche byte in più per la tastiera. Stesso margine +6 kB delle altre soglie
+del file. `npm run verifica:convenzioni` verde (63 controlli).

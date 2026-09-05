@@ -15,7 +15,7 @@ import { formatFileSize } from "../../lib/fileUtils.js";
 import { chiaveCliente } from "../../lib/chiaveCliente.js";
 import { Modal } from "../ui/Modal.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
-import { attivaConTastiera } from "../../lib/a11y.js";
+import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
 import * as stiliComuni from "../../styles/common.js";
 import {
   boxF125Warning, boxF13Danger, boxF14White, boxF95Bold, boxR8, boxTxtCenterR12, boxW8H8,
@@ -327,8 +327,10 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
               role="button" tabIndex={0}
               onClick={apriSelezioneFile} onKeyDown={attivaConTastiera(apriSelezioneFile)}
               style={boxTxtCenterR12}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--gold)"; e.currentTarget.style.background = "rgba(212,168,67,0.04)"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface)"; }}
+              {...conTastiera(
+                e => { e.currentTarget.style.borderColor = "var(--gold)"; e.currentTarget.style.background = "rgba(212,168,67,0.04)"; },
+                e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface)"; },
+              )}
             >
               <div style={txtF40Mb10}>📄</div>
               <div style={txtF14Bold}>Clicca per caricare il file dell'anagrafica</div>

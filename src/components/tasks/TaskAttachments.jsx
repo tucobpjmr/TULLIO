@@ -12,7 +12,7 @@ import { TaskFiles } from "../../lib/api.js";
 import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit, sourceBadge, mediaKind } from "../../lib/fileUtils.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
-import { attivaConTastiera } from "../../lib/a11y.js";
+import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -222,8 +222,10 @@ export function TaskAttachments({ taskId, editable }) {
                   <button onClick={() => handleDownload(file)} title="Apri / scarica" style={boxF15Navy}>⬇️</button>
                   {editable && (
                     <button onClick={() => handleRemove(file)} title="Elimina allegato" style={boxF13Muted}
-                      onMouseEnter={e => e.currentTarget.style.color = "var(--danger)"}
-                      onMouseLeave={e => e.currentTarget.style.color = "var(--text-muted)"}
+                      {...conTastiera(
+                        e => e.currentTarget.style.color = "var(--danger)",
+                        e => e.currentTarget.style.color = "var(--text-muted)",
+                      )}
                     >🗑️</button>
                   )}
                 </div>

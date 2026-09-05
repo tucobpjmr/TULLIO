@@ -6,6 +6,7 @@ import { SwipeActions } from "../../tasks/SwipeActions.jsx";
 import { Avatar } from "../../ui/Avatar.jsx";
 import { TaskCard } from "../../tasks/TaskCard.jsx";
 import { PRIORITIES } from "../../../lib/taskConstants.js";
+import { conTastiera } from "../../../lib/a11y.js";
 import { formatDate, formatTime } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { QUEUE_PAGINA, useOpenTask } from "./queueShared.js";
@@ -239,8 +240,10 @@ export const UrgentQueue = ({ tasks, onOpenChat, uid, loading = false }) => {
                   <button
                     onClick={() => onOpenChat && onOpenChat({ toUser: owner.id, taskLink: t.id })}
                     style={rowCenterGap8}
-                    onMouseEnter={e => e.currentTarget.style.background = "var(--surface3)"}
-                    onMouseLeave={e => e.currentTarget.style.background = "var(--surface2)"}
+                    {...conTastiera(
+                      e => e.currentTarget.style.background = "var(--surface3)",
+                      e => e.currentTarget.style.background = "var(--surface2)",
+                    )}
                     title={`Scrivi a ${owner.name}`}
                   >
                     <Avatar memberId={owner.id} size={24} />

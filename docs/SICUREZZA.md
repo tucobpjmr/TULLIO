@@ -722,6 +722,23 @@ verso Google Fonts (iniettando gli stessi identici blocchi `<style>` di
 autenticata), una richiesta di login verso Supabase, e URL `blob:`/`data:` per
 media e immagini.
 
+⚠️ **«0» qui sopra era una misura fatta a mano una volta, non un presidio
+continuo** (M-6 dell'audit del 4 settembre). Una regressione — un `<style>`
+reintrodotto, una CDN aggiunta, un `worker-src` che smette di bastare — non
+produce un errore JS: l'elemento bloccato semplicemente non si carica, ed è
+silenziosa per l'utente e invisibile a chi mantiene finché qualcuno non
+riesegue questa prova a mano. Dal 5 settembre l'evento
+`securitypolicyviolation` è agganciato in `installaHandlerGlobali()`
+(`src/lib/errorReporting.js`) come terzo canale accanto ai due esistenti
+(`unhandledrejection`, `error`): passa dallo stesso `codiceSegnalazione()` e
+dalla stessa tabella `error_reports` che gli admin già leggono, non da un
+canale nuovo. ⛔ **Non è stato aggiunto `report-uri`/`report-to` alla CSP**:
+l'evento `securitypolicyviolation` non ne ha bisogno per scattare (è un
+meccanismo indipendente), e il progetto è statico — un `report-uri` senza un
+endpoint reale a riceverlo produrrebbe solo richieste `POST` silenziosamente
+inutili verso un percorso che i `rewrites` di `vercel.json` fanno comunque
+atterrare su `/`.
+
 **Ripetuta il 13 agosto** sulla policy senza `'unsafe-inline'`, con la stessa
 procedura (build reale servito in locale con l'header, Chromium): 0 violazioni,
 2 fogli di stile applicati (il `<link>` di Vite e quello di Google Fonts), 13

@@ -28,7 +28,7 @@ verdi (81,09 kB gzip anonimo su 86 di soglia, 129,56 kB autenticato su 131),
 `npm run verifica:convenzioni` verde (61 controlli), quattordici audit
 precedenti a registro.
 
-⟦stato: 9/19 chiusi⟧
+⟦stato: 10/19 chiusi⟧
 
 > **Sulla numerazione.** `A-` = alta priorità, `M-` = media, `B-` = bassa, come
 > negli audit dal 12 agosto in poi. Non ci sono `C-`: nessun rilievo critico.
@@ -109,7 +109,7 @@ un controllo esiste, funziona, e **guarda un livello solo**.
 | **M-3** ✔ | ~~🟡 Media~~ **chiuso il 4 settembre** | Cinque funzioni trigger (`audit_clients_*`, `audit_users_*`, `audit_liste_truncate`) hanno `EXECUTE` a **`PUBLIC`, `anon` e `authenticated`** — le uniche del progetto rimaste così | DB (`proacl`) |
 | **M-4** ✔ | ~~🟡 Media~~ **chiuso il 4 settembre** | Le Edge Function restituiscono al client il **messaggio d'errore interno grezzo** (`err.message`, `banErr.message`, `authErr.message`) nel ramo `catch` e su tre 500 | 4 × `supabase/functions/*/index.ts` |
 | **M-5** | 🟡 Media ⚠️ *parzialmente chiuso il 5 settembre (`src/hooks`)* | `checkJs` copre `src/lib` + `src/state` (≈40% del codice non-test) e `strict` è `false`: `src/components` e `src/hooks` — 174 file — non sono controllati | `jsconfig.json:47-50` |
-| **M-6** | 🟡 Media | La CSP non ha `report-to`/`report-uri`: «0 violazioni CSP» è una misura fatta a mano una volta, non un presidio continuo | `vercel.json:16` |
+| **M-6** ✔ | ~~🟡 Media~~ **chiuso il 5 settembre** | La CSP non ha `report-to`/`report-uri`: «0 violazioni CSP» è una misura fatta a mano una volta, non un presidio continuo | `vercel.json:16` |
 | **M-7** | 🟡 Media | `user_contacts_select` è `using (true)`: **anche un driver** legge email e telefono di tutto il team, benché il ruolo sia escluso per disegno da ogni altro dato | DB, `supabase/migrations/20260629222802_user_contacts_select_team.sql` |
 | **M-8** | 🟡 Media | 344 costanti di stile a nomi meccanici (`boxF125Warning`, `rowCenterBetween4`) + 335 stili inline dinamici, nessun design system, nessun tema scuro | `src/styles/`, 15 × `*Styles.js` |
 | **B-1** | 🟢 Bassa | Le quattro policy di `clients` ripetono `users.role = ANY(ARRAY[...])` in linea invece di usare un helper `private.can_clienti()`, contro il principio che il progetto applica ovunque | DB (`pg_policies`) |
@@ -849,6 +849,12 @@ document.addEventListener('securitypolicyviolation', onCsp);
 (da deregistrare nel cleanup insieme agli altri due, e da coprire con un caso
 in `src/test/lib/errorReporting.test.js`).
 
+✅ **Chiuso il 5 settembre** — vedi «Come è stato chiuso (M-6)» in fondo al
+documento. ⛔ Il frammento `report-uri`/`report-to` qui sopra **non è stato
+aggiunto**: non serve a far scattare `securitypolicyviolation` (i due
+meccanismi sono indipendenti) e, senza un endpoint reale a riceverlo su un
+progetto statico, sarebbe stato un `POST` silenziosamente inutile.
+
 ---
 
 ### M-7 · Un driver legge email e telefono di tutto il team
@@ -1053,7 +1059,8 @@ realtime, bundle, stili, errori, push, liste, import, CI).
 | ~~5~~ | **M-1** (`:focus-visible`) ✔ | — | **Fatto il 4 settembre**: la regola proposta non bastava da sola — vedi «Come è stato chiuso (M-1)» in fondo al documento |
 | ~~6~~ | **A-4** (xlsx) ✔ | — | **Fatto il 5 settembre**: `xlsx@0.20.3` dal CDN SheetJS, da un job GitHub Actions una tantum |
 | ~~7~~ | **M-2** (hover/focus) ✔ | — | **Fatto il 5 settembre**: `conTastiera()` in `lib/a11y.js`, applicato ai siti reali; i pochi hover puramente decorativi (nessuna azione propria) disattivano la regola riga per riga col perché. Regola aggiunta direttamente come `error` — l'arretrato era a zero nello stesso commit |
-| 8 | **M-5**, **M-6**, **M-7**, **B-1**, **B-2**, **B-4**, **B-5**, **B-7** | — | ⚠️ **A-3 e M-5 avanzati parzialmente il 5 settembre** (vedi le due sezioni «Come è stato avanzato» in fondo): A-3 chiude la metà client (validatore a 12 caratteri + composizione), resta aperta la metà piattaforma che nessuno strumento di questa sessione può applicare; M-5 allarga `checkJs` a `src/hooks` (passo 1 di 3) |
+| ~~8a~~ | **M-6** (CSP) ✔ | — | **Fatto il 5 settembre**: `securitypolicyviolation` agganciato in `installaHandlerGlobali()`, stesso canale (`codiceSegnalazione` + `error_reports`) dei due handler esistenti. Niente `report-uri`/`report-to` in `vercel.json` — vedi la nota nel corpo del rilievo |
+| 8b | **M-7**, **B-1**, **B-2**, **B-4**, **B-5**, **B-7** | — | ⚠️ **A-3 e M-5 avanzati parzialmente il 5 settembre** (vedi le due sezioni «Come è stato avanzato» in fondo): A-3 chiude la metà client (validatore a 12 caratteri + composizione), resta aperta la metà piattaforma che nessuno strumento di questa sessione può applicare; M-5 allarga `checkJs` a `src/hooks` (passo 1 di 3) |
 | 9 | **M-8** (stili) | — | Solo se arriva il tema scuro o un restyle |
 
 Chiusi 1–6 la valutazione è **9,5**. Con `A-1`, `A-2`, il punto 4 (`M-3`/`M-4`/`B-3`/`B-6`), il punto 5 (`M-1`) e il punto 6 (`A-4`) fatti e `A-3` ridotto alla sua metà gratuita, i quattro rilievi alti sono tutti chiusi. Il mezzo punto restante è `M-8`, ed è il
@@ -1742,3 +1749,52 @@ Verificato con `npm run verifica:tipi` (zero errori), `npm test` (2109
 passati), `npm run lint`, `npm run build` + `npm run verifica:bundle`,
 `npm run verifica:convenzioni` (il controllo sul tetto fisico è tornato
 verde).
+
+---
+
+## Come è stato chiuso (M-6)
+
+**5 settembre 2026.** Solo la metà client-side della soluzione proposta.
+
+`onCsp(ev)` (`src/lib/errorReporting.js`) è un terzo listener accanto ai due
+esistenti (`unhandledrejection`, `error`), agganciato sullo stesso
+`document`/`window` da `installaHandlerGlobali()` e tolto nello stesso
+cleanup. Non passa da `segnala()`: quella funzione applica filtri anti-rumore
+pensati per eccezioni (abort volontari, `ResizeObserver loop`, dedup su
+ripetizioni) che non si applicano a una violazione di policy, ed è già per
+costruzione un evento raro — non c'è rumore da filtrare. Stesso
+`codiceSegnalazione()` e stessa scrittura in `error_reports` via
+`registraSegnalazione()`, quindi chi guarda quella tabella vede le violazioni
+CSP accanto agli altri errori, non in un posto nuovo da imparare a guardare.
+
+**Non genera un toast.** A differenza degli errori runtime/promise, una
+violazione CSP non ha un'azione che l'utente possa fare (non è "ricarica la
+pagina", è un elemento che manca) — resta un presidio di log e registro,
+verificato dal caso «non passa dal toast» in
+`src/test/lib/errorReporting.test.js`.
+
+**Non aggiunto `report-uri`/`report-to` alla CSP** (`vercel.json`), a
+differenza di quanto proponeva il rilievo: l'evento `securitypolicyviolation`
+non dipende da quelle direttive per scattare — sono un meccanismo di
+reporting HTTP nativo del browser, indipendente — e il progetto è
+completamente statico. Aggiungere `report-uri` senza un endpoint reale a
+riceverlo avrebbe prodotto solo `POST` inutili verso un percorso che i
+`rewrites` di `vercel.json` fanno comunque atterrare sull'app: rumore di
+rete per nessun beneficio, esattamente il tipo di presidio-di-facciata che
+altri rilievi di questo stesso audit (`A-3`) hanno già rifiutato altrove.
+
+**Un dettaglio della scrittura, non della funzionalità.** Il commento
+JSDoc `@returns` di `installaHandlerGlobali()` deve restare IMMEDIATAMENTE
+sopra la sua dichiarazione: scrivere prima il commento su `onCsp` (una
+funzione senza valore di ritorno) fra il JSDoc e `installaHandlerGlobali`
+avrebbe fatto sì che `checkJs` legasse quel `@returns` alla funzione
+sbagliata — `onCsp` sarebbe risultata «una funzione che deve ritornare un
+valore ma non lo fa». `onCsp` e il suo commento vivono quindi PRIMA del
+blocco JSDoc di `installaHandlerGlobali`, non in mezzo.
+
+Verificato con `npm test` (2113 passati, incluso il nuovo blocco «violazione
+CSP (M-6)» da 4 casi: direttiva+URI nel log, `blockedURI` assente letto come
+`(inline)`, nessun toast, disinstallazione effettiva), `npm run lint`,
+`npm run verifica:tipi`, `npm run build` + `npm run verifica:bundle`.
+`docs/SICUREZZA.md` §8 aggiornato per non dichiarare più «Violazioni CSP: 0»
+come se fosse un fatto permanente.

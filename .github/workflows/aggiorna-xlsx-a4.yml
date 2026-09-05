@@ -1,0 +1,89 @@
+# .github/workflows/aggiorna-xlsx-a4.yml
+#
+# Job una tantum per A-4 (audit sicurezza del 2 settembre, ripreso il 4
+# settembre): `xlsx@0.18.5` porta due CVE (GHSA-4r6h-8v6p-xvw6,
+# GHSA-5pgg-2g8v-p4x9) risolte solo su `cdn.sheetjs.com`, perché SheetJS ha
+# lasciato il registry npm. Quel dominio risponde 403 dall'ambiente in cui
+# l'audit è stato scritto — non da un runner GitHub-hosted, dove l'egress non
+# è filtrato. Questo workflow esiste solo per attraversare quel confine di
+# rete una volta sola: va lanciato a mano (workflow_dispatch) e poi, a lavoro
+# fatto, può essere cancellato insieme a scripts/aggiorna-xlsx-a4.js.
+#
+# Cosa fa, in ordine: installa `xlsx` dal tarball CDN (pinnando l'URL in
+# `package-lock.json`, cosicché i run successivi tornino a usare `npm ci`
+# senza ricontattare il CDN), aggiorna il commento di
+# `src/lib/xlsxWorker.js` che documentava il fix come "da fare", fa girare
+# la stessa sequenza di verifica della CI (lint, tipi, test, build, bundle,
+# audit) e — solo se tutto è verde — committa e pusha sul ramo da cui è
+# stato lanciato.
+name: Aggiorna xlsx (A-4)
+
+on:
+  workflow_dispatch:
+    inputs:
+      versione:
+        description: 'Versione di xlsx da installare dal CDN SheetJS'
+        required: true
+        default: '0.20.3'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: aggiorna-xlsx-a4-${{ github.ref }}
+
+jobs:
+  aggiorna:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Verifica raggiungibilità di cdn.sheetjs.com
+        run: |
+          set -e
+          codice=$(curl -sS -o /dev/null -w '%{http_code}' \
+            "https://cdn.sheetjs.com/xlsx-${{ inputs.versione }}/xlsx-${{ inputs.versione }}.tgz")
+          echo "cdn.sheetjs.com → HTTP $codice"
+          if [ "$codice" != "200" ]; then
+            echo "::error::cdn.sheetjs.com non raggiungibile da questo runner (HTTP $codice)." \
+                 "Il senso del job è attraversare un blocco di rete: se è bloccato anche qui," \
+                 "va rilanciato da un ambiente diverso."
+            exit 1
+          fi
+
+      - run: npm ci
+
+      - name: Installa xlsx dal CDN SheetJS
+        run: |
+          set -e
+          npm install --save "https://cdn.sheetjs.com/xlsx-${{ inputs.versione }}/xlsx-${{ inputs.versione }}.tgz"
+          installata=$(node -p "require('./package.json').dependencies.xlsx")
+          echo "package.json → xlsx: $installata"
+
+      - name: Aggiorna il commento di src/lib/xlsxWorker.js (fix chiuso, non più "da fare")
+        run: node scripts/aggiorna-xlsx-a4.js "${{ inputs.versione }}"
+
+      - run: npm run lint
+      - run: npm run verifica:tipi
+      - run: npm test
+      - run: npm run build
+      - run: npm run verifica:bundle
+      - run: npm run verifica:audit
+
+      - name: Commit e push
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "Niente da committare — xlsx era già alla versione richiesta?"
+            exit 1
+          fi
+          git add package.json package-lock.json src/lib/xlsxWorker.js
+          git commit -m "fix: xlsx@${{ inputs.versione }} dal CDN SheetJS, chiude A-4 (CVE-2023-30533, CVE-2024-22363)"
+          git push origin HEAD:"${{ github.ref_name }}"

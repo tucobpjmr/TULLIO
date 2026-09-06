@@ -9,7 +9,7 @@
 // entrambe le proprietà: callback sincrono (niente Promise di ritorno) e app
 // che esce comunque dal caricando con il profilo caricato.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, act } from "@testing-library/react";
+import { render, screen, waitFor, act, renderHook } from "@testing-library/react";
 import { AuthProvider, useAuth } from "../../auth/AuthContext.jsx";
 
 const ME = { id: "u1", name: "Tullio", role: "admin", photo_url: null, pending: false };
@@ -17,6 +17,8 @@ const SESSION = { user: { id: "u1" }, access_token: "tok" };
 
 vi.mock("../../lib/api.js", () => ({
   Users: { deleteAccount: vi.fn(async () => ({ error: null })) },
+  // B-4 dell'audit del 5 settembre: serve allo spy del describe qui sotto.
+  svuotaCacheUrl: vi.fn(),
 }));
 
 // getSession/onAuthStateChange passano da lib/supabaseAuth.js (B-2 dell'audit
@@ -37,6 +39,9 @@ vi.mock("../../lib/supabaseAuth.js", () => {
       state.callback = cb;
       return { data: { subscription: { unsubscribe: vi.fn() } } };
     },
+    // B-4 dell'audit del 5 settembre: signOut/signOutOvunque/deleteAccount lo
+    // chiamano prima di svuotare la cache delle signed URL.
+    signOut: vi.fn(async () => ({ error: null })),
   };
   return { supabaseAuth, default: supabaseAuth, __authState: state };
 });
@@ -144,5 +149,69 @@ describe("AuthContext — B-2, il percorso anonimo non tocca il client pieno", (
 
     const { supabase } = await import("../../lib/supabase");
     expect(supabase.from).toHaveBeenCalledWith("users");
+  });
+});
+
+// B-4 dell'audit del 5 settembre. `signOut()` non ricarica la pagina — la SPA
+// torna alla LoginScreen nella STESSA scheda — quindi senza svuotare la cache
+// delle signed URL (src/lib/api/storage.js) chi entra dopo un logout vedrebbe,
+// per il resto del loro TTL, gli avatar e gli allegati di chi è appena uscito.
+// I tre call site (signOut, signOutOvunque, deleteAccount riuscito) condividono
+// lo stesso helper: qui si verifica che ciascuno lo richiami DAVVERO, non solo
+// che esista da qualche parte nel file.
+describe("AuthContext — B-4, le signed URL non sopravvivono al logout", () => {
+  beforeEach(async () => {
+    const { __authState, supabaseAuth } = await import("../../lib/supabaseAuth.js");
+    __authState.session = SESSION;
+    supabaseAuth.signOut.mockClear();
+    const { svuotaCacheUrl } = await import("../../lib/api.js");
+    svuotaCacheUrl.mockClear();
+  });
+
+  // Aspetta che la sequenza di init (getSession + onAuthStateChange) sia
+  // finita prima di restituire l'hook: altrimenti l'aggiornamento di stato
+  // dell'init e quello dell'azione in prova potrebbero sovrapporsi fuori da
+  // un act() solo.
+  const montaAuth = async () => {
+    const rendered = renderHook(() => useAuth(), {
+      wrapper: ({ children }) => <AuthProvider>{children}</AuthProvider>,
+    });
+    await waitFor(() => expect(rendered.result.current.caricando).toBe(false));
+    return rendered;
+  };
+
+  it("signOut() svuota la cache delle signed URL", async () => {
+    const { result } = await montaAuth();
+    await act(async () => { await result.current.signOut(); });
+
+    const { svuotaCacheUrl } = await import("../../lib/api.js");
+    expect(svuotaCacheUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it("signOutOvunque() svuota la cache delle signed URL", async () => {
+    const { result } = await montaAuth();
+    await act(async () => { await result.current.signOutOvunque(); });
+
+    const { svuotaCacheUrl } = await import("../../lib/api.js");
+    expect(svuotaCacheUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it("deleteAccount() riuscito svuota la cache delle signed URL", async () => {
+    const { result } = await montaAuth();
+    await act(async () => { await result.current.deleteAccount(); });
+
+    const { svuotaCacheUrl } = await import("../../lib/api.js");
+    expect(svuotaCacheUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it("deleteAccount() fallito NON svuota la cache (nessun logout avvenuto)", async () => {
+    const { Users } = await import("../../lib/api.js");
+    Users.deleteAccount.mockResolvedValueOnce({ error: { message: "denied" } });
+
+    const { result } = await montaAuth();
+    await act(async () => { await result.current.deleteAccount(); });
+
+    const { svuotaCacheUrl } = await import("../../lib/api.js");
+    expect(svuotaCacheUrl).not.toHaveBeenCalled();
   });
 });

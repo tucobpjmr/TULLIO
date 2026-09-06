@@ -136,9 +136,9 @@ affermazioni diverse e solo la prima ha valore.
 | **M-4** | 🟡 Media | **Riportato dal 4 settembre (`M-5`), ancora aperto.** `checkJs` copre `src/lib` + `src/state` + `src/hooks`; `src/components` — **184 file**, la maggioranza del sorgente — resta fuori, e `strict` è `false` | `jsconfig.json:52-56` |
 | **M-5** | 🟡 Media | **Riportato dal 4 settembre (`M-8`), ancora aperto.** 335 `style={{…}}` inline dinamici e ~344 costanti a nomi meccanici, nessun design system, nessun tema scuro | `src/styles/`, 15 × `*Styles.js` |
 | **B-1** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | `private.can_clienti_scrittura()` e `can_clienti_eliminazione()` — introdotte **ieri** da `B-1` del 4 settembre — erano le uniche `private.can_*` che **non** contenevano `active AND NOT pending`: `can_liste()`, `can_use_task_category()`, `can_view_global_queue()` ce l'hanno tutte. Non era sfruttabile (`rls_active_only` le AND-a), ma il nome prometteva una risposta completa che il corpo non dava | DB (`private.can_clienti_scrittura`, `can_clienti_eliminazione`) |
-| **B-2** | 🟢 Bassa | Due punti del codice leggono `payload.old.task_id` su un evento `DELETE`, dove Supabase consegna **solo la chiave primaria**. Oggi entrambi degradano in sicurezza, ma il meccanismo è scritto nei commenti come funzionante e verrà ricopiato | `src/components/tasks/TaskHistoryPanel.jsx:82`, `src/hooks/useAppHydration.js:492` |
-| **B-3** | 🟢 Bassa | `ProfileEditor` riscrive a mano le cinque cose che `useSalvataggio` esiste per non far riscrivere, e sul freno al doppio invio usa un `useState` dove l'hook documenta che serve un `ref`: due affermazioni contraddittorie sulla stessa regola, nello stesso repository | `src/components/shell/ProfileEditor.jsx:110,142` vs `src/hooks/useSalvataggio.js:71-77` |
-| **B-4** | 🟢 Bassa | `avatarUrlCache` e `signedUrlCache` sono `Map` di modulo mai svuotate: `signOut()` non ricarica la pagina, quindi le signed URL (TTL 1 h) di un utente sopravvivono al login del successivo nella stessa scheda | `src/lib/api/storage.js:18,22`, `src/auth/AuthContext.jsx:277` |
+| **B-2** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | Due punti del codice leggono `payload.old.task_id` su un evento `DELETE`, dove Supabase consegna **solo la chiave primaria**. Oggi entrambi degradano in sicurezza, ma il meccanismo è scritto nei commenti come funzionante e verrà ricopiato | `src/components/tasks/TaskHistoryPanel.jsx:82`, `src/hooks/useAppHydration.js:492` |
+| **B-3** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | `ProfileEditor` riscrive a mano le cinque cose che `useSalvataggio` esiste per non far riscrivere, e sul freno al doppio invio usa un `useState` dove l'hook documenta che serve un `ref`: due affermazioni contraddittorie sulla stessa regola, nello stesso repository | `src/components/shell/ProfileEditor.jsx:110,142` vs `src/hooks/useSalvataggio.js:71-77` |
+| **B-4** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | `avatarUrlCache` e `signedUrlCache` sono `Map` di modulo mai svuotate: `signOut()` non ricarica la pagina, quindi le signed URL (TTL 1 h) di un utente sopravvivono al login del successivo nella stessa scheda | `src/lib/api/storage.js:18,22`, `src/auth/AuthContext.jsx:277` |
 | **B-5** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | `public.send_test_push()` era l'unica porta privilegiata del progetto **senza rate limit**: le quattro Edge Function passano tutte da `entroLimite`, questa no, e ogni chiamata faceva partire un Web Push reale | DB (`send_test_push`), `supabase/functions/_shared/rateLimit.ts` |
 
 ---
@@ -1114,7 +1114,7 @@ end $$;
 | 4 | **A-1** — metà «vendorare il tarball» | Da fare da un ambiente che raggiunge `cdn.sheetjs.com`: nessuna urgenza (CI e Vercel verdi), nessun blocco a valle |
 | ~~5~~ | **M-1** (guscio offline) ✔ | **Fatto il 5 settembre**: handler `fetch` nel service worker, solo guscio — vedi «Come sono stati chiusi (M-1, M-3)» in fondo |
 | ~~6~~ | **M-3** (font in proprio) ✔ | **Fatto il 5 settembre**, subito dopo M-1: font auto-ospitati in `public/fonts/`, CSP ristretta a `style-src 'self'; font-src 'self'` |
-| 7 | **B-2**, **B-3**, **B-4** | Tre correzioni di coerenza, nessuna urgente, tutte piccole. B-4 va fatta con l'attenzione al confine `VIETATI_MODULI_API_INTERNI` |
+| ~~7~~ | **B-2**, **B-3**, **B-4** ✔ | **Fatte il 5 settembre**: tre correzioni di coerenza, verificate per esecuzione (lint, suite intera, `verifica:convenzioni`) — vedi «Come sono stati chiusi (B-2, B-3, B-4)» in fondo |
 | 8 | **M-4** (`checkJs` su `components/ui`) | Un passo alla volta, quando c'è una sessione da dedicargli: si allarga quando la cartella nuova è a zero, non prima |
 | — | **M-5** (stili) | ⛔ **Non aggredire senza una ragione di prodotto.** Vedi il rilievo |
 
@@ -1324,6 +1324,73 @@ comportamento visibile dal client non cambia per un utente attivo e non
 
 ---
 
+## Come è stato chiuso (M-2)
+
+`supabase/migrations/20260905130000_audit_clients_update.sql` — il trigger
+`trg_audit_clients_update` + la funzione `audit_clients_update()` (registra
+solo QUALI campi cambiano, mai i valori) più la sonda
+`public.sonda_audit_clients_update()` che rende lo zero di `audit_log`
+interpretabile. Applicata e verificata su `tullio-staging` e poi in
+produzione (`tullio`), non solo letta.
+
+### Un bug trovato eseguendo, non leggendo
+
+Il codice proposto dal rilievo usava `v_campi := v_campi || 'name'` per
+comporre l'array dei campi cambiati. Eseguito per la prima volta su
+staging, ha fallito:
+
+```
+ERROR: 22P02: malformed array literal: "notes"
+DETAIL: Array value must start with "{" or dimension information.
+```
+
+`text[] || 'letterale'` con un letterale non tipizzato risolve l'overload
+`anyarray || anyarray` invece di `anyarray || anyelement`: Postgres prova a
+leggere `'notes'` come un letterale di array (cioè cerca una `{` iniziale) e
+fallisce. La correzione è `array_append(v_campi, 'notes')` — la stessa forma
+già in uso altrove nel progetto (`step_j_fix4.sql` e simili) — non un
+cast `::text`, per restare sulla forma che il resto del repository già usa.
+Senza aver eseguito la migrazione su staging prima di produzione, questo
+sarebbe arrivato in produzione e **ogni** `UPDATE` su `clients` con almeno un
+campo tracciato avrebbe fallito con un errore 500 invece di aggiornare la
+riga — un'interruzione peggiore del difetto che la migrazione doveva
+chiudere.
+
+### Verifica, per mutazione e per esecuzione
+
+Impersonando un agent attivo reale (`set_config('request.jwt.claims', …)` +
+`set local role authenticated`, come i dry-run di
+`docs/MIGRAZIONI_SUPABASE.md`) e chiamando `sonda_audit_clients_update()`:
+
+| Dove | `trigger_ha_scritto` | Righe residue dopo la chiamata |
+|---|---|---|
+| Staging, prima del fix | `ERROR 22P02` | n/a — la chiamata non completava |
+| Staging, dopo il fix | `1` | `0` client, `0` righe di audit |
+| Produzione | `1` | `0` client di prova, **885** clienti reali invariati |
+
+`885` è lo stesso numero che l'apertura di questo rilievo aveva misurato: la
+sonda non ha toccato un solo cliente vero. `audit_log` in produzione resta a
+**0 righe** — ma ora è un'affermazione verificabile («nessuno ha ancora
+modificato un cliente da quando il trigger esiste»), non più un'ambiguità fra
+silenzio e guasto.
+
+### La sonda in CI
+
+`scripts/verifica-audit-vivo/index.js` (`npm run verifica:audit-vivo`),
+agganciata a `.github/workflows/rls.yml` con le stesse credenziali già usate
+dal passo RLS: nessun segreto nuovo. Gira ogni notte, a ogni push che tocchi
+`supabase/migrations/**`, e a richiesta.
+
+### Cosa NON registra, di proposito
+
+`audit_log.details` porta `{"campi": ["email", "notes"]}`, mai i valori
+prima/dopo. Chi ha bisogno del valore precedente ha `updated_at` e un
+backup; duplicare l'email o le note di un cliente in una seconda tabella,
+con una policy di lettura diversa da quella dell'originale, peggiorerebbe
+esattamente il problema che questo registro esiste per mitigare.
+
+---
+
 ## Come sono stati chiusi (M-1, M-3)
 
 ⚠️ **`npm ci` fallisce in questa sessione con lo stesso `403` su
@@ -1409,65 +1476,95 @@ storico di *come* si era arrivati a quello stato.
   scendere (mai salire) se il first load anonimo cala, com'è atteso senza
   più un round-trip DNS+TLS verso Google.
 
-`supabase/migrations/20260905130000_audit_clients_update.sql` — il trigger
-`trg_audit_clients_update` + la funzione `audit_clients_update()` (registra
-solo QUALI campi cambiano, mai i valori) più la sonda
-`public.sonda_audit_clients_update()` che rende lo zero di `audit_log`
-interpretabile. Applicata e verificata su `tullio-staging` e poi in
-produzione (`tullio`), non solo letta.
+---
 
-### Un bug trovato eseguendo, non leggendo
+## Come sono stati chiusi (B-2, B-3, B-4)
 
-Il codice proposto dal rilievo usava `v_campi := v_campi || 'name'` per
-comporre l'array dei campi cambiati. Eseguito per la prima volta su
-staging, ha fallito:
+A differenza di M-1/M-3, questa volta `npm install` è stato reso possibile
+— vedi «Verifica, per esecuzione» in fondo a questa sezione — quindi qui
+sotto "verificato" significa lint ed eseguito, non solo letto contro il
+contratto atteso.
 
-```
-ERROR: 22P02: malformed array literal: "notes"
-DETAIL: Array value must start with "{" or dimension information.
-```
+### B-2 · `payload.old` su `DELETE`
 
-`text[] || 'letterale'` con un letterale non tipizzato risolve l'overload
-`anyarray || anyarray` invece di `anyarray || anyelement`: Postgres prova a
-leggere `'notes'` come un letterale di array (cioè cerca una `{` iniziale) e
-fallisce. La correzione è `array_append(v_campi, 'notes')` — la stessa forma
-già in uso altrove nel progetto (`step_j_fix4.sql` e simili) — non un
-cast `::text`, per restare sulla forma che il resto del repository già usa.
-Senza aver eseguito la migrazione su staging prima di produzione, questo
-sarebbe arrivato in produzione e **ogni** `UPDATE` su `clients` con almeno un
-campo tracciato avrebbe fallito con un errore 500 invece di aggiornare la
-riga — un'interruzione peggiore del difetto che la migrazione doveva
-chiudere.
+`TaskHistoryPanel.jsx`: `filterEvent` ora ricarica su OGNI evento `DELETE`
+(`payload?.eventType === "DELETE" || payload?.new?.task_id === taskId`), e
+non tenta più di leggere `payload.old.task_id` — su `task_history`, che non
+è REPLICA IDENTITY FULL, quella chiave non esiste mai nel pre-image.
+`useAppHydration.js`: il codice per `comments` (che REPLICA IDENTITY FULL lo
+è davvero) era già corretto — `payload.new?.task_id ?? payload.old?.task_id`
+— perché la RLS riduce comunque il pre-image di una DELETE alla sola chiave
+primaria, indipendentemente da REPLICA IDENTITY, quando è attiva; solo il
+commento sopra descriveva un meccanismo diverso da quello vero. Corretto
+anche quello.
 
-### Verifica, per mutazione e per esecuzione
+Il test che copriva questo percorso, `src/test/tasks/cronologiaPerTask.test.jsx`,
+passava già prima del fix ma per il motivo SBAGLIATO: emetteva una DELETE con
+`payload.old` contenente `task_id` (`RIGA({ task_id: "t1" })`), una forma che
+la produzione non genera mai. Riscritto per emettere la forma reale (`old: {
+id: "h1" }`, senza `task_id`): con il codice vecchio questo caso sarebbe
+fallito (il ramo `payload.old?.task_id === taskId` non sarebbe mai stato
+vero), con quello nuovo passa — la differenza fra un test che descrive il
+fix e uno che lo tollerava per caso.
 
-Impersonando un agent attivo reale (`set_config('request.jwt.claims', …)` +
-`set local role authenticated`, come i dry-run di
-`docs/MIGRAZIONI_SUPABASE.md`) e chiamando `sonda_audit_clients_update()`:
+### B-3 · `ProfileEditor` e `useSalvataggio`
 
-| Dove | `trigger_ha_scritto` | Righe residue dopo la chiamata |
-|---|---|---|
-| Staging, prima del fix | `ERROR 22P02` | n/a — la chiamata non completava |
-| Staging, dopo il fix | `1` | `0` client, `0` righe di audit |
-| Produzione | `1` | `0` client di prova, **885** clienti reali invariati |
+Convertito: il freno al doppio invio (`useState` locale) e le due chiamate
+awaited scritte a mano sono sostituiti da `useSalvataggio`, con `alSuccesso:
+onClose` e un messaggio di errore inline nuovo (`<FieldError
+id="prof-save-err">`). Verificato CONTRO il contratto esistente, non
+riscrivendo da zero: `src/test/shell/profileEditorSave.test.jsx` — dodici
+casi già in repository, scritti per il vecchio codice — specifica
+esattamente il comportamento che `useSalvataggio` garantisce (un solo
+dispatch, niente chiusura su errore, bottone "Salvataggio…" con
+`aria-busy` durante l'attesa, due click ravvicinati restano una scrittura
+sola, il bottone torna premibile dopo un errore). **12/12 passano senza
+modifiche al file di test.** `docs/CLAUDE.md`: il conteggio dei call site
+passa da 26 a 27.
 
-`885` è lo stesso numero che l'apertura di questo rilievo aveva misurato: la
-sonda non ha toccato un solo cliente vero. `audit_log` in produzione resta a
-**0 righe** — ma ora è un'affermazione verificabile («nessuno ha ancora
-modificato un cliente da quando il trigger esiste»), non più un'ambiguità fra
-silenzio e guasto.
+### B-4 · Le signed URL non sopravvivono più al logout
 
-### La sonda in CI
+`svuotaCacheUrl()` (nuovo, in `src/lib/api/storage.js`, riesportato dalla
+porta `lib/api.js` per `VIETATI_MODULI_API_INTERNI`) svuota `avatarUrlCache`
+e `signedUrlCache`. Richiamato da `signOut`, `signOutOvunque` e da
+`deleteAccount` quando riesce, tramite un helper `svuotaCache` — un
+`useCallback` con dipendenze `[]`, aggiunto alle dipendenze di tutti e tre i
+chiamanti per non rompere l'identità stabile che il `value` del context
+richiede (`VIETATO_CONTEXT_VALUE_LETTERALE`, commentato nello stesso file).
 
-`scripts/verifica-audit-vivo/index.js` (`npm run verifica:audit-vivo`),
-agganciata a `.github/workflows/rls.yml` con le stesse credenziali già usate
-dal passo RLS: nessun segreto nuovo. Gira ogni notte, a ogni push che tocchi
-`supabase/migrations/**`, e a richiesta.
+Aggiunti quattro casi a `src/test/shell/authContext.test.jsx`: nessun test
+esistente esercitava `signOut`/`signOutOvunque`/`deleteAccount` sull'
+`AuthContext` REALE — i cinque file che lo usano indirettamente lo mockano
+per intero. Il primo tentativo falliva: `__authState.signOut.mockClear()` —
+`__authState` è lo stato interno del mock, `signOut` sta invece
+sull'oggetto `supabaseAuth` esportato dallo stesso mock — corretto in
+`supabaseAuth.signOut.mockClear()`. Un errore reale, trovato eseguendo il
+test scritto un minuto prima, non a rileggerlo.
 
-### Cosa NON registra, di proposito
+### Verifica, per esecuzione
 
-`audit_log.details` porta `{"campi": ["email", "notes"]}`, mai i valori
-prima/dopo. Chi ha bisogno del valore precedente ha `updated_at` e un
-backup; duplicare l'email o le note di un cliente in una seconda tabella,
-con una policy di lettura diversa da quella dell'originale, peggiorerebbe
-esattamente il problema che questo registro esiste per mitigare.
+`npm ci` fallisce ancora con lo stesso `403` su `cdn.sheetjs.com` di A-1.
+Questa volta però `xlsx` è stato puntato temporaneamente a `^0.18.5`
+(registry npm, non il CDN) solo per la durata di `npm install`, poi
+**`package.json`/`package-lock.json` riportati bit per bit all'originale
+prima di qualunque commit** (`git status` pulito su entrambi, verificato).
+Nessuna conclusione tratta da quell'albero di dipendenze alterato — `npm
+audit` non è stato eseguito in questa finestra, per la stessa ragione per
+cui farlo sarebbe stato un errore (vedi A-1, e il precedente che vi si
+racconta).
+
+Con l'installazione così ottenuta:
+
+| Comando | Esito |
+|---|---|
+| `npm run lint` (tutto il repo) | 0 avvisi, 0 errori |
+| `npm test` | 174 file passati, **2145 casi passati**, 0 falliti — l'unico file non eseguito è `src/test/integration` (23 casi skip, richiede Supabase live) |
+| `npm run verifica:convenzioni` | 65 controlli, nessuna divergenza, incluso il nuovo `27` di B-3 |
+| `npm run verifica:tipi` | 0 errori — la baseline su cui M-4 dovrà allargare `include` |
+
+### Cosa NON è cambiato
+
+Nessuna migrazione SQL in questo batch: B-2/B-3/B-4 sono codice
+applicativo, non schema. Nessuna policy RLS toccata, nessun permesso nuovo,
+nessuna dipendenza aggiunta o aggiornata — l'`xlsx` sul registry è stato
+solo un ambiente di verifica temporaneo, mai arrivato a un commit.

@@ -141,13 +141,18 @@ describe("TaskHistoryPanel — il realtime è filtrato sul proprio task", () => 
     await waitFor(() => expect(historyForTask).toHaveBeenCalledTimes(2));
   });
 
-  it("una DELETE sul proprio task passa dal pre-image (`payload.old`)", async () => {
-    // Sulle DELETE `payload.new` è vuoto: leggere solo quello significherebbe
-    // non accorgersi mai della purge di un task.
+  it("una DELETE ricarica sempre, anche senza `task_id` nel pre-image", async () => {
+    // B-2 dell'audit del 5 settembre: `task_history` non è REPLICA IDENTITY
+    // FULL, quindi su una DELETE reale `payload.old` contiene SOLO la chiave
+    // primaria (`id`) — mai `task_id`. Un filtro scritto come
+    // `payload.old?.task_id === taskId` scarterebbe perciò OGNI DELETE, di
+    // qualsiasi task: il ramo non si sarebbe mai eseguito. Qui si riproduce
+    // apposta la forma reale del pre-image — niente `task_id` — per
+    // verificare che la cronologia ricarichi comunque.
     monta("t1");
     await waitFor(() => expect(historyForTask).toHaveBeenCalledTimes(1));
 
-    emetti({ eventType: "DELETE", old: RIGA({ task_id: "t1" }) });
+    emetti({ eventType: "DELETE", old: { id: "h1" } });
     await waitFor(() => expect(historyForTask).toHaveBeenCalledTimes(2));
   });
 

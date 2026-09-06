@@ -268,20 +268,40 @@ export function AuthProvider({ children }) {
   // esempio da una chiamata diretta a /auth/v1/signup finché il signup non è
   // disattivato anche nella dashboard Supabase.
 
+  // B-4 dell'audit del 5 settembre. `signOut()` non ricarica la pagina — la
+  // SPA torna alla LoginScreen — quindi senza svuotare le cache di signed
+  // URL (src/lib/api/storage.js), le URL firmate di chi esce restano in
+  // memoria fino al loro TTL e le vedrebbe anche il prossimo utente che
+  // entra nella stessa scheda. Import dinamico di lib/api.js per lo stesso
+  // motivo di deleteAccount/caricaProfilo: non riportare nel grafo eager
+  // ciò che B-2 ne aveva tolto.
+  const svuotaCache = useCallback(async () => {
+    const { svuotaCacheUrl } = await import('../lib/api.js');
+    svuotaCacheUrl();
+  }, []);
+
   // scope:'local' → esce SOLO dalla scheda/dispositivo corrente. Senza scope,
   // supabase-js usa di default 'global' e revoca TUTTE le sessioni dell'utente
   // su ogni scheda e dispositivo: un logout in un punto invalidava lato server
   // anche le altre schede ancora aperte, che restavano con una sessione "morta"
   // in memoria → la successiva azione privilegiata (es. invito via Edge
   // Function) falliva con "Token non valido" (session_not_found).
-  const signOut = useCallback(() => supabaseAuth.signOut({ scope: 'local' }), []);
+  const signOut = useCallback(async () => {
+    const res = await supabaseAuth.signOut({ scope: 'local' });
+    await svuotaCache();
+    return res;
+  }, [svuotaCache]);
 
   // Uscita da OGNI dispositivo: revoca i refresh token lato server. È il
   // rimedio per un dispositivo perso, e non ha il difetto che ha portato a
   // 'local' sopra — qui la sessione morta nelle altre schede è ESATTAMENTE
   // ciò che si vuole, quindi il toast "Sessione scaduta" di api.js è la
   // risposta giusta e non un effetto collaterale da nascondere.
-  const signOutOvunque = useCallback(() => supabaseAuth.signOut({ scope: 'global' }), []);
+  const signOutOvunque = useCallback(async () => {
+    const res = await supabaseAuth.signOut({ scope: 'global' });
+    await svuotaCache();
+    return res;
+  }, [svuotaCache]);
 
   // Invia l'email con il link per reimpostare la password. redirectTo riporta
   // l'utente sull'app, dove detectSessionInUrl genera l'evento PASSWORD_RECOVERY.
@@ -328,9 +348,12 @@ export function AuthProvider({ children }) {
   const deleteAccount = useCallback(async () => {
     const { Users: UsersAPI } = await import('../lib/api.js');
     const result = await UsersAPI.deleteAccount();
-    if (!result.error) await supabaseAuth.signOut();
+    if (!result.error) {
+      await supabaseAuth.signOut();
+      await svuotaCache();
+    }
     return result;
-  }, []);
+  }, [svuotaCache]);
 
   const value = useMemo(() => ({
     session,

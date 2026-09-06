@@ -37,6 +37,12 @@ export { TaskFiles } from './api/allegati.js';
 export { Notifications, Push } from './api/notifiche.js';
 export { Clients } from './api/clienti.js';
 export { Categories, MessageTemplates, AuditLog, ErrorReports } from './api/configurazione.js';
+// B-4 dell'audit del 5 settembre: `storage.js` è un helper condiviso, non
+// un'entità con un namespace proprio, ma `svuotaCacheUrl` serve a chi sta
+// FUORI dal data layer (AuthContext, al logout) — passa da qui invece che
+// da un import diretto di `./api/storage.js`, che VIETATI_MODULI_API_INTERNI
+// (eslint.config.js) chiude a tutto il resto del progetto.
+export { svuotaCacheUrl } from './api/storage.js';
 
 // ----------------- REALTIME -----------------
 // L'implementazione — e il perché di ogni scelta: nomi di canale, filtro

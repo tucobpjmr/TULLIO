@@ -1,10 +1,67 @@
-// Service Worker VoyageDesk — solo Web Push (roadmap handoff v44).
-// Nessun handler fetch: niente caching, il comportamento di rete della PWA
-// resta invariato. Il payload arriva dalla Edge Function send-push:
+// Service Worker VoyageDesk — Web Push (roadmap handoff v44) + guscio
+// offline (M-1, audit del 5 settembre). Il payload push arriva dalla Edge
+// Function send-push:
 // { title, body, tag, data: { task_id, conversation_id, notification_id, type } }.
+//
+// ─── M-1 · IL GUSCIO SI APRE ANCHE DA OFFLINE ───────────────────────────────
+// ⛔ NON è caching dei DATI, e la distinzione è tutto il rilievo. Mettere in
+// cache le risposte di Supabase mostrerebbe task e saldi vecchi senza poter
+// dire quanto — l'app ha due strisce persistenti (OfflineBanner, freschezza
+// realtime) proprio per non farlo mai. Qui si mette in cache SOLO il guscio:
+// HTML, JS, CSS, font, icone. Supabase non passa MAI da qui (vedi il
+// controllo sull'origine, dentro l'handler `fetch`).
+//
+// Il risultato è che da offline si apre l'app CON la sua striscia rossa,
+// invece della schermata d'errore del browser — lo stesso messaggio che
+// l'app dà già quando la rete cade mentre è aperta, qui senza dipendere
+// dall'essere già aperta.
+const GUSCIO = 'vd-guscio-v1';
 
-self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+// Precache del solo `/`: gli asset con hash entrano in cache alla prima
+// visita (stale-while-revalidate qui sotto) e cambiano nome a ogni deploy,
+// quindi elencarli qui li farebbe scadere a ogni build.
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(GUSCIO).then((c) => c.add('/')).then(() => self.skipWaiting()));
+});
+
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys()
+      .then((k) => Promise.all(k.filter((n) => n !== GUSCIO).map((n) => caches.delete(n))))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', (e) => {
+  const { request } = e;
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+
+  // ⛔ Supabase NON passa di qui, mai. È la riga che tiene separato "il guscio
+  // si apre" da "i dati sono vecchi e non te lo dico".
+  if (url.origin !== self.location.origin) return;
+
+  // La navigazione: rete prima (un deploy nuovo deve arrivare subito), guscio
+  // in cache come rete di sicurezza. `vercel.json` riscrive già ogni path su
+  // `/`, quindi `/` è la risposta giusta per qualunque navigazione.
+  if (request.mode === 'navigate') {
+    e.respondWith(fetch(request).catch(() => caches.match('/')));
+    return;
+  }
+
+  // Gli asset con hash nel nome (JS/CSS/font): cache prima, aggiornamento in
+  // sottofondo. Il nome cambia a ogni build, quindi non c'è versione vecchia
+  // da servire per sbaglio — è il contratto del filename hashing di Vite.
+  e.respondWith(
+    caches.match(request).then((hit) => {
+      const rete = fetch(request).then((res) => {
+        if (res.ok) caches.open(GUSCIO).then((c) => c.put(request, res.clone()));
+        return res;
+      }).catch(() => hit);
+      return hit || rete;
+    })
+  );
+});
 
 self.addEventListener('push', (event) => {
   let payload = {};

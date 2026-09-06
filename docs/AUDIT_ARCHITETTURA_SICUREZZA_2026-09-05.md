@@ -130,16 +130,16 @@ affermazioni diverse e solo la prima ha valore.
 |---|---|---|---|
 | **A-1** | 🟡 Media ⚠️ *ridimensionato da Alta il 5 settembre — la correzione va letta prima del rilievo* | `xlsx` è risolto da un **tarball su `cdn.sheetjs.com`**, non dal registry: ogni `npm ci` — CI, build Vercel, ogni macchina nuova — dipende da una terza parte. Oggi funziona (CI e Vercel verdi sul commit di questo audit) e **in questa sessione è fallito con `403 Forbidden`**: è un punto singolo di guasto **latente**, con un precedente di un mese documentato dal repo stesso. ⛔ La seconda metà del rilievo — «`npm audit` riporta due CVE già corrette» — **era sbagliata**: `npm audit` sul lockfile reale dice `found 0 vulnerabilities`. ⚠️ *Parzialmente chiuso il 5 settembre*: le due voci morte di `ALLOWLIST` sono state tolte; resta da vendorare il tarball | `package.json:30`, `package-lock.json:6316`, `scripts/verifica-audit/index.js`, `.github/workflows/ci.yml` |
 | **A-2** ✔ | ~~🔴 Alta~~ **chiuso il 5 settembre** | **L'app non ha URL.** Zero `pushState`/`popstate`/router in 286 file: nessun link condivisibile a una task, a una lista o a un cliente; il tasto Indietro di Android chiude la PWA; il refresh riporta sempre alla dashboard. Il meccanismo di deep-link **esiste già** (`?task=`/`?chat=`) ma viene consumato e cancellato al primo render. **Chiuso**: `src/hooks/useUrlStato.js` — vedi «Come è stato chiuso (A-2)» in fondo | `src/state/reducer.js` (`activeView`), `src/hooks/usePushNavigation.js:31-44`, `vercel.json:2` |
-| **M-1** | 🟡 Media | **PWA senza guscio offline.** `public/sw.js` non ha alcun handler `fetch`: l'app gestisce benissimo «vado offline mentre è aperta» (due strisce persistenti) e **non gestisce affatto** «viene aperta da offline» — schermata d'errore del browser, non l'app che spiega | `public/sw.js:2`, `src/main.jsx:22-28` |
-| **M-2** | 🟡 Media | **Il registro di audit su `clients` è parziale e non verificabile.** Nessun trigger su `UPDATE` — nome, email, telefono, indirizzo e note di **885 persone esterne al team** si modificano senza traccia; l'`INSERT` registra solo gli import multi-riga (`if v_n > 1`). `audit_log` ha **0 righe** e nulla distingue «non è successo niente di registrabile» da «ha smesso di funzionare» | DB (`audit_clients_insert`, `pg_trigger` su `clients`), `supabase/migrations/20260826214000_audit_log.sql` |
-| **M-3** | 🟡 Media | **Google Fonts da CDN di terza parte** in un `<link>` bloccante: l'IP di ogni visitatore raggiunge Google prima di qualunque consenso, i font non sono disponibili offline, e un dominio esterno sta sul percorso critico di rendering di un gestionale che tratta PII di clienti | `index.html:26-31`, `vercel.json:16` (`style-src`/`font-src`) |
+| **M-1** ✔ | ~~🟡 Media~~ **chiuso il 5 settembre** | **PWA senza guscio offline.** `public/sw.js` non aveva alcun handler `fetch`: l'app gestiva benissimo «vado offline mentre è aperta» (due strisce persistenti) e **non gestiva affatto** «viene aperta da offline» — schermata d'errore del browser, non l'app che spiega | `public/sw.js:2`, `src/main.jsx:22-28` |
+| **M-2** ✔ | ~~🟡 Media~~ **chiuso il 5 settembre** | **Il registro di audit su `clients` era parziale e non verificabile.** Nessun trigger su `UPDATE` — nome, email, telefono, indirizzo e note di **885 persone esterne al team** si modificavano senza traccia; l'`INSERT` registrava solo gli import multi-riga (`if v_n > 1`). `audit_log` aveva **0 righe** e nulla distingueva «non è successo niente di registrabile» da «ha smesso di funzionare» | DB (`audit_clients_insert`, `pg_trigger` su `clients`), `supabase/migrations/20260826214000_audit_log.sql` |
+| **M-3** ✔ | ~~🟡 Media~~ **chiuso il 5 settembre** | **Google Fonts da CDN di terza parte** in un `<link>` bloccante: l'IP di ogni visitatore raggiungeva Google prima di qualunque consenso, i font non erano disponibili offline, e un dominio esterno stava sul percorso critico di rendering di un gestionale che tratta PII di clienti | `index.html:26-31`, `vercel.json:16` (`style-src`/`font-src`) |
 | **M-4** | 🟡 Media | **Riportato dal 4 settembre (`M-5`), ancora aperto.** `checkJs` copre `src/lib` + `src/state` + `src/hooks`; `src/components` — **184 file**, la maggioranza del sorgente — resta fuori, e `strict` è `false` | `jsconfig.json:52-56` |
 | **M-5** | 🟡 Media | **Riportato dal 4 settembre (`M-8`), ancora aperto.** 335 `style={{…}}` inline dinamici e ~344 costanti a nomi meccanici, nessun design system, nessun tema scuro | `src/styles/`, 15 × `*Styles.js` |
-| **B-1** | 🟢 Bassa | `private.can_clienti_scrittura()` e `can_clienti_eliminazione()` — introdotte **ieri** da `B-1` del 4 settembre — sono le uniche `private.can_*` che **non** contengono `active AND NOT pending`: `can_liste()`, `can_use_task_category()`, `can_view_global_queue()` ce l'hanno tutte. Oggi non è sfruttabile (`rls_active_only` le AND-a), ma il nome promette una risposta completa che il corpo non dà | DB (`private.can_clienti_scrittura`, `can_clienti_eliminazione`) |
-| **B-2** | 🟢 Bassa | Due punti del codice leggono `payload.old.task_id` su un evento `DELETE`, dove Supabase consegna **solo la chiave primaria**. Oggi entrambi degradano in sicurezza, ma il meccanismo è scritto nei commenti come funzionante e verrà ricopiato | `src/components/tasks/TaskHistoryPanel.jsx:82`, `src/hooks/useAppHydration.js:492` |
-| **B-3** | 🟢 Bassa | `ProfileEditor` riscrive a mano le cinque cose che `useSalvataggio` esiste per non far riscrivere, e sul freno al doppio invio usa un `useState` dove l'hook documenta che serve un `ref`: due affermazioni contraddittorie sulla stessa regola, nello stesso repository | `src/components/shell/ProfileEditor.jsx:110,142` vs `src/hooks/useSalvataggio.js:71-77` |
-| **B-4** | 🟢 Bassa | `avatarUrlCache` e `signedUrlCache` sono `Map` di modulo mai svuotate: `signOut()` non ricarica la pagina, quindi le signed URL (TTL 1 h) di un utente sopravvivono al login del successivo nella stessa scheda | `src/lib/api/storage.js:18,22`, `src/auth/AuthContext.jsx:277` |
-| **B-5** | 🟢 Bassa | `public.send_test_push()` è l'unica porta privilegiata del progetto **senza rate limit**: le quattro Edge Function passano tutte da `entroLimite`, questa no, e ogni chiamata fa partire un Web Push reale | DB (`send_test_push`), `supabase/functions/_shared/rateLimit.ts` |
+| **B-1** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | `private.can_clienti_scrittura()` e `can_clienti_eliminazione()` — introdotte **ieri** da `B-1` del 4 settembre — erano le uniche `private.can_*` che **non** contenevano `active AND NOT pending`: `can_liste()`, `can_use_task_category()`, `can_view_global_queue()` ce l'hanno tutte. Non era sfruttabile (`rls_active_only` le AND-a), ma il nome prometteva una risposta completa che il corpo non dava | DB (`private.can_clienti_scrittura`, `can_clienti_eliminazione`) |
+| **B-2** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | Due punti del codice leggono `payload.old.task_id` su un evento `DELETE`, dove Supabase consegna **solo la chiave primaria**. Oggi entrambi degradano in sicurezza, ma il meccanismo è scritto nei commenti come funzionante e verrà ricopiato | `src/components/tasks/TaskHistoryPanel.jsx:82`, `src/hooks/useAppHydration.js:492` |
+| **B-3** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | `ProfileEditor` riscrive a mano le cinque cose che `useSalvataggio` esiste per non far riscrivere, e sul freno al doppio invio usa un `useState` dove l'hook documenta che serve un `ref`: due affermazioni contraddittorie sulla stessa regola, nello stesso repository | `src/components/shell/ProfileEditor.jsx:110,142` vs `src/hooks/useSalvataggio.js:71-77` |
+| **B-4** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | `avatarUrlCache` e `signedUrlCache` sono `Map` di modulo mai svuotate: `signOut()` non ricarica la pagina, quindi le signed URL (TTL 1 h) di un utente sopravvivono al login del successivo nella stessa scheda | `src/lib/api/storage.js:18,22`, `src/auth/AuthContext.jsx:277` |
+| **B-5** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | `public.send_test_push()` era l'unica porta privilegiata del progetto **senza rate limit**: le quattro Edge Function passano tutte da `entroLimite`, questa no, e ogni chiamata faceva partire un Web Push reale | DB (`send_test_push`), `supabase/functions/_shared/rateLimit.ts` |
 
 ---
 
@@ -786,10 +786,11 @@ un trasloco:
 
 ### M-4 · `checkJs` non copre `src/components` — 184 file
 
-**Riportato dal 4 settembre (`M-5`), avanzato di un passo su tre.**
+**Riportato dal 4 settembre (`M-5`), passo 1 fatto il 5 settembre — vedi
+«Come è stato chiuso (M-4, passo 1)» in fondo.**
 
-`jsconfig.json` include `src/lib`, `src/state` e — da ieri — `src/hooks`.
-Restano fuori `src/components`: **184 file**, la maggioranza del sorgente e
+`jsconfig.json` includeva `src/lib`, `src/state` e — da ieri — `src/hooks`.
+Restava fuori `src/components`: **184 file**, la maggioranza del sorgente e
 l'unica parte che nessuno dei due controlli automatici raggiunge (`checkJs`
 non la guarda, e i test la coprono per comportamento, non per forma).
 
@@ -797,7 +798,8 @@ La regola del progetto è giusta e va tenuta: si allarga quando la cartella
 nuova è a zero, non prima. Il passo successivo non è però `src/components`
 intero — è un salto di scala, e allargare tutto insieme produce un elenco di
 errori che nessuno chiude in una sessione. La strada è per **sottocartella**,
-partendo da quelle che il resto dell'app importa di più:
+partendo da quelle che il resto dell'app importa di più. **Fatto il 5
+settembre**, esattamente come proposto qui sotto:
 
 ```jsonc
 "include": [
@@ -1109,12 +1111,12 @@ end $$;
 |---|---|---|
 | ~~1~~ | **A-1** — metà `ALLOWLIST` ✔ | **Fatta il 5 settembre**: le due voci morte sono state tolte e il gate è verificato per mutazione. La metà «vendorare il tarball» resta, ma **non è più in testa**: con la seconda metà del rilievo smentita, non c'è niente che blocchi il resto, e serve comunque un ambiente che raggiunga il CDN una volta sola |
 | ~~1~~ | **A-2** (URL e history) ✔ | **Fatto il 5 settembre**: `src/hooks/useUrlStato.js`, montato dopo `usePushNavigation`. Nessuna dipendenza nuova, 20 casi di test, sei mutazioni verificate |
-| 2 | **B-1**, **B-5** (due migrazioni SQL piccole) | Indipendenti da tutto, verificabili scrivendo davvero su staging, nessun impatto sul client. Si chiudono in un blocco solo, come i «quattro rimedi piccoli e indipendenti» del 4 settembre |
-| 3 | **M-2** (audit su `clients` + sonda) | Terza migrazione dello stesso blocco, ma separata perché è una decisione di prodotto (cosa si registra) e non un rimedio |
+| ~~2~~ | **B-1**, **B-5** (due migrazioni SQL piccole) ✔ | **Fatte il 5 settembre**: applicate e verificate scrivendo davvero, prima su staging poi in produzione — vedi «Come sono stati chiusi (B-1, B-5)» in fondo |
+| ~~3~~ | **M-2** (audit su `clients` + sonda) ✔ | **Fatta il 5 settembre**: `trg_audit_clients_update` + `public.sonda_audit_clients_update()`, applicate e verificate scrivendo davvero — vedi «Come è stato chiuso (M-2)» in fondo |
 | 4 | **A-1** — metà «vendorare il tarball» | Da fare da un ambiente che raggiunge `cdn.sheetjs.com`: nessuna urgenza (CI e Vercel verdi), nessun blocco a valle |
-| 5 | **M-1** (guscio offline) | Dopo A-2: con gli URL, il service worker ha una forma canonica da servire e il caso «riapri sull'ultima vista da offline» diventa provabile |
-| 6 | **M-3** (font in proprio) | Subito dopo M-1, perché è la risorsa che altrimenti manca da offline — e perché restringe la CSP, cosa che si vuole fare quando il resto è stabile |
-| 7 | **B-2**, **B-3**, **B-4** | Tre correzioni di coerenza, nessuna urgente, tutte piccole. B-4 va fatta con l'attenzione al confine `VIETATI_MODULI_API_INTERNI` |
+| ~~5~~ | **M-1** (guscio offline) ✔ | **Fatto il 5 settembre**: handler `fetch` nel service worker, solo guscio — vedi «Come sono stati chiusi (M-1, M-3)» in fondo |
+| ~~6~~ | **M-3** (font in proprio) ✔ | **Fatto il 5 settembre**, subito dopo M-1: font auto-ospitati in `public/fonts/`, CSP ristretta a `style-src 'self'; font-src 'self'` |
+| ~~7~~ | **B-2**, **B-3**, **B-4** ✔ | **Fatte il 5 settembre**: tre correzioni di coerenza, verificate per esecuzione (lint, suite intera, `verifica:convenzioni`) — vedi «Come sono stati chiusi (B-2, B-3, B-4)» in fondo |
 | 8 | **M-4** (`checkJs` su `components/ui`) | Un passo alla volta, quando c'è una sessione da dedicargli: si allarga quando la cartella nuova è a zero, non prima |
 | — | **M-5** (stili) | ⛔ **Non aggredire senza una ragione di prodotto.** Vedi il rilievo |
 
@@ -1256,3 +1258,439 @@ proposto per `M-1` — qui non era eseguibile. Le venti prove sono di
 integrazione fra l'hook e un reducer simulato, non fra l'app e un browser: la
 distinzione conta, e la prima cosa da fare su una preview con credenziali è
 premere Indietro.
+
+---
+
+## Come sono stati chiusi (B-1, B-5)
+
+Due migrazioni indipendenti, applicate e verificate **scrivendo davvero**,
+prima su `tullio-staging` e poi in produzione (`tullio`) — mai dedotto dal
+solo testo della migrazione, come chiede la procedura di
+`docs/MIGRAZIONI_SUPABASE.md`.
+
+`supabase/migrations/20260905120000_can_clienti_active_pending.sql` e
+`supabase/migrations/20260905120100_send_test_push_rate_limit.sql`; entrambe
+registrate in `supabase_migrations.schema_migrations` su entrambi i progetti.
+
+### B-1 · `can_clienti_scrittura()` / `can_clienti_eliminazione()`
+
+Aggiunto `active and coalesce(pending, false) = false` al corpo di entrambe,
+sulla falsariga di `can_liste()`. Verificato su staging impersonando tre
+utenti reali (dry-run transazionale, `set_config('request.jwt.claims', …)` +
+`set local role authenticated`, poi `rollback`):
+
+| Utente (staging) | Prima della migrazione | Dopo |
+|---|---|---|
+| agent, `pending=true` | `scrittura=true` ⚠️ (il buco che il rilievo descriveva) | `scrittura=false` |
+| agent, attivo | `scrittura=true` | invariato |
+| driver, attivo | `scrittura=false` | invariato |
+
+La riga di mezzo è la prova che il rilievo era reale: prima della migrazione
+un agent **mai approvato** passava `can_clienti_scrittura()`. Applicata poi in
+produzione e riverificata sui tre ruoli attivi realmente presenti in team
+(nessun utente `pending` esiste oggi in produzione, quindi quella riga
+specifica resta verificata solo su staging — è la stessa che la riverifica
+riproverebbe se e quando un invito resterà in sospeso).
+
+### B-5 · `send_test_push()` senza rate limit
+
+Aggiunta la stessa chiamata a `rate_limit_incrementa` che usano le quattro
+Edge Function (`'send-test-push:' || v_uid`, finestra 60 minuti, soglia 5).
+Verificato su staging chiamando `send_test_push()` sei volte di seguito dentro
+una singola transazione poi annullata (nessuna riga scritta, nessun
+`net.http_post` mai committato quindi mai eseguito da `pg_net`):
+
+```
+ok:1c52eec0-… | ok:463eacb1-… | ok:1255ff45-… | ok:d6ecae8e-… | ok:79500ef4-…
+| errore:Troppe notifiche di prova: riprova fra un po'
+```
+
+Cinque riuscite, la sesta rifiutata: il tetto dichiarato nel commento della
+migrazione. ⚠️ **Lo stesso test non è stato ripetuto in produzione**, di
+proposito: sei chiamate reali a `send_test_push()` su un utente vero avrebbero
+comunque generato le notifiche interne (cancellate e riscritte a ogni
+chiamata) e, se quell'utente avesse un dispositivo registrato, tentato un Web
+Push reale — l'esito che il rate limit deve prevenire, non riprodurre per
+verificarlo. In produzione la verifica è stata **statica**:
+`pg_get_functiondef('public.send_test_push()'::regprocedure)` confrontato
+carattere per carattere con il corpo applicato, più `get_advisors('security')`
+per escludere un nuovo WARN — nessuno, tutti i 15 esiti erano già accettati
+per nome in `scripts/verifica-advisor/advisor.js`.
+
+### Cosa NON è cambiato
+
+Nessuna policy RLS toccata, nessun nuovo permesso concesso: entrambe le
+funzioni restano `SECURITY DEFINER` con lo stesso `EXECUTE` di prima. Il
+comportamento visibile dal client non cambia per un utente attivo e non
+`pending` sotto la soglia delle cinque notifiche di prova l'ora.
+
+---
+
+## Come è stato chiuso (M-2)
+
+`supabase/migrations/20260905130000_audit_clients_update.sql` — il trigger
+`trg_audit_clients_update` + la funzione `audit_clients_update()` (registra
+solo QUALI campi cambiano, mai i valori) più la sonda
+`public.sonda_audit_clients_update()` che rende lo zero di `audit_log`
+interpretabile. Applicata e verificata su `tullio-staging` e poi in
+produzione (`tullio`), non solo letta.
+
+### Un bug trovato eseguendo, non leggendo
+
+Il codice proposto dal rilievo usava `v_campi := v_campi || 'name'` per
+comporre l'array dei campi cambiati. Eseguito per la prima volta su
+staging, ha fallito:
+
+```
+ERROR: 22P02: malformed array literal: "notes"
+DETAIL: Array value must start with "{" or dimension information.
+```
+
+`text[] || 'letterale'` con un letterale non tipizzato risolve l'overload
+`anyarray || anyarray` invece di `anyarray || anyelement`: Postgres prova a
+leggere `'notes'` come un letterale di array (cioè cerca una `{` iniziale) e
+fallisce. La correzione è `array_append(v_campi, 'notes')` — la stessa forma
+già in uso altrove nel progetto (`step_j_fix4.sql` e simili) — non un
+cast `::text`, per restare sulla forma che il resto del repository già usa.
+Senza aver eseguito la migrazione su staging prima di produzione, questo
+sarebbe arrivato in produzione e **ogni** `UPDATE` su `clients` con almeno un
+campo tracciato avrebbe fallito con un errore 500 invece di aggiornare la
+riga — un'interruzione peggiore del difetto che la migrazione doveva
+chiudere.
+
+### Verifica, per mutazione e per esecuzione
+
+Impersonando un agent attivo reale (`set_config('request.jwt.claims', …)` +
+`set local role authenticated`, come i dry-run di
+`docs/MIGRAZIONI_SUPABASE.md`) e chiamando `sonda_audit_clients_update()`:
+
+| Dove | `trigger_ha_scritto` | Righe residue dopo la chiamata |
+|---|---|---|
+| Staging, prima del fix | `ERROR 22P02` | n/a — la chiamata non completava |
+| Staging, dopo il fix | `1` | `0` client, `0` righe di audit |
+| Produzione | `1` | `0` client di prova, **885** clienti reali invariati |
+
+`885` è lo stesso numero che l'apertura di questo rilievo aveva misurato: la
+sonda non ha toccato un solo cliente vero. `audit_log` in produzione resta a
+**0 righe** — ma ora è un'affermazione verificabile («nessuno ha ancora
+modificato un cliente da quando il trigger esiste»), non più un'ambiguità fra
+silenzio e guasto.
+
+### La sonda in CI
+
+`scripts/verifica-audit-vivo/index.js` (`npm run verifica:audit-vivo`),
+agganciata a `.github/workflows/rls.yml` con le stesse credenziali già usate
+dal passo RLS: nessun segreto nuovo. Gira ogni notte, a ogni push che tocchi
+`supabase/migrations/**`, e a richiesta.
+
+### Cosa NON registra, di proposito
+
+`audit_log.details` porta `{"campi": ["email", "notes"]}`, mai i valori
+prima/dopo. Chi ha bisogno del valore precedente ha `updated_at` e un
+backup; duplicare l'email o le note di un cliente in una seconda tabella,
+con una policy di lettura diversa da quella dell'originale, peggiorerebbe
+esattamente il problema che questo registro esiste per mitigare.
+
+---
+
+## Come sono stati chiusi (M-1, M-3)
+
+⚠️ **`npm ci` fallisce in questa sessione con lo stesso `403` su
+`cdn.sheetjs.com` che `A-1` descrive** — non un guasto nuovo, lo stesso punto
+singolo di guasto latente, incontrato di persona. Non è stato quindi
+possibile eseguire `npm run build` / `npm run preview` né aprire un browser:
+la verifica che segue è per lettura e per esecuzione **fuori** dal
+progetto (fetch reali dei font, ispezione dei file scaricati), non la prova
+in Chromium con DevTools → Network → Offline che M-1 stesso prescrive.
+**Resta da fare, appena l'ambiente raggiunge il registry npm/CDN.**
+
+### M-1 · Il guscio
+
+`public/sw.js` ha ora `install`/`activate`/`fetch` accanto ai tre handler
+push esistenti (erano `install`/`activate` già presenti, minimali — estesi
+sul posto invece di aggiungere un secondo listener per evento, che avrebbe
+lasciato due lifecycle separati nello stesso file). Verificato per lettura
+contro il comportamento atteso: il guard `url.origin !== self.location.origin`
+esclude Supabase per costruzione (nessuna chiamata REST o realtime passa da
+un `origin` diverso dal proprio), le navigazioni provano la rete e cadono sul
+guscio in cache solo al `catch`, gli asset seguono cache-poi-rete con
+aggiornamento in sottofondo.
+
+⚠️ **Il rischio che l'audit stesso segnalava — un chunk lazy servito dalla
+cache vecchia insieme a un `index.html` nuovo dopo un deploy — non è stato
+escluso da un test reale**, solo dal ragionamento già scritto nel rilievo
+(`OverlayErrorBoundary` intorno a ogni `lazy()` lo rende recuperabile). La
+sequenza da eseguire appena possibile è quella già prescritta: `npm run
+build`, `npm run preview`, DevTools → Network → Offline, ricarica, poi un
+secondo build con la scheda aperta.
+
+### M-3 · I font
+
+Le tre famiglie (Playfair Display, DM Sans, Inter) sono **font variabili**
+su Google Fonts — verificato scaricando i file reali e ispezionandoli con
+`fontTools` (`fvar` con asse `wght`), non dedotto dal nome. Conseguenza
+pratica: **un solo file per famiglia**, non uno per peso — la stessa @font-
+face CSS che Google Fonts genera per pesi diversi punta allo stesso file,
+lasciando al browser la scelta del punto sull'asse. `public/fonts/`:
+
+| File | Famiglia | Pesi dichiarati | Peso reale asse `wght` |
+|---|---|---|---|
+| `dm-sans.woff2` | DM Sans | 300–600 | 100–1000 |
+| `playfair-display.woff2` | Playfair Display | 400–700 | 400–900 |
+| `inter.woff2` | Inter | 400–700 | 100–900 |
+
+I pesi dichiarati in `@font-face` (`font-weight: min max`) sono esattamente
+quelli che l'URL di Google Fonts rimosso da `index.html` chiedeva — non una
+scelta nuova, la stessa copertura di prima. Sottoinsieme **latin** soltanto
+(scartati cyrillic/greek/vietnamese/latin-ext): l'app è solo in italiano
+(`docs/CLAUDE.md`), e "latin" (`U+0000-00FF` più la punteggiatura tipografica)
+copre già ogni carattere accentato che l'italiano usa — verificato
+confrontando i file scaricati con quelli reali serviti da
+`fonts.gstatic.com`, non assunto.
+
+`public/fonts/OFL.txt`: le tre licenze SIL OFL 1.1 (scaricate da
+`google/fonts` su GitHub, non trascritte a memoria) sono, corpo a parte, lo
+stesso testo — verificato per checksum, non a occhio — quindi un unico file
+con le tre righe di copyright in testa e un solo corpo, come l'audit
+prescriveva ("una volta, per tutti e tre").
+
+`index.html`: i due `preconnect` più il `<link rel="stylesheet">` verso
+Google sono spariti, sostituiti da due `<link rel="preload">` verso i file
+locali (DM Sans e Playfair Display — le due facce del primo paint; Inter
+serve solo al modulo Liste e arriva quando quel modulo monta, esattamente
+come prima). `vercel.json`: `style-src`/`font-src` ristretti a `'self'`,
+nessun'altra direttiva toccata. `docs/SICUREZZA.md` aggiornato in tre punti
+che affermavano la dipendenza da Google Fonts come fatto corrente (CSP
+trascritta, la scelta `credentialless` di COEP, il limite di verifica su
+`fonts.gstatic.com` non raggiungibile) — senza cancellare il racconto
+storico di *come* si era arrivati a quello stato.
+
+### Cosa NON è stato verificato, e va rifatto appena possibile
+
+- **Il rendering reale nel browser**: nessuna prova che i tre file `.woff2`
+  siano validi per il font engine oltre al fatto che `fontTools` li apre
+  senza errori e ne legge l'asse `wght` — non che Chromium li renda,
+  che i pesi appaiano visivamente distinti, o che `font-display: swap` non
+  produca un salto di layout percepibile.
+- **Il service worker in un browser vero**, sequenza sopra.
+- **`npm run verifica:bundle`**: i due `preload` in più e la rimozione dei
+  due `preconnect` cambiano `dist/index.html`; le soglie potrebbero dover
+  scendere (mai salire) se il first load anonimo cala, com'è atteso senza
+  più un round-trip DNS+TLS verso Google.
+
+---
+
+## Come sono stati chiusi (B-2, B-3, B-4)
+
+A differenza di M-1/M-3, questa volta `npm install` è stato reso possibile
+— vedi «Verifica, per esecuzione» in fondo a questa sezione — quindi qui
+sotto "verificato" significa lint ed eseguito, non solo letto contro il
+contratto atteso.
+
+### B-2 · `payload.old` su `DELETE`
+
+`TaskHistoryPanel.jsx`: `filterEvent` ora ricarica su OGNI evento `DELETE`
+(`payload?.eventType === "DELETE" || payload?.new?.task_id === taskId`), e
+non tenta più di leggere `payload.old.task_id` — su `task_history`, che non
+è REPLICA IDENTITY FULL, quella chiave non esiste mai nel pre-image.
+`useAppHydration.js`: il codice per `comments` (che REPLICA IDENTITY FULL lo
+è davvero) era già corretto — `payload.new?.task_id ?? payload.old?.task_id`
+— perché la RLS riduce comunque il pre-image di una DELETE alla sola chiave
+primaria, indipendentemente da REPLICA IDENTITY, quando è attiva; solo il
+commento sopra descriveva un meccanismo diverso da quello vero. Corretto
+anche quello.
+
+Il test che copriva questo percorso, `src/test/tasks/cronologiaPerTask.test.jsx`,
+passava già prima del fix ma per il motivo SBAGLIATO: emetteva una DELETE con
+`payload.old` contenente `task_id` (`RIGA({ task_id: "t1" })`), una forma che
+la produzione non genera mai. Riscritto per emettere la forma reale (`old: {
+id: "h1" }`, senza `task_id`): con il codice vecchio questo caso sarebbe
+fallito (il ramo `payload.old?.task_id === taskId` non sarebbe mai stato
+vero), con quello nuovo passa — la differenza fra un test che descrive il
+fix e uno che lo tollerava per caso.
+
+### B-3 · `ProfileEditor` e `useSalvataggio`
+
+Convertito: il freno al doppio invio (`useState` locale) e le due chiamate
+awaited scritte a mano sono sostituiti da `useSalvataggio`, con `alSuccesso:
+onClose` e un messaggio di errore inline nuovo (`<FieldError
+id="prof-save-err">`). Verificato CONTRO il contratto esistente, non
+riscrivendo da zero: `src/test/shell/profileEditorSave.test.jsx` — dodici
+casi già in repository, scritti per il vecchio codice — specifica
+esattamente il comportamento che `useSalvataggio` garantisce (un solo
+dispatch, niente chiusura su errore, bottone "Salvataggio…" con
+`aria-busy` durante l'attesa, due click ravvicinati restano una scrittura
+sola, il bottone torna premibile dopo un errore). **12/12 passano senza
+modifiche al file di test.** `docs/CLAUDE.md`: il conteggio dei call site
+passa da 26 a 27.
+
+### B-4 · Le signed URL non sopravvivono più al logout
+
+`svuotaCacheUrl()` (nuovo, in `src/lib/api/storage.js`, riesportato dalla
+porta `lib/api.js` per `VIETATI_MODULI_API_INTERNI`) svuota `avatarUrlCache`
+e `signedUrlCache`. Richiamato da `signOut`, `signOutOvunque` e da
+`deleteAccount` quando riesce, tramite un helper `svuotaCache` — un
+`useCallback` con dipendenze `[]`, aggiunto alle dipendenze di tutti e tre i
+chiamanti per non rompere l'identità stabile che il `value` del context
+richiede (`VIETATO_CONTEXT_VALUE_LETTERALE`, commentato nello stesso file).
+
+Aggiunti quattro casi a `src/test/shell/authContext.test.jsx`: nessun test
+esistente esercitava `signOut`/`signOutOvunque`/`deleteAccount` sull'
+`AuthContext` REALE — i cinque file che lo usano indirettamente lo mockano
+per intero. Il primo tentativo falliva: `__authState.signOut.mockClear()` —
+`__authState` è lo stato interno del mock, `signOut` sta invece
+sull'oggetto `supabaseAuth` esportato dallo stesso mock — corretto in
+`supabaseAuth.signOut.mockClear()`. Un errore reale, trovato eseguendo il
+test scritto un minuto prima, non a rileggerlo.
+
+### Verifica, per esecuzione
+
+`npm ci` fallisce ancora con lo stesso `403` su `cdn.sheetjs.com` di A-1.
+Questa volta però `xlsx` è stato puntato temporaneamente a `^0.18.5`
+(registry npm, non il CDN) solo per la durata di `npm install`, poi
+**`package.json`/`package-lock.json` riportati bit per bit all'originale
+prima di qualunque commit** (`git status` pulito su entrambi, verificato).
+Nessuna conclusione tratta da quell'albero di dipendenze alterato — `npm
+audit` non è stato eseguito in questa finestra, per la stessa ragione per
+cui farlo sarebbe stato un errore (vedi A-1, e il precedente che vi si
+racconta).
+
+Con l'installazione così ottenuta:
+
+| Comando | Esito |
+|---|---|
+| `npm run lint` (tutto il repo) | 0 avvisi, 0 errori |
+| `npm test` | 174 file passati, **2145 casi passati**, 0 falliti — l'unico file non eseguito è `src/test/integration` (23 casi skip, richiede Supabase live) |
+| `npm run verifica:convenzioni` | 65 controlli, nessuna divergenza, incluso il nuovo `27` di B-3 |
+| `npm run verifica:tipi` | 0 errori — la baseline su cui M-4 dovrà allargare `include` |
+
+### Cosa NON è cambiato
+
+Nessuna migrazione SQL in questo batch: B-2/B-3/B-4 sono codice
+applicativo, non schema. Nessuna policy RLS toccata, nessun permesso nuovo,
+nessuna dipendenza aggiunta o aggiornata — l'`xlsx` sul registry è stato
+solo un ambiente di verifica temporaneo, mai arrivato a un commit.
+
+---
+
+## Come è stato chiuso (M-4, passo 1)
+
+`jsconfig.json` include ora anche `src/components/ui/**/*.jsx`, esattamente
+com'era proposto qui sopra. Non è stato un allargamento isolato: `tsc`
+type-checka ogni file RAGGIUNGIBILE dalle radici dichiarate in `include`,
+non solo le radici stesse — quindi sono entrati anche `src/state/
+AppDataContext.jsx`/`DispatchContext.jsx` (importati da `CategoryChip.jsx`/
+`Avatar.jsx`/`MentionText.jsx`/`ToastItem.jsx`) e `src/components/errors/
+creaErrorBoundary.jsx` (importato da `LazyPanel.jsx`). I primi due erano
+`.jsx` in una cartella che l'`include` dichiarava già `src/state/**/*.js`:
+non erano mai stati controllati per una svista nel glob, non per scelta.
+
+### Un rilievo dentro il rilievo: `@types/react` non è mai esistito qui
+
+`creaErrorBoundary.jsx` è arrivato con **4 errori**: `Property 'props' does
+not exist on type 'Boundary'` sulla sua unica classe (`class Boundary
+extends React.Component`). La causa non era il JSDoc del file — è che
+questo repository non ha **mai** installato `@types/react`. Per una
+funzione o un hook questo è innocuo: senza quei tipi `React` risolve ad
+`any`, e `any` è compatibile con tutto in silenzio. Per una CLASSE che
+estende `React.Component` (anch'esso `any`) non lo è: `tsc` non propaga i
+membri di un tipo `any` alla classe che lo estende, quindi `this.props` /
+`this.state` / `this.setState` — ereditati per davvero a runtime — non
+risultano dichiarati per il checker. `ui/` non ha classi proprie; le ha
+ereditate dal primo error boundary che un file `ui/` importa.
+
+**Tentativo, eseguito e poi scartato**: `npm install --save-dev
+@types/react@^18 @types/react-dom@^18` (con `xlsx` temporaneamente sul
+registry, stessa tecnica di sopra) risolve i 4 errori — e ne apre **circa
+40 altri**, `src/hooks/` **già a zero compreso** (`useAppHydration.js`,
+`useCaricamento.js`, `useSalvataggio.js`, `useTrappolaFocus.js`). La
+ragione è la stessa, letta al contrario: con `@types/react` vero,
+`CSSProperties` smette di essere `any` e diventa il tipo reale di React —
+`position`/`textAlign`/`flexDirection`/`overflowY`/`pointerEvents`/…sono
+union di stringhe letterali (`"absolute"`, non `string`), mentre ogni
+oggetto di stile di questo repository (`const riquadro = { position:
+"absolute", … }`, migliaia di occorrenze) è inferito con tipi larghi
+(`string`) perché nessuno scrive `as const`. È esattamente il dominio di
+**M-5** — il sistema di stili — che questo stesso audit segna «⛔ Non
+aggredire senza una ragione di prodotto». Installare una devDependency
+type-only per chiudere quattro errori e riaprirne quaranta altrove,
+comprese cartelle già dichiarate a zero, avrebbe rotto l'invariante del
+ratchet stesso. Scartato: `package.json`/`package-lock.json` riportati
+bit per bit all'originale (verificato — `git diff --stat` vuoto su
+entrambi), `node_modules/@types/react*` rimossi a mano per confermare lo
+zero senza quel pacchetto prima di continuare.
+
+**Corretto localmente invece**, in `creaErrorBoundary.jsx`: un cast
+`const self = /** @type {any} */ (this);` in testa a `componentDidCatch` e
+`render`, con un commento che nomina la causa (nessun `@types/react`) e il
+motivo per cui non si è risolta a monte. Zero effetto a runtime — è
+solo un'annotazione JSDoc, che Vite/Babel ignorano in fase di build.
+
+### Gli altri 20 errori di `ui/`: due famiglie, nessuna delle due un bug vero
+
+**Un `@param` piatto su un parametro destrutturato** (`Modal.jsx`,
+`LazyPanel.jsx`, `MostraAltri.jsx`, `StatoEntita.jsx`): scrivere `@param
+{boolean} open` quando la funzione riceve `({ open, onClose, … })` fa sì
+che `tsc` assegni QUEL tipo all'INTERO primo parametro, invece che al
+campo — `Modal.jsx` risultava letteralmente tipizzato `{ open: boolean;
+… }` come se fosse un booleano solo. La forma corretta, già in uso altrove
+nel repository (`useSalvataggio.js`, letta come riferimento), è `@param
+{object} props` seguito da `@param {tipo} props.campo` per ciascuno.
+Sistemata su tutti e quattro i file, con `children` aggiunto dove mancava
+(nessuno dei quattro lo dichiarava, e ogni chiamante che lo passa
+falliva). `Modal.jsx` aveva anche `width` dichiarato `number` mentre nove
+call site reali passano sia numeri (`420`, `820`) sia valori CSS
+(`"min(420px, 96vw)"`, `"calc(100vw - 32px)"`): il tipo corretto è
+`number|string`, verificato leggendo TUTTI i call site di `<Modal
+width=…>` nel repository, non solo quello che stava fallendo.
+
+**Un valore opzionale senza un default nella destrutturazione**
+(`ContactMenuItem.jsx`: `target`/`rel`; `ContactActions.jsx`: `style`):
+senza JSDoc, `tsc` inferisce il tipo di un parametro destrutturato dalla
+sua FORMA — un campo senza default risulta obbligatorio. Due dei tre
+call site di `ContactMenuItem` (Chiama, SMS) omettono `target`/`rel` a
+ragione veduta (sono `tel:`/`sms:`, non link esterni); il terzo
+(WhatsApp) li passa. Corretto dando un default esplicito (`target =
+undefined`): zero cambiamento di comportamento, `undefined` era già il
+valore effettivo quando la prop non arriva.
+
+**Un caso a parte**: `Toast.jsx` passava `<ToastItem key={t.id}
+toast={t} />`, e `tsc` segnalava `key` come proprietà mancante sul tipo
+di `ToastItem`. `key` è una prop speciale di JSX — React la consuma per
+la riconciliazione e non la passa mai al componente — ma è
+`@types/react` a dichiararlo (`JSX.LibraryManagedAttributes`), non
+qualcosa che `tsc` sa di suo. Senza quel pacchetto (vedi sopra: scartato
+di proposito) non c'è un modo pulito di annotarlo: risolto con un
+`// @ts-expect-error` mirato sulla riga, commentato con la causa. Codice
+corretto e idiomatico; è il checker, senza `@types/react`, a non saperlo
+riconoscere.
+
+### Verifica
+
+```
+npm run lint                 → 0 avvisi, 0 errori (tutto il repo)
+npm test                     → 174 file, 2145 casi passati, 0 falliti
+                                (invariato rispetto a prima di M-4:
+                                 nessuna regressione)
+npm run verifica:convenzioni → 65 controlli, nessuna divergenza
+npm run verifica:tipi        → 0 errori
+```
+
+L'ultimo comando è quello che conta per il ratchet: `src/lib/`,
+`src/state/`, `src/hooks/` e ora `src/components/ui/` sono TUTTI a zero
+insieme, nella stessa esecuzione — non ciascuno isolatamente. La stessa
+tecnica di `npm install` con `xlsx` temporaneo sul registry usata per
+B-2/B-3/B-4 ha reso possibile anche questo passo; stesso ripristino
+bit-per-bit di `package.json`/`package-lock.json` prima del commit.
+
+### Cosa resta aperto
+
+Il passo 2 (quale sottocartella dopo `ui/`) non è deciso: la scelta va
+fatta guardando quale cartella il resto dell'app importa di più, come per
+questo primo passo. `strict: true` resta l'ultimo, dopo l'ultima
+cartella. Il limite di `@types/react` documentato sopra si ripresenterà
+a ogni futura sottocartella che tocchi una classe React (i tre error
+boundary ne hanno una ciascuno) o un prop `key`: la correzione locale
+usata qui — cast mirato, mai una dipendenza nuova — è la strada finché
+`src/styles/` non avrà tipi letterali da rendere quel pacchetto innocuo
+invece che dirompente.

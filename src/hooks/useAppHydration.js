@@ -485,9 +485,14 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
       // permette al ramo `soloThread` di chiedere i commenti di quei soli
       // task invece dell'intera tabella.
       //
-      // `old` oltre a `new` perché su una DELETE la riga arriva solo lì; su
-      // INSERT/UPDATE `new` è quella buona. Se non c'è nessuno dei due l'id
-      // non si aggiunge, e il fallback sul corpus fa il resto.
+      // B-2 dell'audit del 5 settembre — correzione al COMMENTO, non al
+      // codice, che era già giusto. `old` NON porta `task_id` su una DELETE:
+      // con la RLS attiva (lo è su `comments`) Supabase riduce il pre-image
+      // alla sola chiave primaria, a prescindere da REPLICA IDENTITY FULL.
+      // Resta letto perché costa nulla e perché la regola potrebbe cambiare;
+      // quando è assente (sempre, oggi, su una DELETE) l'id non si aggiunge
+      // e si ricade sul corpus, che è la risposta corretta a «non so quali
+      // task sono cambiati».
       if (tbl === "comments") {
         const tid = payload.new?.task_id ?? payload.old?.task_id;
         if (tid) taskConCommentiNuovi.current.add(tid);

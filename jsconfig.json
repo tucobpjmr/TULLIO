@@ -53,7 +53,13 @@
   "include": [
     "src/lib/**/*.js",
     "src/state/**/*.js",
-    "src/hooks/**/*.js"
+    "src/hooks/**/*.js",
+    // M-4 dell'audit del 5 settembre, passo 1 di N. `ui/` per prima e non per
+    // dimensione: è la cartella che TUTTE le altre importano, quindi un tipo
+    // sbagliato lì si propaga ovunque, e i suoi componenti hanno le firme più
+    // stabili del progetto — cioè il rapporto migliore fra errori trovati e
+    // JSDoc da scrivere.
+    "src/components/ui/**/*.jsx"
   ],
   "exclude": [
     "node_modules"

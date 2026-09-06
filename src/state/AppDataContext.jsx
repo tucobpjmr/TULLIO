@@ -68,6 +68,7 @@ const AppDataContext = createContext(null);
  * @param {Array}    props.team           membri del team (state.team)
  * @param {object}   props.categories     dizionario categorie (state.categories)
  * @param {string}   props.currentUserId  utente loggato (state.currentUserId)
+ * @param {import('react').ReactNode} props.children
  */
 export function AppDataProvider({ team, categories, currentUserId, children }) {
   // Un'unica dipendenza per riferimento: finché il reducer non sostituisce

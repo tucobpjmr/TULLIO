@@ -65,3 +65,14 @@ export const sanitizeFileName = (name = 'file') => name.replace(/[^\w.-]+/g, '_'
 // legittimo. Il fallback octet-stream è nell'elenco consentito apposta: è ciò
 // che il browser manda quando il sistema operativo non riconosce l'estensione.
 export const baseMimeType = (tipo) => (tipo || '').split(';')[0].trim() || 'application/octet-stream';
+
+/**
+ * Svuota le cache di signed URL. B-4 dell'audit del 5 settembre: `signOut()`
+ * non ricarica la pagina (l'SPA torna alla LoginScreen), quindi senza questo
+ * le URL firmate di chi esce sopravvivono a chi entra nella stessa scheda,
+ * per il resto del loro TTL (fino a un'ora). Non sfruttabile direttamente —
+ * le chiavi sono i path, e per chiederli bisogna averli letti da una riga
+ * che la RLS ha lasciato passare — ma un privilegio non sfruttabile resta un
+ * privilegio da non concedere.
+ */
+export const svuotaCacheUrl = () => { avatarUrlCache.clear(); signedUrlCache.clear(); };

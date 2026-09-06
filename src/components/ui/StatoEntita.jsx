@@ -49,8 +49,10 @@ const btnRiprova = {
 };
 
 /**
- * @param {Array<{chiave: string, etichetta: string, stato: {messaggio: string, riprova: () => void}|null}>} voci
+ * @param {object} props
+ * @param {Array<{chiave: string, etichetta: string, stato: {messaggio: string, riprova: () => void}|null}>} [props.voci]
  *   Le entità di cui questa vista vive. `stato` null = tutto a posto.
+ * @param {import('react').ReactNode} props.children
  */
 export function StatoEntita({ voci = [], children }) {
   const rotte = voci.filter(v => v.stato);

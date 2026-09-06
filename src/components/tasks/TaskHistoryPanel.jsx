@@ -69,8 +69,17 @@ export function TaskHistoryPanel({ taskId }) {
   // `filterEvent` scarta gli eventi degli altri task prima che alimentino il
   // debounce: senza, avremmo semplicemente spostato il difetto: una rilettura
   // per ogni modifica fatta da chiunque, che è precisamente ciò che A-3
-  // toglie. Il pre-image `payload.old` serve alle DELETE (purge di un task),
-  // dove `payload.new` è vuoto.
+  // toglie.
+  //
+  // B-2 dell'audit del 5 settembre. `payload.old.task_id` NON esiste: su una
+  // DELETE Supabase riduce il pre-image alla sola chiave primaria (qui `id`,
+  // non `task_id`) — `task_history` non è REPLICA IDENTITY FULL, quindi vale
+  // a prescindere dalla RLS. Il ramo che questo filtro aveva per le DELETE
+  // non si è mai eseguito: si ricarica quindi SEMPRE su una DELETE, che è
+  // rara (solo il purge di un task, che cancella a cascata la sua
+  // cronologia) — una rilettura in più è la risposta corretta a «non so se
+  // mi riguarda», la stessa regola del fallback sul corpus in
+  // useAppHydration.
   //
   // `deps: [taskId]` fa ri-sottoscrivere quando si passa da un task all'altro
   // senza smontare il pannello, e la nuova idratazione iniziale della
@@ -79,7 +88,7 @@ export function TaskHistoryPanel({ taskId }) {
   useDebouncedTableSubscription(["task_history"], carica, {
     deps: [taskId],
     filterEvent: (payload) =>
-      payload?.new?.task_id === taskId || payload?.old?.task_id === taskId,
+      payload?.eventType === "DELETE" || payload?.new?.task_id === taskId,
   });
 
   return (

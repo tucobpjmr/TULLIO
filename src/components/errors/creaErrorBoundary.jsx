@@ -73,10 +73,21 @@ export function creaErrorBoundary({ nome, chiaveReset = null, messaggio, Fallbac
     }
 
     componentDidCatch(error, info) {
+      // M-4 dell'audit del 5 settembre. Il progetto non ha `@types/react` (mai
+      // installato — provato ad aggiungerlo per questo stesso rilievo: risolve
+      // `this.props`/`this.setState` qui, ma rende `CSSProperties` reale e fa
+      // fallire ~40 controlli altrove sugli oggetti di stile inline, `src/hooks/`
+      // già a zero compreso — è il dominio di M-5, che l'audit stesso segna
+      // "non aggredire senza una ragione di prodotto"). Senza quel pacchetto
+      // `React.Component` non è tipizzato, quindi `this.props`/`.state`/
+      // `.setState` — ereditati per davvero a runtime, invisibili a `tsc` — non
+      // risultano su `Boundary`. `self` è un cast locale, di sola lettura per
+      // il type-checker: zero effetto a runtime.
+      const self = /** @type {any} */ (this);
       // Il dettaglio completo vive QUI, in console, con accanto lo stesso
       // codice mostrato a schermo: è la coppia che rende il codice utile.
       console.error(
-        `[VoyageDesk] ${messaggio(this.props)} (${this.state.codice}):`,
+        `[VoyageDesk] ${messaggio(self.props)} (${self.state.codice}):`,
         error, info,
       );
       // A-4 (audit UX/errori del 1 settembre): un crash di render è l'ALTRO
@@ -86,13 +97,14 @@ export function creaErrorBoundary({ nome, chiaveReset = null, messaggio, Fallbac
       // parte tranne la console di chi l'ha avuto. `info.componentStack` (lo
       // stack dei COMPONENTI, non delle funzioni) è spesso più utile di
       // `error.stack` per capire DOVE nell'albero è esploso.
-      registraSegnalazione(this.state.codice, nome, error, info?.componentStack);
-      this.setState({ info });
+      registraSegnalazione(self.state.codice, nome, error, info?.componentStack);
+      self.setState({ info });
     }
 
     render() {
-      const { error, info, codice, obsoleto } = this.state;
-      if (!error) return this.props.children;
+      const self = /** @type {any} */ (this);
+      const { error, info, codice, obsoleto } = self.state;
+      if (!error) return self.props.children;
       // Un chunk mancante NON è un errore di QUESTA vista o di QUESTO modale:
       // è la scheda che sta girando su un deploy che non esiste più. La via
       // d'uscita dei tre pannelli (ricarica / torna alla Dashboard / chiudi)
@@ -100,7 +112,7 @@ export function creaErrorBoundary({ nome, chiaveReset = null, messaggio, Fallbac
       // tre ripara QUESTO, e due su tre richiudono il ciclo. Qui il rimedio è
       // uno solo per tutti e tre (A-4).
       if (obsoleto) return <PannelloAppAggiornata />;
-      return <Fallback error={error} info={info} codice={codice} onReset={this.props.onReset} />;
+      return <Fallback error={error} info={info} codice={codice} onReset={self.props.onReset} />;
     }
   }
 

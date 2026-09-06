@@ -89,11 +89,13 @@ dove sta il controllo di ruolo. Verificato uno per uno, **rileggendo
 | `importa_backup(jsonb, uuid)` | `private.is_admin()`, dal 15 agosto (migrazione `20260815231000`) | ok |
 | `rimuovi_beneficiario_lista(uuid, uuid)` | `private.can_liste()` | ok |
 | `sposta_titolare_lista(uuid, uuid, uuid)` | `private.can_liste()` | ok |
-| `send_test_push()` | `private.is_active_user()`, scrive solo sulla propria riga | ok |
+| `send_test_push()` | `private.is_active_user()`, scrive solo sulla propria riga, `rate_limit_incrementa` a 5/ora per chiamante (B-5 dell'audit del 5 settembre) | ok |
+| `sonda_audit_clients_update()` | nessuna — voluto: scrive un cliente di prova fisso e lo annulla con un rollback interno prima di ritornare, nessun dato restituito oltre un conteggio. M-2 dell'audit del 5 settembre, usata da `.github/workflows/rls.yml` per verificare che `trg_audit_clients_update` scriva davvero | ok, dal 5 settembre |
 | ~~`registra_audit(text, text, text, jsonb)`~~ | **non più esposta**: riservata a `service_role` dal 4 settembre (migrazione `20260904143756`, A-2 dell'audit del 4 settembre). La riga che stava qui — «nessun parametro attore, lo ricava da `auth.uid()`, quindi non è firmabile per conto d'altri» — era vera e non bastava: `action`, `target_type`, `target_id` e `details` li sceglieva il chiamante, la funzione non aveva né tetti di lunghezza né limite di frequenza, e passavano anche un utente **disattivato** e un invitato **pending** (una `SECURITY DEFINER` non attraversa la RLS, quindi `rls_active_only` non si applica). Non poter firmare per conto d'altri conta poco su un registro che chiunque può riempire. Revocata invece che messa dietro un gate perché **non aveva un chiamante legittimo**: nessun percorso dell'app la usa (i trigger di riga girano come proprietario, le Edge Function inseriscono direttamente via `_shared/audit.ts`). Tolta anche da `FUNZIONI_SECURITY_DEFINER_VERIFICATE`, così un eventuale nuovo `GRANT` fa fallire `verifica:advisor` | ✔ chiusa il 4 settembre |
 | `get_vapid_public_key()` | nessuna — **ed è corretto**: restituisce la metà *pubblica* della coppia VAPID, che il browser deve avere per sottoscriversi | ok |
 | `get_migrazioni_applicate()` | nessuna — voluto, vedi sopra: non espone nulla che non sia già nel repo. Raggiungibile anche da `anon` | ok |
 | ~~`audit_clients_insert()` · `audit_clients_delete()` · `audit_liste_truncate()` · `audit_users_delete()` · `audit_users_privilegi()`~~ | nessuna, e non serviva: `RETURNS trigger`, quindi la rotta `/rest/v1/rpc/<nome>` che l'advisor nomina non era comunque chiamabile — l'attore che scrivono lo prendono da `auth.uid()` attraverso `private.audit()`. Erano però le uniche cinque `SECURITY DEFINER` del progetto rimaste con `EXECUTE` a `PUBLIC`/`anon`/`authenticated`, invece della revoca esplicita che ha ogni altra: la stessa falla di disciplina di `registra_audit`, qui senza nemmeno un chiamante teorico (l'esecutore di una trigger function è il proprietario della tabella, non il ruolo che ha innescato l'evento). Revocato con la 4 settembre (M-3, migrazione `20260904160804`); tolte anche da `FUNZIONI_SECURITY_DEFINER_VERIFICATE`, così un eventuale nuovo `GRANT` su una delle cinque fa fallire `verifica:advisor` | ✔ chiusa il 4 settembre |
+| `audit_clients_update()` | nessuna, e non serve per lo stesso motivo delle cinque sopra: `RETURNS trigger`, `EXECUTE` revocato da `public`/`anon`/`authenticated` nella STESSA migrazione che la crea (M-2 dell'audit del 5 settembre, `20260905130000`) — a differenza delle cinque, qui la revoca non è arrivata dopo | ok, dal 5 settembre |
 | `segnala_errore_client(text, text, text, text, text, text)` | **limiti nel corpo**, non un gate di ruolo: è raggiungibile da `anon` di proposito (un crash può avvenire prima del login, e un errore che non riesce a segnalare sé stesso perché richiederebbe una sessione sarebbe un controsenso). Tetti di lunghezza su ogni campo, 60 righe/minuto per utente autenticato e 10/minuto per **tutti gli anonimi insieme**, potatura opportunistica a 90 giorni con tetto di 5.000 righe (migrazione `20260903094500`) | ok, dal 3 settembre |
 
 > ⚠️ **Non "risolvere" questi warning revocando EXECUTE.** Le RPC sono il modo
@@ -191,11 +193,15 @@ non ancora attivato, con il ruolo già scritto, superava i controlli di ruolo.
 
 **B-1 dell'audit del 4 settembre** ha aggiunto due helper della stessa
 famiglia, dedicati a `clients` (che prima ripeteva in linea, in quattro
-policy, la stessa `EXISTS (SELECT 1 FROM users WHERE …)`):
+policy, la stessa `EXISTS (SELECT 1 FROM users WHERE …)`). Fino al 5 settembre
+guardavano solo il ruolo; **B-1 dell'audit del 5 settembre** ha aggiunto
+`active AND NOT pending` al corpo di entrambe — non sfruttabile nel frattempo
+perché la RESTRICTIVE `rls_active_only` lo imponeva comunque su `clients`, ma
+il nome delle funzioni prometteva un verdetto che il corpo non dava:
 
 ```
-private.can_clienti_scrittura()    role IN (admin, manager, agent) AND active
-private.can_clienti_eliminazione() role IN (admin, manager)        AND active
+private.can_clienti_scrittura()    role IN (admin, manager, agent) AND active AND NOT pending
+private.can_clienti_eliminazione() role IN (admin, manager)        AND active AND NOT pending
 ```
 
 Rispecchiano `canEditClient`/`canDeleteClient` in `src/lib/permissions.js`,
@@ -450,18 +456,19 @@ dato.
 **`Cross-Origin-Embedder-Policy`** aggiunto il 23 agosto (B-4 dell'audit di
 quel giorno): senza COEP, `COOP: same-origin` da solo non basta a isolare
 completamente l'origine da attacchi a canale laterale (Spectre e simili). Il
-valore è deliberatamente `credentialless` e non `require-corp`: quest'ultimo
-pretenderebbe un header `Cross-Origin-Resource-Policy` su OGNI risorsa
-cross-origin caricata dalla pagina, e l'unica che l'app ha — il foglio di
-stile di Google Fonts (`fonts.googleapis.com`, che a sua volta scarica i file
-da `fonts.gstatic.com`) — non lo manda; con `require-corp` i font
-smetterebbero di caricare. `credentialless` isola comunque l'origine ma
-esenta le richieste cross-origin fatte SENZA credenziali (cookie, header
-`Authorization`), che è esattamente il caso dei font: nessuna richiesta della
-pagina verso `fonts.gstatic.com` porta credenziali. Non ancora verificato in
-Chromium con build reale (stessa riserva di §8 sui limiti dichiarati) — se i
-font smettessero di caricare in produzione, il sospetto va qui prima che al
-codice applicativo.
+valore è `credentialless` e non `require-corp`: quest'ultimo pretenderebbe un
+header `Cross-Origin-Resource-Policy` su OGNI risorsa cross-origin caricata
+dalla pagina. ⚠️ **Il caso concreto che aveva deciso fra i due non esiste
+più dal 5 settembre (M-3)**: era il foglio di stile di Google Fonts
+(`fonts.googleapis.com`, che scaricava i file da `fonts.gstatic.com`), che
+non manda quell'header — con `require-corp` i font avrebbero smesso di
+caricare. Da quando i font sono auto-ospitati (stessa origine, nessun CORP
+da negoziare), la pagina non ha più **nessuna** risorsa cross-origin: la
+scelta fra `credentialless` e `require-corp` non ha più un caso che la
+decida in un verso o nell'altro. Resta `credentialless` — cambiarla senza un
+motivo nuovo sarebbe un rischio di regressione per zero guadagno — ma se una
+futura risorsa esterna tornasse ad avere bisogno di COEP, `require-corp` è
+di nuovo un'opzione aperta, non preclusa come lo era prima del 5 settembre.
 
 ---
 
@@ -662,8 +669,8 @@ limita più a segnalarla in console.
 ```
 default-src 'self';
 script-src  'self';
-style-src   'self' https://fonts.googleapis.com;
-font-src    'self' https://fonts.gstatic.com;
+style-src   'self';
+font-src    'self';
 img-src     'self' data: blob: https://vmxvnxsqfisucugcpqlc.supabase.co;
 media-src   'self' blob: https://vmxvnxsqfisucugcpqlc.supabase.co;
 connect-src 'self' https://vmxvnxsqfisucugcpqlc.supabase.co
@@ -676,6 +683,13 @@ base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'
 l'origine Supabase (i messaggi vocali della chat sono file firmati serviti da
 lì, non `blob:` puro) — un dettaglio che la stesura precedente di questo
 documento ometteva.
+
+✅ **`style-src`/`font-src` ristretti a `'self'` il 5 settembre (M-3).** I
+font (Playfair Display, DM Sans, Inter) sono ora ospitati con l'app
+(`public/fonts/`, `@font-face` in `src/styles/global.css`): nessuna richiesta
+della pagina esce più verso `fonts.googleapis.com`/`fonts.gstatic.com`. I
+paragrafi qui sotto che spiegano perché quei due domini c'erano restano per
+il contesto storico — la CSP che conta è quella appena sopra.
 
 ### Perché ogni direttiva è così
 
@@ -691,8 +705,10 @@ documento ometteva.
   e `ListeStyles`) sono diventati `src/styles/global.css` e
   `src/components/liste/liste.css`, importati da Vite ed emessi come `<link>`
   serviti da `self`. Era il terzo effetto di M-1 (audit del 12 agosto) e il
-  solo che pagasse sulla sicurezza. L'origine `fonts.googleapis.com` resta
-  perché il foglio dei font è caricato da lì con un `<link>` in `index.html`.
+  solo che pagasse sulla sicurezza. ✅ **L'origine `fonts.googleapis.com`,
+  che restava per il foglio dei font caricato da lì, è sparita anche lei il
+  5 settembre (M-3)**: i font sono auto-ospitati, `style-src 'self'` non ha
+  più eccezioni.
 
   *Gli `style={{…}}` di React non c'entrano, e questa volta è stato
   verificato invece che dedotto*: React scrive le proprietà via CSSOM
@@ -776,6 +792,11 @@ rifiuterebbe — che è esattamente il punto.
 > smette di funzionare in una di quelle quattro aree (chat con vocali, upload
 > allegati/foto profilo, modulo Liste dietro login, o più in generale il
 > realtime).
+>
+> ✅ **Il limite (2) — `fonts.gstatic.com` non osservabile da questo
+> ambiente — è chiuso dal 5 settembre (M-3), e non perché sia diventato
+> osservabile**: i font non arrivano più da lì. `font-src 'self'` serve gli
+> stessi file dell'app, quindi non c'è più un anello esterno da provare.
 
 ### Cosa monitorare, ora che è bloccante
 

@@ -3,7 +3,7 @@
 import { useState, useRef, useId } from "react";
 import { useViewport } from "../ui/Viewport.jsx";
 import { useAuth } from "../../auth/AuthContext.jsx";
-import { useIsMounted } from "../../hooks/useIsMounted.js";
+import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import { Users as UsersAPI } from "../../lib/api.js";
 import { useAvatarSrc } from "../ui/Avatar.jsx";
 import { validaCampi, emailValida, obbligatorio, primoCampoInvalido } from "../../lib/validators.js";
@@ -52,10 +52,10 @@ const ORDINE = ["name", "email"];
 //     annidati per sezione — non fusi in un valore solo — per le stesse
 //     ragioni per cui restano separati qui sotto: un reducer raggruppa i
 //     PUNTI DI SCRITTURA, non il significato dei campi.
-//   • IL FRENO AL DOPPIO INVIO del salvataggio → `salvaInVolo`, un `useState`
-//     qui. Era la quarta fetta di quel reducer, ed è l'unica delle quattro che
-//     riguarda il PROFILO e non l'account: adesso si legge accanto a
-//     `salvaProfilo`, cioè accanto a ciò che protegge.
+//   • IL FRENO AL DOPPIO INVIO del salvataggio → era la quarta fetta di quel
+//     reducer, un `useState` scritto a mano. Da B-3 (audit del 5 settembre)
+//     vive dentro `useSalvataggio` (un ref, non uno stato — vedi il
+//     preambolo dell'hook) insieme al resto del contratto di salvataggio.
 //
 // Restano DELIBERATAMENTE separati, perché sono valori indipendenti e accorparli
 // è la parte del rilievo che non va fatta:
@@ -75,7 +75,6 @@ export const ProfileEditor = ({ member, onClose }) => {
   const dispatch = useDispatch();
   const { isMobile } = useViewport();
   const { session } = useAuth();
-  const montato = useIsMounted();
   const [draft, setDraft] = useState({
     name: member.name || "",
     // Il colore non è modificabile da questa modale, ma è un campo del profilo:
@@ -104,11 +103,6 @@ export const ProfileEditor = ({ member, onClose }) => {
     setDraft(prec => ({ ...prec, [campo]: valore }));
     setErrori(prec => (prec[campo] ? { ...prec, [campo]: undefined } : prec));
   };
-  // Il freno al doppio invio del SALVATAGGIO. Era la quarta fetta del reducer
-  // locale, insieme a tre che appartenevano alla sezione account: da M-5
-  // quelle stanno con lei, e questa torna accanto a ciò che protegge.
-  const [salvaInVolo, setSalvaInVolo] = useState(false);
-
   const handlePhotoUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -125,21 +119,63 @@ export const ProfileEditor = ({ member, onClose }) => {
     reader.readAsDataURL(file);
   };
 
-  // M-2 dell'audit del 16 agosto. Il salvataggio del profilo è l'operazione
-  // più LENTA di questa modale — se la foto è nuova carica un blob sul bucket
-  // `avatars` PRIMA di scrivere il profilo — ed era l'unica delle tre senza
-  // alcuno stato in volo: nessun feedback per l'intera durata dell'upload
-  // (schermo immobile, come se il click non fosse arrivato) e nessun freno al
-  // secondo click, che ricaricava l'avatar da capo e dispatchava una seconda
-  // UPDATE_OWN_PROFILE. Le altre due operazioni del file — cambio password ed
-  // eliminazione account — avevano già `ui.pwd.esito.fase === "invio"` /
-  // `ui.elim.esito.fase === "invio"`: qui manca solo la terza.
+  // B-3 dell'audit del 5 settembre. Prima questa funzione riscriveva a mano
+  // le cinque cose che useSalvataggio esiste per non far riscrivere — freno
+  // al doppio invio su uno stato invece che su un ref, nessun messaggio
+  // inline sul rifiuto di UPDATE_OWN_PROFILE (l'errore di rete sulla foto
+  // aveva un toast, quello del profilo no: `if (res?.error) return;` e
+  // basta) — con la contraddizione che il preambolo dell'hook segnala di
+  // proposito: il commento diceva "il freno è un ref, non uno stato" mentre
+  // questo file ne usava uno.
   //
+  // `esegui` copre ENTRAMBI i passi — l'upload della foto e la UPDATE_OWN_
+  // PROFILE — perché sono un salvataggio solo agli occhi di chi lo preme.
+  // L'upload fallito è un errore di SALVATAGGIO e non un avviso: riprovare è
+  // la cosa giusta (nessuna riga scritta ancora), quindi è il ramo `{error}`
+  // del contratto, non `{avviso}`.
+  const { salva, inVolo: salvaInVolo, errore: erroreSalvataggio } = useSalvataggio(
+    async () => {
+      const trimmedEmail = draft.email.trim();
+      // Foto: se è una nuova immagine (data-URL dal crop, o una vecchia base64
+      // ancora in photo_url), caricala sul bucket 'avatars' e sostituiscila con
+      // la public URL. Così users.photo_url non contiene più il base64 (riga
+      // enorme riscaricata per tutto il team ad ogni evento realtime), ma una
+      // URL leggera. Le URL http già presenti (foto invariata) non si ricaricano.
+      let finalPhotoUrl = draft.photoUrl || null;
+      if (session && typeof draft.photoUrl === "string" && draft.photoUrl.startsWith("data:")) {
+        const { url, error: upErr } = await UsersAPI.uploadAvatar(member.id, dataUrlToBlob(draft.photoUrl));
+        if (upErr || !url) return { error: upErr ?? new Error("Foto non caricata") };
+        finalPhotoUrl = url;
+      }
+      const nome = draft.name.trim();
+      const payload = {
+        name: nome,
+        avatar: nome.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
+        color: draft.color,
+        email: trimmedEmail,
+        phone: draft.phone.trim(),
+        photoUrl: finalPhotoUrl,
+      };
+      // Aggiornamento ottimistico e persistenza sono UNA sola operazione,
+      // dichiarata in state/persistence.js (entry UPDATE_OWN_PROFILE): il
+      // registry scrive public.users (nome/iniziali/colore/foto, il trigger
+      // anti-escalation lascia passare questi campi) e public.user_contacts
+      // (email/telefono, che dallo Step S non sono più colonne di
+      // public.users), e se una delle due fallisce riporta indietro lo state
+      // e mostra il toast col messaggio del database — questo hook aggiunge
+      // solo l'unica cosa che quel toast non dice: i dati sono ancora qui.
+      return dispatch({ type: "UPDATE_OWN_PROFILE", payload });
+    },
+    { alSuccesso: onClose,
+      messaggioErrore: "Profilo non salvato. Quello che hai scritto è ancora qui, riprova." },
+  );
+
   // ⚠️ Non è il bottone disabilitato che la validazione vieta (criticità #10):
   // quello nasconde un campo mancante invece di dirlo, e resta attivo. Questo
-  // si spegne SOLO per la durata di una scrittura già partita.
-  const salvaProfilo = async () => {
-    if (salvaInVolo) return;
+  // si spegne SOLO per la durata di una scrittura già partita (dentro
+  // useSalvataggio). La validazione resta FUORI da `esegui`, prima di
+  // `salva()`: non è un esito di scrittura, è un verdetto sul form.
+  const salvaProfilo = () => {
     const trovati = validaCampi(draft, REGOLE);
     const primo = primoCampoInvalido(trovati, ORDINE);
     if (primo) {
@@ -148,59 +184,7 @@ export const ProfileEditor = ({ member, onClose }) => {
       return;
     }
     setErrori({});
-    setSalvaInVolo(true);
-    const trimmedEmail = draft.email.trim();
-    // Foto: se è una nuova immagine (data-URL dal crop, o una vecchia base64
-    // ancora in photo_url), caricala sul bucket 'avatars' e sostituiscila con
-    // la public URL. Così users.photo_url non contiene più il base64 (riga
-    // enorme riscaricata per tutto il team ad ogni evento realtime), ma una
-    // URL leggera. Le URL http già presenti (foto invariata) non si ricaricano.
-    let finalPhotoUrl = draft.photoUrl || null;
-    if (session && typeof draft.photoUrl === "string" && draft.photoUrl.startsWith("data:")) {
-      const { url, error: upErr } = await UsersAPI.uploadAvatar(member.id, dataUrlToBlob(draft.photoUrl));
-      if (!montato()) return;
-      if (upErr || !url) {
-        dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Foto non caricata: ${upErr?.message || "errore sconosciuto"}` } });
-        setSalvaInVolo(false);
-        return; // non salvo: l'utente può ritentare senza perdere la foto scelta
-      }
-      finalPhotoUrl = url;
-    }
-    const nome = draft.name.trim();
-    const payload = {
-      name: nome,
-      avatar: nome.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
-      color: draft.color,
-      email: trimmedEmail,
-      phone: draft.phone.trim(),
-      photoUrl: finalPhotoUrl,
-    };
-    // Aggiornamento ottimistico e persistenza sono UNA sola operazione,
-    // dichiarata in state/persistence.js (entry UPDATE_OWN_PROFILE): il registry
-    // scrive public.users (nome/iniziali/colore/foto, il trigger
-    // anti-escalation lascia passare questi campi) e public.user_contacts
-    // (email/telefono, che dallo Step S non sono più colonne di public.users), e
-    // se una delle due fallisce riporta indietro lo state e mostra il toast.
-    //
-    // Qui resta solo la decisione che spetta alla modale: se chiudersi. Prima
-    // le due scritture stavano in questo corpo, senza rollback e con onClose()
-    // incondizionato — l'utente vedeva il profilo aggiornato e la modale
-    // chiusa anche quando sul database non era arrivato nulla.
-    //
-    // Il dispatch sincronizzato ritorna { error }; in modalità mock e nei test
-    // può essere una spia che ritorna undefined, da cui l'accesso opzionale.
-    const res = await dispatch({ type: "UPDATE_OWN_PROFILE", payload });
-    // La modale può essere già smontata: il salvataggio riuscito la chiude, e
-    // `dispatch` è awaitato — è lo stesso contratto di useIsMounted() usato
-    // sopra per l'upload.
-    if (!montato()) return;
-    setSalvaInVolo(false);
-    // In errore la modale resta APERTA: chiuderla butterebbe via quanto è stato
-    // digitato e, subito dopo un rollback che ha appena rimesso i valori
-    // precedenti, lascerebbe l'utente davanti al profilo di prima senza un modo
-    // ovvio di riprovare.
-    if (res?.error) return;
-    onClose();
+    salva();
   };
 
   const initials = draft.name.trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "??";
@@ -327,6 +311,12 @@ export const ProfileEditor = ({ member, onClose }) => {
               Un file suo, con il proprio reducer (M-5, audit del 25 agosto);
               si nasconde da sé quando non c'è una sessione vera. */}
           <AccountSicurezza />
+
+          {/* L'esito del salvataggio del profilo, accanto al bottone che lo
+              avvia. Il toast col messaggio del database lo mostra già il
+              registry di persistenza: qui si dice l'unica cosa che il toast
+              non dice, cioè che i campi sono ancora compilati. */}
+          <FieldError id="prof-save-err">{erroreSalvataggio}</FieldError>
         </div>
 
         {/* Footer */}

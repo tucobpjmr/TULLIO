@@ -24,9 +24,11 @@ const boxF13Bold = {
 const txtF115Muted = { fontSize: 11.5, color: "var(--text-muted)" };
 
 /**
- * @param {{restanti: number, ancora: () => void}} finestra  il ritorno di `useFinestra`
- * @param {string} azione     testo del bottone, es. «Mostra altre 24 di 185»
- * @param {string} conteggio  riga sotto il bottone, es. «24 di 209 task»
+ * @param {object} props
+ * @param {{restanti: number, ancora: () => void}} props.finestra  il ritorno
+ *   di `useFinestra`
+ * @param {string} props.azione     testo del bottone, es. «Mostra altre 24 di 185»
+ * @param {string} props.conteggio  riga sotto il bottone, es. «24 di 209 task»
  */
 export function MostraAltri({ finestra, azione, conteggio }) {
   if (finestra.restanti <= 0) return null;

@@ -16,9 +16,11 @@ import './styles/global.css';
 // un errore avvenuto prima dell'aggancio è per definizione fuori portata.
 installaHandlerGlobali();
 
-// Service worker per le Web Push (public/sw.js): solo notifiche, nessun
-// caching. La sottoscrizione vera avviene dal toggle nel pannello notifiche;
-// qui registriamo soltanto, così navigator.serviceWorker.ready è già risolto.
+// Service worker (public/sw.js): Web Push + guscio offline (M-1, audit del
+// 5 settembre) — mette in cache SOLO l'HTML/JS/CSS/font dell'app, mai le
+// risposte di Supabase. La sottoscrizione push vera avviene dal toggle nel
+// pannello notifiche; qui registriamo soltanto, così
+// navigator.serviceWorker.ready è già risolto.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch((e) => {

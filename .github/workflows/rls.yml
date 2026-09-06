@@ -84,3 +84,16 @@ jobs:
           RLS_TEST_PENDING_EMAIL: ${{ secrets.RLS_TEST_PENDING_EMAIL }}
           RLS_TEST_PENDING_PASSWORD: ${{ secrets.RLS_TEST_PENDING_PASSWORD }}
         run: npm run test:rls
+
+      # M-2 dell'audit del 5 settembre. `audit_log` a zero righe non distingue
+      # «nessuno ha modificato un cliente» da «il trigger ha smesso di
+      # scrivere» — questo passo scrive davvero e annulla (vedi la RPC
+      # public.sonda_audit_clients_update() e lo script), usando le stesse
+      # credenziali del passo sopra: nessun segreto nuovo.
+      - name: Il trigger di audit su clients (UPDATE) scrive davvero
+        env:
+          RLS_TEST_URL: ${{ secrets.RLS_TEST_URL }}
+          RLS_TEST_ANON_KEY: ${{ secrets.RLS_TEST_ANON_KEY }}
+          RLS_TEST_JUNIOR_EMAIL: ${{ secrets.RLS_TEST_JUNIOR_EMAIL }}
+          RLS_TEST_JUNIOR_PASSWORD: ${{ secrets.RLS_TEST_JUNIOR_PASSWORD }}
+        run: npm run verifica:audit-vivo

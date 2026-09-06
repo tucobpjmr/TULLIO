@@ -456,18 +456,19 @@ dato.
 **`Cross-Origin-Embedder-Policy`** aggiunto il 23 agosto (B-4 dell'audit di
 quel giorno): senza COEP, `COOP: same-origin` da solo non basta a isolare
 completamente l'origine da attacchi a canale laterale (Spectre e simili). Il
-valore è deliberatamente `credentialless` e non `require-corp`: quest'ultimo
-pretenderebbe un header `Cross-Origin-Resource-Policy` su OGNI risorsa
-cross-origin caricata dalla pagina, e l'unica che l'app ha — il foglio di
-stile di Google Fonts (`fonts.googleapis.com`, che a sua volta scarica i file
-da `fonts.gstatic.com`) — non lo manda; con `require-corp` i font
-smetterebbero di caricare. `credentialless` isola comunque l'origine ma
-esenta le richieste cross-origin fatte SENZA credenziali (cookie, header
-`Authorization`), che è esattamente il caso dei font: nessuna richiesta della
-pagina verso `fonts.gstatic.com` porta credenziali. Non ancora verificato in
-Chromium con build reale (stessa riserva di §8 sui limiti dichiarati) — se i
-font smettessero di caricare in produzione, il sospetto va qui prima che al
-codice applicativo.
+valore è `credentialless` e non `require-corp`: quest'ultimo pretenderebbe un
+header `Cross-Origin-Resource-Policy` su OGNI risorsa cross-origin caricata
+dalla pagina. ⚠️ **Il caso concreto che aveva deciso fra i due non esiste
+più dal 5 settembre (M-3)**: era il foglio di stile di Google Fonts
+(`fonts.googleapis.com`, che scaricava i file da `fonts.gstatic.com`), che
+non manda quell'header — con `require-corp` i font avrebbero smesso di
+caricare. Da quando i font sono auto-ospitati (stessa origine, nessun CORP
+da negoziare), la pagina non ha più **nessuna** risorsa cross-origin: la
+scelta fra `credentialless` e `require-corp` non ha più un caso che la
+decida in un verso o nell'altro. Resta `credentialless` — cambiarla senza un
+motivo nuovo sarebbe un rischio di regressione per zero guadagno — ma se una
+futura risorsa esterna tornasse ad avere bisogno di COEP, `require-corp` è
+di nuovo un'opzione aperta, non preclusa come lo era prima del 5 settembre.
 
 ---
 
@@ -668,8 +669,8 @@ limita più a segnalarla in console.
 ```
 default-src 'self';
 script-src  'self';
-style-src   'self' https://fonts.googleapis.com;
-font-src    'self' https://fonts.gstatic.com;
+style-src   'self';
+font-src    'self';
 img-src     'self' data: blob: https://vmxvnxsqfisucugcpqlc.supabase.co;
 media-src   'self' blob: https://vmxvnxsqfisucugcpqlc.supabase.co;
 connect-src 'self' https://vmxvnxsqfisucugcpqlc.supabase.co
@@ -682,6 +683,13 @@ base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'
 l'origine Supabase (i messaggi vocali della chat sono file firmati serviti da
 lì, non `blob:` puro) — un dettaglio che la stesura precedente di questo
 documento ometteva.
+
+✅ **`style-src`/`font-src` ristretti a `'self'` il 5 settembre (M-3).** I
+font (Playfair Display, DM Sans, Inter) sono ora ospitati con l'app
+(`public/fonts/`, `@font-face` in `src/styles/global.css`): nessuna richiesta
+della pagina esce più verso `fonts.googleapis.com`/`fonts.gstatic.com`. I
+paragrafi qui sotto che spiegano perché quei due domini c'erano restano per
+il contesto storico — la CSP che conta è quella appena sopra.
 
 ### Perché ogni direttiva è così
 
@@ -697,8 +705,10 @@ documento ometteva.
   e `ListeStyles`) sono diventati `src/styles/global.css` e
   `src/components/liste/liste.css`, importati da Vite ed emessi come `<link>`
   serviti da `self`. Era il terzo effetto di M-1 (audit del 12 agosto) e il
-  solo che pagasse sulla sicurezza. L'origine `fonts.googleapis.com` resta
-  perché il foglio dei font è caricato da lì con un `<link>` in `index.html`.
+  solo che pagasse sulla sicurezza. ✅ **L'origine `fonts.googleapis.com`,
+  che restava per il foglio dei font caricato da lì, è sparita anche lei il
+  5 settembre (M-3)**: i font sono auto-ospitati, `style-src 'self'` non ha
+  più eccezioni.
 
   *Gli `style={{…}}` di React non c'entrano, e questa volta è stato
   verificato invece che dedotto*: React scrive le proprietà via CSSOM
@@ -782,6 +792,11 @@ rifiuterebbe — che è esattamente il punto.
 > smette di funzionare in una di quelle quattro aree (chat con vocali, upload
 > allegati/foto profilo, modulo Liste dietro login, o più in generale il
 > realtime).
+>
+> ✅ **Il limite (2) — `fonts.gstatic.com` non osservabile da questo
+> ambiente — è chiuso dal 5 settembre (M-3), e non perché sia diventato
+> osservabile**: i font non arrivano più da lì. `font-src 'self'` serve gli
+> stessi file dell'app, quindi non c'è più un anello esterno da provare.
 
 ### Cosa monitorare, ora che è bloccante
 

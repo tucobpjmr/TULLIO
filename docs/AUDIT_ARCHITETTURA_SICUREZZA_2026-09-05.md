@@ -130,9 +130,9 @@ affermazioni diverse e solo la prima ha valore.
 |---|---|---|---|
 | **A-1** | 🟡 Media ⚠️ *ridimensionato da Alta il 5 settembre — la correzione va letta prima del rilievo* | `xlsx` è risolto da un **tarball su `cdn.sheetjs.com`**, non dal registry: ogni `npm ci` — CI, build Vercel, ogni macchina nuova — dipende da una terza parte. Oggi funziona (CI e Vercel verdi sul commit di questo audit) e **in questa sessione è fallito con `403 Forbidden`**: è un punto singolo di guasto **latente**, con un precedente di un mese documentato dal repo stesso. ⛔ La seconda metà del rilievo — «`npm audit` riporta due CVE già corrette» — **era sbagliata**: `npm audit` sul lockfile reale dice `found 0 vulnerabilities`. ⚠️ *Parzialmente chiuso il 5 settembre*: le due voci morte di `ALLOWLIST` sono state tolte; resta da vendorare il tarball | `package.json:30`, `package-lock.json:6316`, `scripts/verifica-audit/index.js`, `.github/workflows/ci.yml` |
 | **A-2** ✔ | ~~🔴 Alta~~ **chiuso il 5 settembre** | **L'app non ha URL.** Zero `pushState`/`popstate`/router in 286 file: nessun link condivisibile a una task, a una lista o a un cliente; il tasto Indietro di Android chiude la PWA; il refresh riporta sempre alla dashboard. Il meccanismo di deep-link **esiste già** (`?task=`/`?chat=`) ma viene consumato e cancellato al primo render. **Chiuso**: `src/hooks/useUrlStato.js` — vedi «Come è stato chiuso (A-2)» in fondo | `src/state/reducer.js` (`activeView`), `src/hooks/usePushNavigation.js:31-44`, `vercel.json:2` |
-| **M-1** | 🟡 Media | **PWA senza guscio offline.** `public/sw.js` non ha alcun handler `fetch`: l'app gestisce benissimo «vado offline mentre è aperta» (due strisce persistenti) e **non gestisce affatto** «viene aperta da offline» — schermata d'errore del browser, non l'app che spiega | `public/sw.js:2`, `src/main.jsx:22-28` |
+| **M-1** ✔ | ~~🟡 Media~~ **chiuso il 5 settembre** | **PWA senza guscio offline.** `public/sw.js` non aveva alcun handler `fetch`: l'app gestiva benissimo «vado offline mentre è aperta» (due strisce persistenti) e **non gestiva affatto** «viene aperta da offline» — schermata d'errore del browser, non l'app che spiega | `public/sw.js:2`, `src/main.jsx:22-28` |
 | **M-2** ✔ | ~~🟡 Media~~ **chiuso il 5 settembre** | **Il registro di audit su `clients` era parziale e non verificabile.** Nessun trigger su `UPDATE` — nome, email, telefono, indirizzo e note di **885 persone esterne al team** si modificavano senza traccia; l'`INSERT` registrava solo gli import multi-riga (`if v_n > 1`). `audit_log` aveva **0 righe** e nulla distingueva «non è successo niente di registrabile» da «ha smesso di funzionare» | DB (`audit_clients_insert`, `pg_trigger` su `clients`), `supabase/migrations/20260826214000_audit_log.sql` |
-| **M-3** | 🟡 Media | **Google Fonts da CDN di terza parte** in un `<link>` bloccante: l'IP di ogni visitatore raggiunge Google prima di qualunque consenso, i font non sono disponibili offline, e un dominio esterno sta sul percorso critico di rendering di un gestionale che tratta PII di clienti | `index.html:26-31`, `vercel.json:16` (`style-src`/`font-src`) |
+| **M-3** ✔ | ~~🟡 Media~~ **chiuso il 5 settembre** | **Google Fonts da CDN di terza parte** in un `<link>` bloccante: l'IP di ogni visitatore raggiungeva Google prima di qualunque consenso, i font non erano disponibili offline, e un dominio esterno stava sul percorso critico di rendering di un gestionale che tratta PII di clienti | `index.html:26-31`, `vercel.json:16` (`style-src`/`font-src`) |
 | **M-4** | 🟡 Media | **Riportato dal 4 settembre (`M-5`), ancora aperto.** `checkJs` copre `src/lib` + `src/state` + `src/hooks`; `src/components` — **184 file**, la maggioranza del sorgente — resta fuori, e `strict` è `false` | `jsconfig.json:52-56` |
 | **M-5** | 🟡 Media | **Riportato dal 4 settembre (`M-8`), ancora aperto.** 335 `style={{…}}` inline dinamici e ~344 costanti a nomi meccanici, nessun design system, nessun tema scuro | `src/styles/`, 15 × `*Styles.js` |
 | **B-1** ✔ | ~~🟢 Bassa~~ **chiuso il 5 settembre** | `private.can_clienti_scrittura()` e `can_clienti_eliminazione()` — introdotte **ieri** da `B-1` del 4 settembre — erano le uniche `private.can_*` che **non** contenevano `active AND NOT pending`: `can_liste()`, `can_use_task_category()`, `can_view_global_queue()` ce l'hanno tutte. Non era sfruttabile (`rls_active_only` le AND-a), ma il nome prometteva una risposta completa che il corpo non dava | DB (`private.can_clienti_scrittura`, `can_clienti_eliminazione`) |
@@ -1112,8 +1112,8 @@ end $$;
 | ~~2~~ | **B-1**, **B-5** (due migrazioni SQL piccole) ✔ | **Fatte il 5 settembre**: applicate e verificate scrivendo davvero, prima su staging poi in produzione — vedi «Come sono stati chiusi (B-1, B-5)» in fondo |
 | ~~3~~ | **M-2** (audit su `clients` + sonda) ✔ | **Fatta il 5 settembre**: `trg_audit_clients_update` + `public.sonda_audit_clients_update()`, applicate e verificate scrivendo davvero — vedi «Come è stato chiuso (M-2)» in fondo |
 | 4 | **A-1** — metà «vendorare il tarball» | Da fare da un ambiente che raggiunge `cdn.sheetjs.com`: nessuna urgenza (CI e Vercel verdi), nessun blocco a valle |
-| 5 | **M-1** (guscio offline) | Dopo A-2: con gli URL, il service worker ha una forma canonica da servire e il caso «riapri sull'ultima vista da offline» diventa provabile |
-| 6 | **M-3** (font in proprio) | Subito dopo M-1, perché è la risorsa che altrimenti manca da offline — e perché restringe la CSP, cosa che si vuole fare quando il resto è stabile |
+| ~~5~~ | **M-1** (guscio offline) ✔ | **Fatto il 5 settembre**: handler `fetch` nel service worker, solo guscio — vedi «Come sono stati chiusi (M-1, M-3)» in fondo |
+| ~~6~~ | **M-3** (font in proprio) ✔ | **Fatto il 5 settembre**, subito dopo M-1: font auto-ospitati in `public/fonts/`, CSP ristretta a `style-src 'self'; font-src 'self'` |
 | 7 | **B-2**, **B-3**, **B-4** | Tre correzioni di coerenza, nessuna urgente, tutte piccole. B-4 va fatta con l'attenzione al confine `VIETATI_MODULI_API_INTERNI` |
 | 8 | **M-4** (`checkJs` su `components/ui`) | Un passo alla volta, quando c'è una sessione da dedicargli: si allarga quando la cartella nuova è a zero, non prima |
 | — | **M-5** (stili) | ⛔ **Non aggredire senza una ragione di prodotto.** Vedi il rilievo |
@@ -1324,7 +1324,90 @@ comportamento visibile dal client non cambia per un utente attivo e non
 
 ---
 
-## Come è stato chiuso (M-2)
+## Come sono stati chiusi (M-1, M-3)
+
+⚠️ **`npm ci` fallisce in questa sessione con lo stesso `403` su
+`cdn.sheetjs.com` che `A-1` descrive** — non un guasto nuovo, lo stesso punto
+singolo di guasto latente, incontrato di persona. Non è stato quindi
+possibile eseguire `npm run build` / `npm run preview` né aprire un browser:
+la verifica che segue è per lettura e per esecuzione **fuori** dal
+progetto (fetch reali dei font, ispezione dei file scaricati), non la prova
+in Chromium con DevTools → Network → Offline che M-1 stesso prescrive.
+**Resta da fare, appena l'ambiente raggiunge il registry npm/CDN.**
+
+### M-1 · Il guscio
+
+`public/sw.js` ha ora `install`/`activate`/`fetch` accanto ai tre handler
+push esistenti (erano `install`/`activate` già presenti, minimali — estesi
+sul posto invece di aggiungere un secondo listener per evento, che avrebbe
+lasciato due lifecycle separati nello stesso file). Verificato per lettura
+contro il comportamento atteso: il guard `url.origin !== self.location.origin`
+esclude Supabase per costruzione (nessuna chiamata REST o realtime passa da
+un `origin` diverso dal proprio), le navigazioni provano la rete e cadono sul
+guscio in cache solo al `catch`, gli asset seguono cache-poi-rete con
+aggiornamento in sottofondo.
+
+⚠️ **Il rischio che l'audit stesso segnalava — un chunk lazy servito dalla
+cache vecchia insieme a un `index.html` nuovo dopo un deploy — non è stato
+escluso da un test reale**, solo dal ragionamento già scritto nel rilievo
+(`OverlayErrorBoundary` intorno a ogni `lazy()` lo rende recuperabile). La
+sequenza da eseguire appena possibile è quella già prescritta: `npm run
+build`, `npm run preview`, DevTools → Network → Offline, ricarica, poi un
+secondo build con la scheda aperta.
+
+### M-3 · I font
+
+Le tre famiglie (Playfair Display, DM Sans, Inter) sono **font variabili**
+su Google Fonts — verificato scaricando i file reali e ispezionandoli con
+`fontTools` (`fvar` con asse `wght`), non dedotto dal nome. Conseguenza
+pratica: **un solo file per famiglia**, non uno per peso — la stessa @font-
+face CSS che Google Fonts genera per pesi diversi punta allo stesso file,
+lasciando al browser la scelta del punto sull'asse. `public/fonts/`:
+
+| File | Famiglia | Pesi dichiarati | Peso reale asse `wght` |
+|---|---|---|---|
+| `dm-sans.woff2` | DM Sans | 300–600 | 100–1000 |
+| `playfair-display.woff2` | Playfair Display | 400–700 | 400–900 |
+| `inter.woff2` | Inter | 400–700 | 100–900 |
+
+I pesi dichiarati in `@font-face` (`font-weight: min max`) sono esattamente
+quelli che l'URL di Google Fonts rimosso da `index.html` chiedeva — non una
+scelta nuova, la stessa copertura di prima. Sottoinsieme **latin** soltanto
+(scartati cyrillic/greek/vietnamese/latin-ext): l'app è solo in italiano
+(`docs/CLAUDE.md`), e "latin" (`U+0000-00FF` più la punteggiatura tipografica)
+copre già ogni carattere accentato che l'italiano usa — verificato
+confrontando i file scaricati con quelli reali serviti da
+`fonts.gstatic.com`, non assunto.
+
+`public/fonts/OFL.txt`: le tre licenze SIL OFL 1.1 (scaricate da
+`google/fonts` su GitHub, non trascritte a memoria) sono, corpo a parte, lo
+stesso testo — verificato per checksum, non a occhio — quindi un unico file
+con le tre righe di copyright in testa e un solo corpo, come l'audit
+prescriveva ("una volta, per tutti e tre").
+
+`index.html`: i due `preconnect` più il `<link rel="stylesheet">` verso
+Google sono spariti, sostituiti da due `<link rel="preload">` verso i file
+locali (DM Sans e Playfair Display — le due facce del primo paint; Inter
+serve solo al modulo Liste e arriva quando quel modulo monta, esattamente
+come prima). `vercel.json`: `style-src`/`font-src` ristretti a `'self'`,
+nessun'altra direttiva toccata. `docs/SICUREZZA.md` aggiornato in tre punti
+che affermavano la dipendenza da Google Fonts come fatto corrente (CSP
+trascritta, la scelta `credentialless` di COEP, il limite di verifica su
+`fonts.gstatic.com` non raggiungibile) — senza cancellare il racconto
+storico di *come* si era arrivati a quello stato.
+
+### Cosa NON è stato verificato, e va rifatto appena possibile
+
+- **Il rendering reale nel browser**: nessuna prova che i tre file `.woff2`
+  siano validi per il font engine oltre al fatto che `fontTools` li apre
+  senza errori e ne legge l'asse `wght` — non che Chromium li renda,
+  che i pesi appaiano visivamente distinti, o che `font-display: swap` non
+  produca un salto di layout percepibile.
+- **Il service worker in un browser vero**, sequenza sopra.
+- **`npm run verifica:bundle`**: i due `preload` in più e la rimozione dei
+  due `preconnect` cambiano `dist/index.html`; le soglie potrebbero dover
+  scendere (mai salire) se il first load anonimo cala, com'è atteso senza
+  più un round-trip DNS+TLS verso Google.
 
 `supabase/migrations/20260905130000_audit_clients_update.sql` — il trigger
 `trg_audit_clients_update` + la funzione `audit_clients_update()` (registra

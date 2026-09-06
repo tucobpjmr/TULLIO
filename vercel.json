@@ -13,7 +13,7 @@
         { "key": "Cross-Origin-Embedder-Policy", "value": "credentialless" },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://vmxvnxsqfisucugcpqlc.supabase.co; media-src 'self' blob: https://vmxvnxsqfisucugcpqlc.supabase.co; connect-src 'self' https://vmxvnxsqfisucugcpqlc.supabase.co wss://vmxvnxsqfisucugcpqlc.supabase.co; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob: https://vmxvnxsqfisucugcpqlc.supabase.co; media-src 'self' blob: https://vmxvnxsqfisucugcpqlc.supabase.co; connect-src 'self' https://vmxvnxsqfisucugcpqlc.supabase.co wss://vmxvnxsqfisucugcpqlc.supabase.co; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'"
         }
       ]
     }

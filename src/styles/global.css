@@ -13,6 +13,49 @@
    style, che React continua a usare per gli stili che dipendono dallo stato.
    Un secondo effetto, gratuito: il CSS non aspetta più il mount di React. */
 
+/* ─── FONT AUTO-OSPITATI (M-3, audit del 5 settembre) ───
+   Prima: un <link rel="stylesheet"> verso fonts.googleapis.com in index.html.
+   L'IP di ogni visitatore raggiungeva Google prima di qualunque interazione,
+   i font non erano disponibili offline (M-1 mette in cache il guscio, non
+   più valido se manca l'unica risorsa esterna del guscio) e un dominio in
+   più stava sul percorso critico di rendering.
+   Le tre famiglie sono VARIABILI (asse "wght", verificato scaricando i file
+   e leggendone la tabella fvar): un solo file per famiglia, una singola
+   regola @font-face con `font-weight: min max` che copre l'intervallo
+   usato nell'app — il CSS che Google Fonts generava faceva la stessa cosa
+   con più regole discrete, tutte sullo stesso file; l'intervallo qui fa lo
+   stesso lavoro in una riga. Sottoinsieme "latin" soltanto: l'app è solo in
+   italiano (docs/CLAUDE.md), che il subset "latin" (U+0000-00FF e la
+   punteggiatura tipografica) copre già per intero — cyrillic/greek/
+   vietnamese/latin-ext non sono mai serviti a un browser reale qui.
+   Licenza SIL OFL 1.1 in fonts/OFL.txt (richiede che accompagni i file,
+   permette l'hosting proprio). */
+@font-face {
+  font-family: 'DM Sans';
+  src: url('/fonts/dm-sans.woff2') format('woff2');
+  font-weight: 300 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Playfair Display';
+  src: url('/fonts/playfair-display.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  /* Solo per il modulo Liste viaggio (components/liste/liste.css). Non
+     precaricata in index.html: arriva quando quel modulo monta, come
+     succedeva già con il <link> di Google (scaricato una volta, non
+     bloccante per il resto dell'app). */
+  font-family: 'Inter';
+  src: url('/fonts/inter.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ─── SAFE AREA (iPhone) ───
    Con viewport-fit=cover + apple-mobile-web-app-status-bar-style
    black-translucent (vedi i meta in index.html) la web view occupa TUTTO lo
@@ -31,13 +74,6 @@
   --safe-right: env(safe-area-inset-right, 0px);
 }
 
-/* UNICA richiesta di font dell'app (Playfair Display, DM Sans, Inter —
-   quest'ultimo per il solo modulo Liste viaggio, liste/liste.css).
-   M-6 dell'audit del 13 agosto: era un @import qui dentro, scoperto dal
-   browser solo dopo che React montava il componente che iniettava questo
-   foglio — bundle JS, parse ed esecuzione già passati. Il <link rel="stylesheet"> in
-   index.html (con i preconnect a googleapis/gstatic) lo scarica invece
-   in parallelo al parse dell'HTML iniziale, senza aspettare il mount. */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
   --navy: #0F2044;

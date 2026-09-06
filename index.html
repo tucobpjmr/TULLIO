@@ -12,21 +12,20 @@
     <meta name="apple-mobile-web-app-title" content="VoyageDesk" />
     <link rel="apple-touch-icon" sizes="192x192" href="/apple-touch-icon-192.png" />
     <link rel="apple-touch-icon" sizes="512x512" href="/apple-touch-icon-512.png" />
-    <!-- M-6 dell'audit del 13 agosto: era un @import dentro un <style> che
-         un componente React iniettava al mount (oggi src/styles/global.css).
-         Un @import in un foglio di stile scoperto solo dopo il mount di React
-         parte dopo il bundle JS, il parse e il primo render — un round-trip
-         extra e completamente seriale verso fonts.googleapis.com. Un <link>
-         nell'HTML iniziale è invece visto dal preload scanner del browser
-         prima ancora che il parser raggiunga <body>, e i preconnect qui sotto
-         aprono la connessione (DNS+TLS) a googleapis/gstatic in anticipo
-         invece di scoprirla solo quando il CSS del font arriva. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=Inter:wght@400;500;600;700&display=swap"
-    />
+    <!-- M-3 dell'audit del 5 settembre: i font sono ospitati con l'app
+         (src/styles/global.css ha le regole @font-face, public/fonts/ i
+         file). Il <link rel="stylesheet"> a fonts.googleapis.com — M-6 del
+         13 agosto lo aveva reso un <link> invece di un @import proprio per
+         essere visto dal preload scanner prima di <body> — mandava comunque
+         l'IP di ogni visitatore a un terzo prima di qualunque interazione,
+         teneva un dominio esterno sul percorso critico e, da quando il
+         service worker mette in cache il guscio (M-1), sarebbe stata
+         l'unica risorsa del guscio a mancare da offline.
+         `preload` sulle due facce del primo paint (corpo + titoli): Inter
+         serve solo al modulo Liste viaggio e arriva quando quel modulo
+         monta, senza bloccare nessuno. -->
+    <link rel="preload" href="/fonts/dm-sans.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/playfair-display.woff2" as="font" type="font/woff2" crossorigin />
     <!-- I token safe-area (--safe-top/bottom/left/right) stavano qui, in un
          <style> inline. Sono passati in src/styles/global.css: Vite lo emette
          come <link> in questo stesso <head>, quindi valgono ancora prima del

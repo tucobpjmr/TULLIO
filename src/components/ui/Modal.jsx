@@ -26,14 +26,17 @@ import { useTrappolaFocus } from "../../hooks/useTrappolaFocus.js";
 const VELO = "rgba(15,32,68,0.5)";
 
 /**
- * @param {boolean}   open
- * @param {function}  onClose      chiamata da Esc e dal click sull'overlay
- * @param {string}    [labelledBy] id del titolo, per aria-labelledby
- * @param {number}    [width]      larghezza massima della card (px)
- * @param {number}    [padding]    padding dell'overlay attorno alla card
- * @param {'modal'|'modalFull'} [layer] scala z-index (vedi styles/tokens.js)
- * @param {object}    [cardStyle]  override dello stile della card
- * @param {boolean}   [closeOnOverlay=true]
+ * @param {object}    props
+ * @param {boolean}   props.open
+ * @param {function}  props.onClose      chiamata da Esc e dal click sull'overlay
+ * @param {string}    [props.labelledBy] id del titolo, per aria-labelledby
+ * @param {number|string} [props.width]  larghezza massima della card — un
+ *   numero (px) o un valore CSS (`"min(420px, 96vw)"`, `"calc(100vw - 32px)"`)
+ * @param {number}    [props.padding]    padding dell'overlay attorno alla card
+ * @param {'modal'|'modalFull'} [props.layer] scala z-index (vedi styles/tokens.js)
+ * @param {object}    [props.cardStyle]  override dello stile della card
+ * @param {boolean}   [props.closeOnOverlay=true]
+ * @param {import('react').ReactNode} [props.children]
  */
 export function Modal({
   open, onClose, labelledBy, width = 500, padding = 16,

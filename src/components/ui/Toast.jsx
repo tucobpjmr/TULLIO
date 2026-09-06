@@ -56,6 +56,12 @@ export const ToastStack = ({ toasts = [] }) => {
         </div>
       )}
       {visibili.map((t) => (
+        // M-4 dell'audit del 5 settembre: senza `@types/react` (vedi
+        // creaErrorBoundary.jsx) `tsc` non sa che `key` è una prop speciale
+        // di JSX, tolta da React prima che il componente la riceva — la
+        // controlla come se fosse un campo vero di `ToastItem`, che non ce
+        // l'ha. Codice corretto, limite del checker senza quel pacchetto.
+        // @ts-expect-error key è gestita da React, non da ToastItem
         <ToastItem key={t.id} toast={t} />
       ))}
     </div>

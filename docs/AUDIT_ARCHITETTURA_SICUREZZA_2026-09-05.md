@@ -786,10 +786,11 @@ un trasloco:
 
 ### M-4 · `checkJs` non copre `src/components` — 184 file
 
-**Riportato dal 4 settembre (`M-5`), avanzato di un passo su tre.**
+**Riportato dal 4 settembre (`M-5`), passo 1 fatto il 5 settembre — vedi
+«Come è stato chiuso (M-4, passo 1)» in fondo.**
 
-`jsconfig.json` include `src/lib`, `src/state` e — da ieri — `src/hooks`.
-Restano fuori `src/components`: **184 file**, la maggioranza del sorgente e
+`jsconfig.json` includeva `src/lib`, `src/state` e — da ieri — `src/hooks`.
+Restava fuori `src/components`: **184 file**, la maggioranza del sorgente e
 l'unica parte che nessuno dei due controlli automatici raggiunge (`checkJs`
 non la guarda, e i test la coprono per comportamento, non per forma).
 
@@ -797,7 +798,8 @@ La regola del progetto è giusta e va tenuta: si allarga quando la cartella
 nuova è a zero, non prima. Il passo successivo non è però `src/components`
 intero — è un salto di scala, e allargare tutto insieme produce un elenco di
 errori che nessuno chiude in una sessione. La strada è per **sottocartella**,
-partendo da quelle che il resto dell'app importa di più:
+partendo da quelle che il resto dell'app importa di più. **Fatto il 5
+settembre**, esattamente come proposto qui sotto:
 
 ```jsonc
 "include": [
@@ -1568,3 +1570,127 @@ Nessuna migrazione SQL in questo batch: B-2/B-3/B-4 sono codice
 applicativo, non schema. Nessuna policy RLS toccata, nessun permesso nuovo,
 nessuna dipendenza aggiunta o aggiornata — l'`xlsx` sul registry è stato
 solo un ambiente di verifica temporaneo, mai arrivato a un commit.
+
+---
+
+## Come è stato chiuso (M-4, passo 1)
+
+`jsconfig.json` include ora anche `src/components/ui/**/*.jsx`, esattamente
+com'era proposto qui sopra. Non è stato un allargamento isolato: `tsc`
+type-checka ogni file RAGGIUNGIBILE dalle radici dichiarate in `include`,
+non solo le radici stesse — quindi sono entrati anche `src/state/
+AppDataContext.jsx`/`DispatchContext.jsx` (importati da `CategoryChip.jsx`/
+`Avatar.jsx`/`MentionText.jsx`/`ToastItem.jsx`) e `src/components/errors/
+creaErrorBoundary.jsx` (importato da `LazyPanel.jsx`). I primi due erano
+`.jsx` in una cartella che l'`include` dichiarava già `src/state/**/*.js`:
+non erano mai stati controllati per una svista nel glob, non per scelta.
+
+### Un rilievo dentro il rilievo: `@types/react` non è mai esistito qui
+
+`creaErrorBoundary.jsx` è arrivato con **4 errori**: `Property 'props' does
+not exist on type 'Boundary'` sulla sua unica classe (`class Boundary
+extends React.Component`). La causa non era il JSDoc del file — è che
+questo repository non ha **mai** installato `@types/react`. Per una
+funzione o un hook questo è innocuo: senza quei tipi `React` risolve ad
+`any`, e `any` è compatibile con tutto in silenzio. Per una CLASSE che
+estende `React.Component` (anch'esso `any`) non lo è: `tsc` non propaga i
+membri di un tipo `any` alla classe che lo estende, quindi `this.props` /
+`this.state` / `this.setState` — ereditati per davvero a runtime — non
+risultano dichiarati per il checker. `ui/` non ha classi proprie; le ha
+ereditate dal primo error boundary che un file `ui/` importa.
+
+**Tentativo, eseguito e poi scartato**: `npm install --save-dev
+@types/react@^18 @types/react-dom@^18` (con `xlsx` temporaneamente sul
+registry, stessa tecnica di sopra) risolve i 4 errori — e ne apre **circa
+40 altri**, `src/hooks/` **già a zero compreso** (`useAppHydration.js`,
+`useCaricamento.js`, `useSalvataggio.js`, `useTrappolaFocus.js`). La
+ragione è la stessa, letta al contrario: con `@types/react` vero,
+`CSSProperties` smette di essere `any` e diventa il tipo reale di React —
+`position`/`textAlign`/`flexDirection`/`overflowY`/`pointerEvents`/…sono
+union di stringhe letterali (`"absolute"`, non `string`), mentre ogni
+oggetto di stile di questo repository (`const riquadro = { position:
+"absolute", … }`, migliaia di occorrenze) è inferito con tipi larghi
+(`string`) perché nessuno scrive `as const`. È esattamente il dominio di
+**M-5** — il sistema di stili — che questo stesso audit segna «⛔ Non
+aggredire senza una ragione di prodotto». Installare una devDependency
+type-only per chiudere quattro errori e riaprirne quaranta altrove,
+comprese cartelle già dichiarate a zero, avrebbe rotto l'invariante del
+ratchet stesso. Scartato: `package.json`/`package-lock.json` riportati
+bit per bit all'originale (verificato — `git diff --stat` vuoto su
+entrambi), `node_modules/@types/react*` rimossi a mano per confermare lo
+zero senza quel pacchetto prima di continuare.
+
+**Corretto localmente invece**, in `creaErrorBoundary.jsx`: un cast
+`const self = /** @type {any} */ (this);` in testa a `componentDidCatch` e
+`render`, con un commento che nomina la causa (nessun `@types/react`) e il
+motivo per cui non si è risolta a monte. Zero effetto a runtime — è
+solo un'annotazione JSDoc, che Vite/Babel ignorano in fase di build.
+
+### Gli altri 20 errori di `ui/`: due famiglie, nessuna delle due un bug vero
+
+**Un `@param` piatto su un parametro destrutturato** (`Modal.jsx`,
+`LazyPanel.jsx`, `MostraAltri.jsx`, `StatoEntita.jsx`): scrivere `@param
+{boolean} open` quando la funzione riceve `({ open, onClose, … })` fa sì
+che `tsc` assegni QUEL tipo all'INTERO primo parametro, invece che al
+campo — `Modal.jsx` risultava letteralmente tipizzato `{ open: boolean;
+… }` come se fosse un booleano solo. La forma corretta, già in uso altrove
+nel repository (`useSalvataggio.js`, letta come riferimento), è `@param
+{object} props` seguito da `@param {tipo} props.campo` per ciascuno.
+Sistemata su tutti e quattro i file, con `children` aggiunto dove mancava
+(nessuno dei quattro lo dichiarava, e ogni chiamante che lo passa
+falliva). `Modal.jsx` aveva anche `width` dichiarato `number` mentre nove
+call site reali passano sia numeri (`420`, `820`) sia valori CSS
+(`"min(420px, 96vw)"`, `"calc(100vw - 32px)"`): il tipo corretto è
+`number|string`, verificato leggendo TUTTI i call site di `<Modal
+width=…>` nel repository, non solo quello che stava fallendo.
+
+**Un valore opzionale senza un default nella destrutturazione**
+(`ContactMenuItem.jsx`: `target`/`rel`; `ContactActions.jsx`: `style`):
+senza JSDoc, `tsc` inferisce il tipo di un parametro destrutturato dalla
+sua FORMA — un campo senza default risulta obbligatorio. Due dei tre
+call site di `ContactMenuItem` (Chiama, SMS) omettono `target`/`rel` a
+ragione veduta (sono `tel:`/`sms:`, non link esterni); il terzo
+(WhatsApp) li passa. Corretto dando un default esplicito (`target =
+undefined`): zero cambiamento di comportamento, `undefined` era già il
+valore effettivo quando la prop non arriva.
+
+**Un caso a parte**: `Toast.jsx` passava `<ToastItem key={t.id}
+toast={t} />`, e `tsc` segnalava `key` come proprietà mancante sul tipo
+di `ToastItem`. `key` è una prop speciale di JSX — React la consuma per
+la riconciliazione e non la passa mai al componente — ma è
+`@types/react` a dichiararlo (`JSX.LibraryManagedAttributes`), non
+qualcosa che `tsc` sa di suo. Senza quel pacchetto (vedi sopra: scartato
+di proposito) non c'è un modo pulito di annotarlo: risolto con un
+`// @ts-expect-error` mirato sulla riga, commentato con la causa. Codice
+corretto e idiomatico; è il checker, senza `@types/react`, a non saperlo
+riconoscere.
+
+### Verifica
+
+```
+npm run lint                 → 0 avvisi, 0 errori (tutto il repo)
+npm test                     → 174 file, 2145 casi passati, 0 falliti
+                                (invariato rispetto a prima di M-4:
+                                 nessuna regressione)
+npm run verifica:convenzioni → 65 controlli, nessuna divergenza
+npm run verifica:tipi        → 0 errori
+```
+
+L'ultimo comando è quello che conta per il ratchet: `src/lib/`,
+`src/state/`, `src/hooks/` e ora `src/components/ui/` sono TUTTI a zero
+insieme, nella stessa esecuzione — non ciascuno isolatamente. La stessa
+tecnica di `npm install` con `xlsx` temporaneo sul registry usata per
+B-2/B-3/B-4 ha reso possibile anche questo passo; stesso ripristino
+bit-per-bit di `package.json`/`package-lock.json` prima del commit.
+
+### Cosa resta aperto
+
+Il passo 2 (quale sottocartella dopo `ui/`) non è deciso: la scelta va
+fatta guardando quale cartella il resto dell'app importa di più, come per
+questo primo passo. `strict: true` resta l'ultimo, dopo l'ultima
+cartella. Il limite di `@types/react` documentato sopra si ripresenterà
+a ogni futura sottocartella che tocchi una classe React (i tre error
+boundary ne hanno una ciascuno) o un prop `key`: la correzione locale
+usata qui — cast mirato, mai una dipendenza nuova — è la strada finché
+`src/styles/` non avrà tipi letterali da rendere quel pacchetto innocuo
+invece che dirompente.

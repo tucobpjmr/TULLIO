@@ -17,7 +17,7 @@ const rowCenterGap6 = {
   alignItems: "center", gap: 6,
 };
 
-export function ContactActions({ phone, label, style }) {
+export function ContactActions({ phone, label, style = undefined }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
   const tel = sanitizePhone(phone);

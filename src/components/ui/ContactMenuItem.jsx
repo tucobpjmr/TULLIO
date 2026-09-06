@@ -12,7 +12,7 @@ const rowCenterGap10 = {
   borderRadius: 7, textDecoration: "none", color: "var(--text)", fontSize: 13,
   fontFamily: "inherit", whiteSpace: "nowrap",
 };
-export const ContactMenuItem = ({ href, onClick, icon, label, target, rel }) => (
+export const ContactMenuItem = ({ href, onClick, icon, label, target = undefined, rel = undefined }) => (
   <a
     href={href}
     target={target}

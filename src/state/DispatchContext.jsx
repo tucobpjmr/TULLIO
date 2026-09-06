@@ -45,6 +45,7 @@ const DispatchContext = createContext(null);
  * @param {Function} props.dispatch  il dispatch sincronizzato
  *   (hooks/useSyncedDispatch.js). L'identità è stabile per contratto: è ciò che
  *   permette a questo provider di non avere un `useMemo`.
+ * @param {import('react').ReactNode} props.children
  */
 export function DispatchProvider({ dispatch, children }) {
   return <DispatchContext.Provider value={dispatch}>{children}</DispatchContext.Provider>;

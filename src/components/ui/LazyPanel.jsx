@@ -38,17 +38,20 @@ import { OverlayErrorBoundary } from "../errors/OverlayErrorBoundary.jsx";
 import { LazyFallback } from "./LazyFallback.jsx";
 
 /**
- * @param {string} resetKey  identità del contenuto montato: cambiandola il
- *                           boundary si riarma (serve ai pannelli che restano
- *                           montati passando da un contenuto all'altro, es.
- *                           TaskSlideOver fra due task).
- * @param {() => void} onReset  chiude il pannello: è l'azione del bottone del
- *                           riquadro d'errore.
- * @param {boolean} [overlay]  variante a tutto schermo del solo FALLBACK
- *                           (l'attesa); il riquadro d'errore è già un overlay
- *                           in entrambi i casi.
- * @param {string} [label]   testo dell'attesa, per i pannelli che possono dire
- *                           qualcosa di più preciso di "Caricamento in corso…".
+ * @param {object} props
+ * @param {string} props.resetKey  identità del contenuto montato: cambiandola
+ *                           il boundary si riarma (serve ai pannelli che
+ *                           restano montati passando da un contenuto
+ *                           all'altro, es. TaskSlideOver fra due task).
+ * @param {() => void} props.onReset  chiude il pannello: è l'azione del
+ *                           bottone del riquadro d'errore.
+ * @param {boolean} [props.overlay]  variante a tutto schermo del solo
+ *                           FALLBACK (l'attesa); il riquadro d'errore è già
+ *                           un overlay in entrambi i casi.
+ * @param {string} [props.label]  testo dell'attesa, per i pannelli che
+ *                           possono dire qualcosa di più preciso di
+ *                           "Caricamento in corso…".
+ * @param {import('react').ReactNode} props.children
  */
 export function LazyPanel({ resetKey, onReset, overlay = false, label, children }) {
   return (

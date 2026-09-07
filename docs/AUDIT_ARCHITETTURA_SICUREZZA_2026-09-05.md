@@ -786,9 +786,9 @@ un trasloco:
 
 ### M-4 · `checkJs` non copre `src/components` — 184 file
 
-**Riportato dal 4 settembre (`M-5`), passo 1 fatto il 5 settembre, passo 2
-e passo 3 fatti il 7 settembre — vedi «Come è stato chiuso (M-4, passo 1)»,
-«…passo 2» e «…passo 3» in fondo.**
+**Riportato dal 4 settembre (`M-5`), passo 1 fatto il 5 settembre, passi
+2-4 fatti il 7 settembre — vedi «Come è stato chiuso (M-4, passo 1)»,
+«…passo 2», «…passo 3» e «…passo 4» in fondo.**
 
 `jsconfig.json` includeva `src/lib`, `src/state` e — da ieri — `src/hooks`.
 Restava fuori `src/components`: **184 file**, la maggioranza del sorgente e
@@ -1856,7 +1856,48 @@ zero insieme, nella stessa esecuzione.
 
 ### Cosa resta aperto
 
-Il passo 4 non è deciso. `notifications/` (2 file, già a zero) è il
-candidato più economico; le altre otto cartelle restano da misurare di
-nuovo al momento, perché ogni passo cambia cosa è già raggiunto per
-import dal resto dello scope — come `chat/` ha dimostrato per `errors/`.
+Il passo 5 (quale sottocartella dopo `notifications/`) non è deciso:
+`src/components/` ha ancora otto cartelle fuori scope (`tasks/`,
+`liste/`, `clients/`, `calendar/`, `dashboard/`, `search/`, `admin/`,
+`shell/`), da misurare di nuovo al momento — ogni passo cambia cosa è
+già raggiunto per import dal resto dello scope.
+
+---
+
+## Come è stato chiuso (M-4, passo 4)
+
+`jsconfig.json` include ora anche `src/components/notifications/**/*.jsx`
+(`NotificationsPanel.jsx`, `PushToggle.jsx`). Era il candidato indicato
+al passo 3 — il più economico delle nove cartelle misurate, già a zero
+senza alcuna modifica — e la nuova misura, con `chat/` nel frattempo
+entrato in scope, l'ha confermato: **zero errori**, riverificato prima
+di committare il jsconfig.
+
+Nessuna correzione al codice: `include` si allarga e basta, che è il
+caso limite del ratchet preso alla lettera — «si allarga quando la
+cartella nuova è a zero, non prima» qui non richiede nessun passo
+intermedio.
+
+### Verifica
+
+```
+npm run lint                 → 0 avvisi, 0 errori (tutto il repo)
+npm test                     → 174 file, 2145 casi passati, 0 falliti
+                                (invariato rispetto a prima del passo 4:
+                                 nessuna regressione)
+npm run verifica:convenzioni → 65 controlli, nessuna divergenza
+npm run verifica:tipi        → 0 errori
+```
+
+`src/lib/`, `src/state/`, `src/hooks/`, `src/components/ui/`,
+`src/components/errors/`, `src/components/chat/` e ora
+`src/components/notifications/` sono TUTTI a zero insieme, nella
+stessa esecuzione.
+
+### Cosa resta aperto
+
+Il passo 5 non è deciso. Otto cartelle restano fuori scope (`tasks/`,
+`liste/`, `clients/`, `calendar/`, `dashboard/`, `search/`, `admin/`,
+`shell/`), da 3 file (`search/`) a 36 (`liste/`) — nessuna a costo
+prossimo allo zero come le ultime tre: la prossima misura richiede
+probabilmente una correzione vera, non solo un allargamento.

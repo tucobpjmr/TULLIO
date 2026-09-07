@@ -70,7 +70,11 @@
     // hooks/useChatData.js, già in scope) e già a zero — l'intera cartella,
     // 18 file fra `.jsx` e `.js`, aveva un solo errore reale nel resto.
     "src/components/chat/**/*.jsx",
-    "src/components/chat/**/*.js"
+    "src/components/chat/**/*.js",
+    // M-4, passo 4. `notifications/` per quarta: candidato più economico fra
+    // le nove cartelle misurate al passo 3 (2 file, già a zero senza alcuna
+    // modifica) — il passo piccolo e sicuro rimandato lì.
+    "src/components/notifications/**/*.jsx"
   ],
   "exclude": [
     "node_modules"

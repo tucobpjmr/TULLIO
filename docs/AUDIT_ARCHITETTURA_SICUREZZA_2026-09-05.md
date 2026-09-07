@@ -786,8 +786,9 @@ un trasloco:
 
 ### M-4 · `checkJs` non copre `src/components` — 184 file
 
-**Riportato dal 4 settembre (`M-5`), passo 1 fatto il 5 settembre — vedi
-«Come è stato chiuso (M-4, passo 1)» in fondo.**
+**Riportato dal 4 settembre (`M-5`), passo 1 fatto il 5 settembre, passo 2
+fatto il 7 settembre — vedi «Come è stato chiuso (M-4, passo 1)» e «…passo
+2» in fondo.**
 
 `jsconfig.json` includeva `src/lib`, `src/state` e — da ieri — `src/hooks`.
 Restava fuori `src/components`: **184 file**, la maggioranza del sorgente e
@@ -1685,12 +1686,89 @@ bit-per-bit di `package.json`/`package-lock.json` prima del commit.
 
 ### Cosa resta aperto
 
-Il passo 2 (quale sottocartella dopo `ui/`) non è deciso: la scelta va
-fatta guardando quale cartella il resto dell'app importa di più, come per
-questo primo passo. `strict: true` resta l'ultimo, dopo l'ultima
+Il passo 3 (quale sottocartella dopo `errors/`) non è deciso: la scelta
+va fatta guardando quale cartella il resto dell'app importa di più, come
+per i primi due passi. `strict: true` resta l'ultimo, dopo l'ultima
 cartella. Il limite di `@types/react` documentato sopra si ripresenterà
-a ogni futura sottocartella che tocchi una classe React (i tre error
-boundary ne hanno una ciascuno) o un prop `key`: la correzione locale
-usata qui — cast mirato, mai una dipendenza nuova — è la strada finché
-`src/styles/` non avrà tipi letterali da rendere quel pacchetto innocuo
-invece che dirompente.
+a ogni futura sottocartella che tocchi una classe React o un prop `key`:
+la correzione locale usata qui — cast mirato, mai una dipendenza nuova —
+è la strada finché `src/styles/` non avrà tipi letterali da rendere
+quel pacchetto innocuo invece che dirompente.
+
+---
+
+## Come è stato chiuso (M-4, passo 2)
+
+`jsconfig.json` include ora anche `src/components/errors/**/*.jsx`. La
+cartella era già stata scelta al passo 1 come «prima e non per
+dimensione»: `errors/` la completa non per lo stesso motivo di `ui/`
+(fan-in alto), ma perché il passo 1 l'aveva già **attraversata per
+metà** — `LazyPanel.jsx` (in `ui/`) importa `creaErrorBoundary.jsx`, e
+`tsc` verifica ogni file RAGGIUNGIBILE dalle radici di `include`, non
+solo le radici stesse. `creaErrorBoundary.jsx` era quindi già a zero
+errori: il gap era vederci `React.Component`, i cast e i tre file che lo
+CHIAMANO (`ErrorBoundary.jsx`, `ViewErrorBoundary.jsx`,
+`OverlayErrorBoundary.jsx`) senza essere raggiunti da `include` — mai
+verificati per davvero.
+
+`errors/` sono 5 file: i tre chiamanti sopra, `creaErrorBoundary.jsx`
+stesso e `PannelloAppAggiornata.jsx` (nessun'altra dipendenza fuori
+scope).
+
+### Un solo errore reale, e non nel codice — nella JSDoc
+
+`tsc` ha segnalato un solo punto, su `ErrorBoundary.jsx` — l'unico dei
+tre chiamanti che NON passa `chiaveReset` (è il boundary di primo
+livello, senza riarmo: vedi il commento di `creaErrorBoundary.jsx`
+sul perché). La JSDoc di `creaErrorBoundary({ spec })` dichiarava:
+
+```js
+/**
+ * @param {string?}  spec.chiaveReset  prop d'identità che riarma…
+ */
+```
+
+`string?` in JSDoc/TypeScript è un tipo NULLABILE (`string | null`),
+non un campo OPZIONALE — la differenza fra «può valere `null`» e «può
+non esserci». `tsc` derivava da questa firma un parametro `chiaveReset`
+obbligatorio, e `ErrorBoundary.jsx`, che non lo passa affatto (il
+default `= null` sta nella destrutturazione della funzione, non nel
+tipo), falliva `Property 'chiaveReset' is missing`. La forma corretta
+per un parametro davvero opzionale è `@param {string} [spec.chiaveReset]`
+(le quadre, non il punto interrogativo) — corretto in
+`creaErrorBoundary.jsx`, zero effetto a runtime: è solo l'annotazione
+che `tsc` legge.
+
+Nessun altro errore: i quattro cast `/** @type {any} */ (this)` e il
+`@ts-expect-error` su `Toast.jsx` (già corretti al passo 1, perché
+`creaErrorBoundary.jsx` era già raggiunto) restano gli unici punti in
+cui questa cartella tocca l'assenza di `@types/react` — nessuna
+quarantina di errori nuova, perché nessuno dei cinque file scrive uno
+`style={{…}}` con proprietà `CSSProperties` non banali.
+
+### Verifica
+
+```
+npm run lint                 → 0 avvisi, 0 errori (tutto il repo)
+npm test                     → 174 file, 2145 casi passati, 0 falliti
+                                (invariato rispetto a prima del passo 2:
+                                 nessuna regressione)
+npm run verifica:convenzioni → 65 controlli, nessuna divergenza
+npm run verifica:tipi        → 0 errori
+```
+
+`src/lib/`, `src/state/`, `src/hooks/`, `src/components/ui/` e ora
+`src/components/errors/` sono TUTTI a zero insieme, nella stessa
+esecuzione. Stessa tecnica di `npm install` con `xlsx` temporaneo per
+installare le dipendenze in questo ambiente di sessione; stesso
+ripristino bit-per-bit di `package.json`/`package-lock.json` prima del
+commit — `git diff --stat` vuoto su entrambi.
+
+### Cosa resta aperto
+
+Il passo 3 (quale sottocartella dopo `errors/`) non è deciso, con lo
+stesso criterio dei primi due: quale cartella il resto dell'app importa
+di più. `src/components/` ha ancora dieci cartelle fuori scope
+(`tasks/`, `chat/`, `liste/`, `clients/`, `calendar/`, `dashboard/`,
+`notifications/`, `search/`, `admin/`, `shell/`), da 2 file
+(`notifications/`, `search/`) a 36 (`liste/`).

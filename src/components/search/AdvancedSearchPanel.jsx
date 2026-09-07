@@ -324,6 +324,13 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
               const overdue = isOverdue(t);
               const handleOpenTask = () => openTask(t);
               return (
+                // M-4 dell'audit del 5 settembre: senza `@types/react` (vedi
+                // creaErrorBoundary.jsx) `tsc` non sa che `key` è una prop
+                // speciale di JSX, tolta da React prima che il componente la
+                // riceva — la controlla come se fosse un campo vero di
+                // `SwipeActions`, che non ce l'ha. Codice corretto, limite
+                // del checker senza quel pacchetto.
+                // @ts-expect-error key è gestita da React, non da SwipeActions
                 <SwipeActions key={t.id} task={t} disabled={!!t.deletedAt}>
                 <div
                   role="button"

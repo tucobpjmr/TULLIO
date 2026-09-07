@@ -62,6 +62,7 @@ export async function listeRicercabili() {
 export async function conteggioListePerCliente() {
   const { data, error } = await ListeAPI.clientiConListe();
   if (error) return { data: {}, error };
+  /** @type {Record<string, {attive:number, totali:number}>} */
   const mappa = {};
   for (const r of data || []) {
     const voce = mappa[r.client_id] || (mappa[r.client_id] = { attive: 0, totali: 0 });

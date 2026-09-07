@@ -787,8 +787,8 @@ un trasloco:
 ### M-4 · `checkJs` non copre `src/components` — 184 file
 
 **Riportato dal 4 settembre (`M-5`), passo 1 fatto il 5 settembre, passi
-2-4 fatti il 7 settembre — vedi «Come è stato chiuso (M-4, passo 1)»,
-«…passo 2», «…passo 3» e «…passo 4» in fondo.**
+2-5 fatti il 7 settembre — vedi «Come è stato chiuso (M-4, passo 1)»,
+«…passo 2», «…passo 3», «…passo 4» e «…passo 5» in fondo.**
 
 `jsconfig.json` includeva `src/lib`, `src/state` e — da ieri — `src/hooks`.
 Restava fuori `src/components`: **184 file**, la maggioranza del sorgente e
@@ -1896,8 +1896,74 @@ stessa esecuzione.
 
 ### Cosa resta aperto
 
-Il passo 5 non è deciso. Otto cartelle restano fuori scope (`tasks/`,
-`liste/`, `clients/`, `calendar/`, `dashboard/`, `search/`, `admin/`,
-`shell/`), da 3 file (`search/`) a 36 (`liste/`) — nessuna a costo
-prossimo allo zero come le ultime tre: la prossima misura richiede
-probabilmente una correzione vera, non solo un allargamento.
+Il passo 5 non è deciso al momento della chiusura di questo passo — vedi
+sotto: è stato deciso e chiuso nella stessa sessione.
+
+---
+
+## Come è stato chiuso (M-4, passo 5)
+
+`jsconfig.json` include ora anche `src/components/search/**/*.jsx`
+(`AdvancedSearchPanel.jsx`, `FilterDropdown.jsx`, `advancedSearchPanelStyles.js`).
+Rimisurate le otto cartelle rimaste con lo scope aggiornato (`chat/` e
+`notifications/` ormai dentro): i numeri erano invariati rispetto al
+passo 3 — `search/` restava la più economica, 3 errori su 3 file.
+
+### Tre errori, tre file diversi — nessuno dentro `search/` stesso
+
+`search/` ha raggiunto per import due file mai coperti finora, **fuori**
+da `src/components/`: `tsc` verifica ogni file raggiungibile, non solo le
+radici dichiarate, e questi due non rientravano in nessun pattern
+esistente (`src/state/**/*.js` copre solo `.js`, non `.jsx`;
+`src/components/liste/` non è mai stata in `include`).
+
+1. **`liste/listeModuleApi.js`** — `conteggioListePerCliente()` dichiara
+   in JSDoc un ritorno `Record<string, {attive, totali}>`, ma costruiva
+   l'accumulatore con `const mappa = {};` senza annotazione: `tsc` lo
+   inferiva `{}` e lo confrontava contro il tipo dichiarato. Corretto con
+   `/** @type {Record<string, {attive:number, totali:number}>} */` sulla
+   riga sopra — l'annotazione che mancava, non un cambio di forma.
+
+2. **`search/AdvancedSearchPanel.jsx`** — stesso limite di `Toast.jsx` al
+   passo 1: `<SwipeActions key={t.id} …>` fallisce perché senza
+   `@types/react` `tsc` non sa che `key` è una prop speciale di JSX,
+   tolta da React prima che il componente la riceva. Stesso rimedio,
+   `// @ts-expect-error key è gestita da React, non da SwipeActions`,
+   stessa causa già documentata (assenza di `@types/react`, dominio di
+   M-5 per la parte `CSSProperties`, qui indipendente da quello).
+
+3. **`state/StoricoTaskContext.jsx`** — `StoricoTaskProvider({ richiedi,
+   caricando, children })` distrugge `children` dalle prop ma la JSDoc
+   sopra la funzione non lo dichiarava, quindi `tsc` non sapeva che il
+   componente lo accetta. Aggiunta la riga mancante,
+   `@param {import('react').ReactNode} props.children` — stessa forma
+   già usata in `ui/Modal.jsx`.
+
+Nessuno dei tre è il dominio di `@types/react`/`CSSProperties` che M-5
+riserva; il secondo tocca lo stesso limite del pacchetto mancante ma
+sulla sua metà innocua (`key`), già vista e già trattata allo stesso
+modo.
+
+### Verifica
+
+```
+npm run lint                 → 0 avvisi, 0 errori (tutto il repo)
+npm test                     → 174 file, 2145 casi passati, 0 falliti
+                                (invariato rispetto a prima del passo 5:
+                                 nessuna regressione)
+npm run verifica:convenzioni → 65 controlli, nessuna divergenza
+npm run verifica:tipi        → 0 errori
+```
+
+`src/lib/`, `src/state/`, `src/hooks/`, `src/components/ui/`,
+`src/components/errors/`, `src/components/chat/`,
+`src/components/notifications/` e ora `src/components/search/` sono
+TUTTI a zero insieme, nella stessa esecuzione.
+
+### Cosa resta aperto
+
+Il passo 6 non è deciso. Sette cartelle restano fuori scope (`tasks/`,
+`liste/`, `clients/`, `calendar/`, `dashboard/`, `admin/`, `shell/`), da
+9 file (`calendar/`) a 36 (`liste/`) — nessuna misurata finora sotto i 5
+errori: il prossimo passo richiede quasi certamente una sessione dedicata
+a correzioni vere, non solo l'allargamento di `include`.

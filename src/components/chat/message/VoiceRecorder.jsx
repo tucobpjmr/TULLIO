@@ -30,7 +30,11 @@ const pickAudioMime = () => {
 // browser non sa decodificare quel codec (così il messaggio resta valido).
 async function computeWaveform(blob) {
   try {
-    const AC = window.AudioContext || window.webkitAudioContext;
+    // `webkitAudioContext` è il prefisso vendor di Safari/Chrome storici:
+    // reale a runtime, ma non nei tipi DOM di TypeScript (M-4, audit del
+    // 5 settembre, passo 3 — stessa causa dell'assenza di `@types/react`,
+    // qui su `lib.dom` invece che su React).
+    const AC = window.AudioContext || /** @type {any} */ (window).webkitAudioContext;
     if (!AC || !blob) throw new Error("AudioContext non disponibile");
     const ctx = new AC();
     const audio = await ctx.decodeAudioData(await blob.arrayBuffer());

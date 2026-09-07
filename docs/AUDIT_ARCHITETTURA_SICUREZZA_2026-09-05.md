@@ -787,8 +787,8 @@ un trasloco:
 ### M-4 · `checkJs` non copre `src/components` — 184 file
 
 **Riportato dal 4 settembre (`M-5`), passo 1 fatto il 5 settembre, passo 2
-fatto il 7 settembre — vedi «Come è stato chiuso (M-4, passo 1)» e «…passo
-2» in fondo.**
+e passo 3 fatti il 7 settembre — vedi «Come è stato chiuso (M-4, passo 1)»,
+«…passo 2» e «…passo 3» in fondo.**
 
 `jsconfig.json` includeva `src/lib`, `src/state` e — da ieri — `src/hooks`.
 Restava fuori `src/components`: **184 file**, la maggioranza del sorgente e
@@ -1766,9 +1766,97 @@ commit — `git diff --stat` vuoto su entrambi.
 
 ### Cosa resta aperto
 
-Il passo 3 (quale sottocartella dopo `errors/`) non è deciso, con lo
-stesso criterio dei primi due: quale cartella il resto dell'app importa
-di più. `src/components/` ha ancora dieci cartelle fuori scope
-(`tasks/`, `chat/`, `liste/`, `clients/`, `calendar/`, `dashboard/`,
-`notifications/`, `search/`, `admin/`, `shell/`), da 2 file
-(`notifications/`, `search/`) a 36 (`liste/`).
+Il passo 4 (quale sottocartella dopo `chat/`) non è deciso, con lo
+stesso criterio dei primi tre: quale cartella il resto dell'app importa
+di più, e quanto è già raggiunta per import da ciò che è in scope.
+`src/components/` ha ancora nove cartelle fuori scope (`tasks/`,
+`liste/`, `clients/`, `calendar/`, `dashboard/`, `notifications/`,
+`search/`, `admin/`, `shell/`), da 2 file (`notifications/`) a 36
+(`liste/`).
+
+---
+
+## Come è stato chiuso (M-4, passo 3)
+
+`jsconfig.json` include ora anche `src/components/chat/**/*.jsx` e
+`src/components/chat/**/*.js` (18 file: la cartella mescola componenti
+e moduli di dominio puri, a differenza di `ui/` ed `errors/` che sono
+solo `.jsx`).
+
+### Perché `chat/` e non un'altra delle nove rimaste
+
+Prima di scegliere, le nove cartelle fuori scope sono state provate una
+per una — jsconfig temporaneo con la cartella aggiunta, `tsc`, conteggio
+errori, scartato senza commit — per misurare il costo reale invece di
+stimarlo dal fan-in:
+
+| Cartella | File | Errori a un allargamento isolato |
+|---|---|---|
+| `notifications/` | 2 | **0** |
+| `chat/` | 18 | **1** |
+| `search/` | 3 | 3 |
+| `calendar/` | 9 | 5 |
+| `admin/` | 14 | 5 |
+| `shell/` | 13 | 6 |
+| `clients/` | 11 | 17 |
+| `liste/` | 36 | 27 |
+| `tasks/` | 27 | 32 |
+| `dashboard/` | 15 | 48 |
+
+`notifications/` è già a zero — il caso più semplice del ratchet, «la
+cartella è già a zero, non prima» preso alla lettera — ma sono 2 file
+isolati (nessun altro importatore in `src/components/`), il minimo
+possibile di copertura aggiunta. `chat/` ha un solo errore reale su 18
+file, e per la stessa ragione di `errors/` al passo 2: due dei suoi
+moduli (`chatCommands.js`, `chatFormat.js`) erano **già** raggiunti e
+già a zero, tramite `hooks/useChatData.js` (già in scope) — l'`include`
+completa quindi una cartella già mezza attraversata invece di aprirne
+una del tutto nuova, ed è il rapporto migliore fra copertura aggiunta e
+rischio fra le due candidate a costo quasi zero. `notifications/`
+resta un candidato naturale per un passo successivo, quando servirà un
+passo piccolo e sicuro.
+
+### L'unico errore reale: un prefisso vendor fuori dai tipi DOM
+
+`chat/message/VoiceRecorder.jsx`, `computeWaveform()`:
+
+```js
+const AC = window.AudioContext || window.webkitAudioContext;
+```
+
+`webkitAudioContext` è il prefisso vendor con cui Safari e Chrome
+storici esponevano `AudioContext` prima della standardizzazione: reale
+a runtime (il fallback esiste per quello), ma assente dai tipi DOM che
+TypeScript porta con sé — `lib.dom.d.ts` conosce solo `AudioContext`.
+Stessa causa dell'assenza di `@types/react` al passo 1 (un'API del
+browser più vecchia dei tipi disponibili), su una superficie diversa
+(`lib.dom` invece di React). Corretto con un cast mirato, lo stesso
+stile di `creaErrorBoundary.jsx`:
+
+```js
+const AC = window.AudioContext || /** @type {any} */ (window).webkitAudioContext;
+```
+
+Zero effetto a runtime — è solo l'annotazione che `tsc` legge.
+
+### Verifica
+
+```
+npm run lint                 → 0 avvisi, 0 errori (tutto il repo)
+npm test                     → 174 file, 2145 casi passati, 0 falliti
+                                (invariato rispetto a prima del passo 3:
+                                 nessuna regressione)
+npm run verifica:convenzioni → 65 controlli, nessuna divergenza
+npm run verifica:tipi        → 0 errori
+```
+
+`src/lib/`, `src/state/`, `src/hooks/`, `src/components/ui/`,
+`src/components/errors/` e ora `src/components/chat/` sono TUTTI a
+zero insieme, nella stessa esecuzione.
+
+### Cosa resta aperto
+
+Il passo 4 non è deciso. `notifications/` (2 file, già a zero) è il
+candidato più economico; le altre otto cartelle restano da misurare di
+nuovo al momento, perché ogni passo cambia cosa è già raggiunto per
+import dal resto dello scope — come `chat/` ha dimostrato per `errors/`.

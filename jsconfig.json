@@ -64,7 +64,13 @@
     // per import (creaErrorBoundary.jsx, via LazyPanel.jsx), quindi è già
     // verificata per metà — allargarla non aggiunge un dominio nuovo, chiude
     // quello che il passo 1 aveva solo attraversato.
-    "src/components/errors/**/*.jsx"
+    "src/components/errors/**/*.jsx",
+    // M-4, passo 3. `chat/` per terza, con lo stesso criterio del passo 2:
+    // `chatCommands.js`/`chatFormat.js` erano già raggiunti (via
+    // hooks/useChatData.js, già in scope) e già a zero — l'intera cartella,
+    // 18 file fra `.jsx` e `.js`, aveva un solo errore reale nel resto.
+    "src/components/chat/**/*.jsx",
+    "src/components/chat/**/*.js"
   ],
   "exclude": [
     "node_modules"

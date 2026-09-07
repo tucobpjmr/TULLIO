@@ -34,7 +34,7 @@ import { PannelloAppAggiornata } from './PannelloAppAggiornata.jsx';
 /**
  * @param {object}   spec
  * @param {string}   spec.nome         nome della classe nei React DevTools.
- * @param {string?}  spec.chiaveReset  prop d'identità che riarma il boundary
+ * @param {string} [spec.chiaveReset]  prop d'identità che riarma il boundary
  *   (`viewKey`, `resetKey`). `null` = nessun riarmo: il boundary resta sul
  *   messaggio finché non viene smontato o la pagina non viene ricaricata, ed è
  *   il comportamento giusto per quello di primo livello.

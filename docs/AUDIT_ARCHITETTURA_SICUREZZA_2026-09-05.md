@@ -786,8 +786,9 @@ un trasloco:
 
 ### M-4 · `checkJs` non copre `src/components` — 184 file
 
-**Riportato dal 4 settembre (`M-5`), passo 1 fatto il 5 settembre — vedi
-«Come è stato chiuso (M-4, passo 1)» in fondo.**
+**Riportato dal 4 settembre (`M-5`), passo 1 fatto il 5 settembre, passi
+2-5 fatti il 7 settembre — vedi «Come è stato chiuso (M-4, passo 1)»,
+«…passo 2», «…passo 3», «…passo 4» e «…passo 5» in fondo.**
 
 `jsconfig.json` includeva `src/lib`, `src/state` e — da ieri — `src/hooks`.
 Restava fuori `src/components`: **184 file**, la maggioranza del sorgente e
@@ -1685,12 +1686,284 @@ bit-per-bit di `package.json`/`package-lock.json` prima del commit.
 
 ### Cosa resta aperto
 
-Il passo 2 (quale sottocartella dopo `ui/`) non è deciso: la scelta va
-fatta guardando quale cartella il resto dell'app importa di più, come per
-questo primo passo. `strict: true` resta l'ultimo, dopo l'ultima
+Il passo 3 (quale sottocartella dopo `errors/`) non è deciso: la scelta
+va fatta guardando quale cartella il resto dell'app importa di più, come
+per i primi due passi. `strict: true` resta l'ultimo, dopo l'ultima
 cartella. Il limite di `@types/react` documentato sopra si ripresenterà
-a ogni futura sottocartella che tocchi una classe React (i tre error
-boundary ne hanno una ciascuno) o un prop `key`: la correzione locale
-usata qui — cast mirato, mai una dipendenza nuova — è la strada finché
-`src/styles/` non avrà tipi letterali da rendere quel pacchetto innocuo
-invece che dirompente.
+a ogni futura sottocartella che tocchi una classe React o un prop `key`:
+la correzione locale usata qui — cast mirato, mai una dipendenza nuova —
+è la strada finché `src/styles/` non avrà tipi letterali da rendere
+quel pacchetto innocuo invece che dirompente.
+
+---
+
+## Come è stato chiuso (M-4, passo 2)
+
+`jsconfig.json` include ora anche `src/components/errors/**/*.jsx`. La
+cartella era già stata scelta al passo 1 come «prima e non per
+dimensione»: `errors/` la completa non per lo stesso motivo di `ui/`
+(fan-in alto), ma perché il passo 1 l'aveva già **attraversata per
+metà** — `LazyPanel.jsx` (in `ui/`) importa `creaErrorBoundary.jsx`, e
+`tsc` verifica ogni file RAGGIUNGIBILE dalle radici di `include`, non
+solo le radici stesse. `creaErrorBoundary.jsx` era quindi già a zero
+errori: il gap era vederci `React.Component`, i cast e i tre file che lo
+CHIAMANO (`ErrorBoundary.jsx`, `ViewErrorBoundary.jsx`,
+`OverlayErrorBoundary.jsx`) senza essere raggiunti da `include` — mai
+verificati per davvero.
+
+`errors/` sono 5 file: i tre chiamanti sopra, `creaErrorBoundary.jsx`
+stesso e `PannelloAppAggiornata.jsx` (nessun'altra dipendenza fuori
+scope).
+
+### Un solo errore reale, e non nel codice — nella JSDoc
+
+`tsc` ha segnalato un solo punto, su `ErrorBoundary.jsx` — l'unico dei
+tre chiamanti che NON passa `chiaveReset` (è il boundary di primo
+livello, senza riarmo: vedi il commento di `creaErrorBoundary.jsx`
+sul perché). La JSDoc di `creaErrorBoundary({ spec })` dichiarava:
+
+```js
+/**
+ * @param {string?}  spec.chiaveReset  prop d'identità che riarma…
+ */
+```
+
+`string?` in JSDoc/TypeScript è un tipo NULLABILE (`string | null`),
+non un campo OPZIONALE — la differenza fra «può valere `null`» e «può
+non esserci». `tsc` derivava da questa firma un parametro `chiaveReset`
+obbligatorio, e `ErrorBoundary.jsx`, che non lo passa affatto (il
+default `= null` sta nella destrutturazione della funzione, non nel
+tipo), falliva `Property 'chiaveReset' is missing`. La forma corretta
+per un parametro davvero opzionale è `@param {string} [spec.chiaveReset]`
+(le quadre, non il punto interrogativo) — corretto in
+`creaErrorBoundary.jsx`, zero effetto a runtime: è solo l'annotazione
+che `tsc` legge.
+
+Nessun altro errore: i quattro cast `/** @type {any} */ (this)` e il
+`@ts-expect-error` su `Toast.jsx` (già corretti al passo 1, perché
+`creaErrorBoundary.jsx` era già raggiunto) restano gli unici punti in
+cui questa cartella tocca l'assenza di `@types/react` — nessuna
+quarantina di errori nuova, perché nessuno dei cinque file scrive uno
+`style={{…}}` con proprietà `CSSProperties` non banali.
+
+### Verifica
+
+```
+npm run lint                 → 0 avvisi, 0 errori (tutto il repo)
+npm test                     → 174 file, 2145 casi passati, 0 falliti
+                                (invariato rispetto a prima del passo 2:
+                                 nessuna regressione)
+npm run verifica:convenzioni → 65 controlli, nessuna divergenza
+npm run verifica:tipi        → 0 errori
+```
+
+`src/lib/`, `src/state/`, `src/hooks/`, `src/components/ui/` e ora
+`src/components/errors/` sono TUTTI a zero insieme, nella stessa
+esecuzione. Stessa tecnica di `npm install` con `xlsx` temporaneo per
+installare le dipendenze in questo ambiente di sessione; stesso
+ripristino bit-per-bit di `package.json`/`package-lock.json` prima del
+commit — `git diff --stat` vuoto su entrambi.
+
+### Cosa resta aperto
+
+Il passo 4 (quale sottocartella dopo `chat/`) non è deciso, con lo
+stesso criterio dei primi tre: quale cartella il resto dell'app importa
+di più, e quanto è già raggiunta per import da ciò che è in scope.
+`src/components/` ha ancora nove cartelle fuori scope (`tasks/`,
+`liste/`, `clients/`, `calendar/`, `dashboard/`, `notifications/`,
+`search/`, `admin/`, `shell/`), da 2 file (`notifications/`) a 36
+(`liste/`).
+
+---
+
+## Come è stato chiuso (M-4, passo 3)
+
+`jsconfig.json` include ora anche `src/components/chat/**/*.jsx` e
+`src/components/chat/**/*.js` (18 file: la cartella mescola componenti
+e moduli di dominio puri, a differenza di `ui/` ed `errors/` che sono
+solo `.jsx`).
+
+### Perché `chat/` e non un'altra delle nove rimaste
+
+Prima di scegliere, le nove cartelle fuori scope sono state provate una
+per una — jsconfig temporaneo con la cartella aggiunta, `tsc`, conteggio
+errori, scartato senza commit — per misurare il costo reale invece di
+stimarlo dal fan-in:
+
+| Cartella | File | Errori a un allargamento isolato |
+|---|---|---|
+| `notifications/` | 2 | **0** |
+| `chat/` | 18 | **1** |
+| `search/` | 3 | 3 |
+| `calendar/` | 9 | 5 |
+| `admin/` | 14 | 5 |
+| `shell/` | 13 | 6 |
+| `clients/` | 11 | 17 |
+| `liste/` | 36 | 27 |
+| `tasks/` | 27 | 32 |
+| `dashboard/` | 15 | 48 |
+
+`notifications/` è già a zero — il caso più semplice del ratchet, «la
+cartella è già a zero, non prima» preso alla lettera — ma sono 2 file
+isolati (nessun altro importatore in `src/components/`), il minimo
+possibile di copertura aggiunta. `chat/` ha un solo errore reale su 18
+file, e per la stessa ragione di `errors/` al passo 2: due dei suoi
+moduli (`chatCommands.js`, `chatFormat.js`) erano **già** raggiunti e
+già a zero, tramite `hooks/useChatData.js` (già in scope) — l'`include`
+completa quindi una cartella già mezza attraversata invece di aprirne
+una del tutto nuova, ed è il rapporto migliore fra copertura aggiunta e
+rischio fra le due candidate a costo quasi zero. `notifications/`
+resta un candidato naturale per un passo successivo, quando servirà un
+passo piccolo e sicuro.
+
+### L'unico errore reale: un prefisso vendor fuori dai tipi DOM
+
+`chat/message/VoiceRecorder.jsx`, `computeWaveform()`:
+
+```js
+const AC = window.AudioContext || window.webkitAudioContext;
+```
+
+`webkitAudioContext` è il prefisso vendor con cui Safari e Chrome
+storici esponevano `AudioContext` prima della standardizzazione: reale
+a runtime (il fallback esiste per quello), ma assente dai tipi DOM che
+TypeScript porta con sé — `lib.dom.d.ts` conosce solo `AudioContext`.
+Stessa causa dell'assenza di `@types/react` al passo 1 (un'API del
+browser più vecchia dei tipi disponibili), su una superficie diversa
+(`lib.dom` invece di React). Corretto con un cast mirato, lo stesso
+stile di `creaErrorBoundary.jsx`:
+
+```js
+const AC = window.AudioContext || /** @type {any} */ (window).webkitAudioContext;
+```
+
+Zero effetto a runtime — è solo l'annotazione che `tsc` legge.
+
+### Verifica
+
+```
+npm run lint                 → 0 avvisi, 0 errori (tutto il repo)
+npm test                     → 174 file, 2145 casi passati, 0 falliti
+                                (invariato rispetto a prima del passo 3:
+                                 nessuna regressione)
+npm run verifica:convenzioni → 65 controlli, nessuna divergenza
+npm run verifica:tipi        → 0 errori
+```
+
+`src/lib/`, `src/state/`, `src/hooks/`, `src/components/ui/`,
+`src/components/errors/` e ora `src/components/chat/` sono TUTTI a
+zero insieme, nella stessa esecuzione.
+
+### Cosa resta aperto
+
+Il passo 5 (quale sottocartella dopo `notifications/`) non è deciso:
+`src/components/` ha ancora otto cartelle fuori scope (`tasks/`,
+`liste/`, `clients/`, `calendar/`, `dashboard/`, `search/`, `admin/`,
+`shell/`), da misurare di nuovo al momento — ogni passo cambia cosa è
+già raggiunto per import dal resto dello scope.
+
+---
+
+## Come è stato chiuso (M-4, passo 4)
+
+`jsconfig.json` include ora anche `src/components/notifications/**/*.jsx`
+(`NotificationsPanel.jsx`, `PushToggle.jsx`). Era il candidato indicato
+al passo 3 — il più economico delle nove cartelle misurate, già a zero
+senza alcuna modifica — e la nuova misura, con `chat/` nel frattempo
+entrato in scope, l'ha confermato: **zero errori**, riverificato prima
+di committare il jsconfig.
+
+Nessuna correzione al codice: `include` si allarga e basta, che è il
+caso limite del ratchet preso alla lettera — «si allarga quando la
+cartella nuova è a zero, non prima» qui non richiede nessun passo
+intermedio.
+
+### Verifica
+
+```
+npm run lint                 → 0 avvisi, 0 errori (tutto il repo)
+npm test                     → 174 file, 2145 casi passati, 0 falliti
+                                (invariato rispetto a prima del passo 4:
+                                 nessuna regressione)
+npm run verifica:convenzioni → 65 controlli, nessuna divergenza
+npm run verifica:tipi        → 0 errori
+```
+
+`src/lib/`, `src/state/`, `src/hooks/`, `src/components/ui/`,
+`src/components/errors/`, `src/components/chat/` e ora
+`src/components/notifications/` sono TUTTI a zero insieme, nella
+stessa esecuzione.
+
+### Cosa resta aperto
+
+Il passo 5 non è deciso al momento della chiusura di questo passo — vedi
+sotto: è stato deciso e chiuso nella stessa sessione.
+
+---
+
+## Come è stato chiuso (M-4, passo 5)
+
+`jsconfig.json` include ora anche `src/components/search/**/*.jsx`
+(`AdvancedSearchPanel.jsx`, `FilterDropdown.jsx`, `advancedSearchPanelStyles.js`).
+Rimisurate le otto cartelle rimaste con lo scope aggiornato (`chat/` e
+`notifications/` ormai dentro): i numeri erano invariati rispetto al
+passo 3 — `search/` restava la più economica, 3 errori su 3 file.
+
+### Tre errori, tre file diversi — nessuno dentro `search/` stesso
+
+`search/` ha raggiunto per import due file mai coperti finora, **fuori**
+da `src/components/`: `tsc` verifica ogni file raggiungibile, non solo le
+radici dichiarate, e questi due non rientravano in nessun pattern
+esistente (`src/state/**/*.js` copre solo `.js`, non `.jsx`;
+`src/components/liste/` non è mai stata in `include`).
+
+1. **`liste/listeModuleApi.js`** — `conteggioListePerCliente()` dichiara
+   in JSDoc un ritorno `Record<string, {attive, totali}>`, ma costruiva
+   l'accumulatore con `const mappa = {};` senza annotazione: `tsc` lo
+   inferiva `{}` e lo confrontava contro il tipo dichiarato. Corretto con
+   `/** @type {Record<string, {attive:number, totali:number}>} */` sulla
+   riga sopra — l'annotazione che mancava, non un cambio di forma.
+
+2. **`search/AdvancedSearchPanel.jsx`** — stesso limite di `Toast.jsx` al
+   passo 1: `<SwipeActions key={t.id} …>` fallisce perché senza
+   `@types/react` `tsc` non sa che `key` è una prop speciale di JSX,
+   tolta da React prima che il componente la riceva. Stesso rimedio,
+   `// @ts-expect-error key è gestita da React, non da SwipeActions`,
+   stessa causa già documentata (assenza di `@types/react`, dominio di
+   M-5 per la parte `CSSProperties`, qui indipendente da quello).
+
+3. **`state/StoricoTaskContext.jsx`** — `StoricoTaskProvider({ richiedi,
+   caricando, children })` distrugge `children` dalle prop ma la JSDoc
+   sopra la funzione non lo dichiarava, quindi `tsc` non sapeva che il
+   componente lo accetta. Aggiunta la riga mancante,
+   `@param {import('react').ReactNode} props.children` — stessa forma
+   già usata in `ui/Modal.jsx`.
+
+Nessuno dei tre è il dominio di `@types/react`/`CSSProperties` che M-5
+riserva; il secondo tocca lo stesso limite del pacchetto mancante ma
+sulla sua metà innocua (`key`), già vista e già trattata allo stesso
+modo.
+
+### Verifica
+
+```
+npm run lint                 → 0 avvisi, 0 errori (tutto il repo)
+npm test                     → 174 file, 2145 casi passati, 0 falliti
+                                (invariato rispetto a prima del passo 5:
+                                 nessuna regressione)
+npm run verifica:convenzioni → 65 controlli, nessuna divergenza
+npm run verifica:tipi        → 0 errori
+```
+
+`src/lib/`, `src/state/`, `src/hooks/`, `src/components/ui/`,
+`src/components/errors/`, `src/components/chat/`,
+`src/components/notifications/` e ora `src/components/search/` sono
+TUTTI a zero insieme, nella stessa esecuzione.
+
+### Cosa resta aperto
+
+Il passo 6 non è deciso. Sette cartelle restano fuori scope (`tasks/`,
+`liste/`, `clients/`, `calendar/`, `dashboard/`, `admin/`, `shell/`), da
+9 file (`calendar/`) a 36 (`liste/`) — nessuna misurata finora sotto i 5
+errori: il prossimo passo richiede quasi certamente una sessione dedicata
+a correzioni vere, non solo l'allargamento di `include`.

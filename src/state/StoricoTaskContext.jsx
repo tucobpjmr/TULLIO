@@ -61,6 +61,7 @@ const StoricoTaskContext = createContext(null);
  *                                    prima volta e poi non fa più nulla
  *                                    (`useAppHydration().storicoTask.richiedi`)
  * @param {boolean}  props.caricando  true finché quella richiesta è in volo
+ * @param {import('react').ReactNode} props.children
  */
 export function StoricoTaskProvider({ richiedi, caricando = false, children }) {
   const value = useMemo(() => ({ richiedi, caricando }), [richiedi, caricando]);

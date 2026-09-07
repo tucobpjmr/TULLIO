@@ -59,7 +59,29 @@
     // sbagliato lì si propaga ovunque, e i suoi componenti hanno le firme più
     // stabili del progetto — cioè il rapporto migliore fra errori trovati e
     // JSDoc da scrivere.
-    "src/components/ui/**/*.jsx"
+    "src/components/ui/**/*.jsx",
+    // M-4, passo 2. `errors/` per seconda: il passo 1 l'aveva già raggiunta
+    // per import (creaErrorBoundary.jsx, via LazyPanel.jsx), quindi è già
+    // verificata per metà — allargarla non aggiunge un dominio nuovo, chiude
+    // quello che il passo 1 aveva solo attraversato.
+    "src/components/errors/**/*.jsx",
+    // M-4, passo 3. `chat/` per terza, con lo stesso criterio del passo 2:
+    // `chatCommands.js`/`chatFormat.js` erano già raggiunti (via
+    // hooks/useChatData.js, già in scope) e già a zero — l'intera cartella,
+    // 18 file fra `.jsx` e `.js`, aveva un solo errore reale nel resto.
+    "src/components/chat/**/*.jsx",
+    "src/components/chat/**/*.js",
+    // M-4, passo 4. `notifications/` per quarta: candidato più economico fra
+    // le nove cartelle misurate al passo 3 (2 file, già a zero senza alcuna
+    // modifica) — il passo piccolo e sicuro rimandato lì.
+    "src/components/notifications/**/*.jsx",
+    // M-4, passo 5. `search/` per quinta: la più economica delle otto
+    // cartelle rimaste (3 file, 3 errori). Ha raggiunto per import due file
+    // FUORI da `src/components/` mai coperti finora: `liste/listeModuleApi.js`
+    // (`.js`, `src/state/**/*.js` copre solo `state/`, non `components/liste/`)
+    // e `state/StoricoTaskContext.jsx` (`.jsx`, fuori dal pattern `.js` di
+    // `src/state/`) — entrambi corretti insieme a questa cartella.
+    "src/components/search/**/*.jsx"
   ],
   "exclude": [
     "node_modules"

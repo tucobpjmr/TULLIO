@@ -82,7 +82,7 @@ nessuna.
 | # | Priorità | Rilievo | File / oggetto |
 |---|---|---|---|
 | **A-1** | 🔴 Alta | **I canali Realtime broadcast e presence non autorizzano nessuno.** Verificato in produzione: `realtime.messages` ha `relrowsecurity = false` e **0 policy**, e nessun `supabase.channel(...)` del progetto passa `config: { private: true }`. Sono quindi canali **pubblici**: qualunque sessione valida — compresi i **2 account `driver`**, che la RLS esclude da chat, clienti e liste — può sottoscrivere `typing:<conversationId>` di una conversazione che non può leggere, riceverne gli eventi e **pubblicarne di propri**, e può `track()` sul canale `presenza:agenzia` sotto una **chiave arbitraria**, cioè far risultare online/occupato/assente un altro membro. Un ex-partecipante rimosso da una conversazione conserva l'UUID e con esso l'accesso, per sempre | `src/lib/realtime.js:190,222,262`; DB (`realtime.messages`) |
-| **A-2** | 🔴 Alta | **Riportato dal 5 settembre (`A-1`), e la ricorrenza è ora la seconda.** `xlsx` è risolto da `https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`, non dal registry: **in questa sessione `npm ci` è fallito con `403 Forbidden`**, e con lui i 2 file di test che importano la libreria e i 2 errori di `verifica:tipi`. Non è un difetto del sorgente — il sorgente è corretto — è l'installazione a non riuscire, e riesce o no a seconda di una rete di terzi | `package.json:31`, `package-lock.json`, `.github/workflows/ci.yml` |
+| **A-2** | 🔴 Alta | **Riportato dal 5 settembre (`A-1`), con una seconda occorrenza misurata e il perimetro finalmente delimitato.** `xlsx` è risolto da `https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`, non dal registry: **in questa sessione `npm ci` è fallito con `403 Forbidden`**, e con lui i 2 file di test che importano la libreria e i 2 errori di `verifica:tipi`. ⚠️ **Il guasto dipende dall'ambiente, e questa è la misura che il 5 settembre mancava**: sullo stesso commit di questo audit la CI GitHub è **verde** e il preview Vercel **Ready**, cioè da lì il CDN oggi si raggiunge. Resta quindi **latente** per CI e produzione e **attivo** per chi lavora da una rete ristretta — due sessioni su due. Non è un difetto del sorgente: è l'installazione a riuscire o no a seconda di una terza parte | `package.json:31`, `package-lock.json`, `.github/workflows/ci.yml` |
 | **M-1** | 🟡 Media | **`public.sonda_audit_clients_update()` è concessa a OGNI utente autenticato in produzione**, senza gate di ruolo e senza limite di frequenza — mentre `send_test_push()` ne ha uno da `B-5` dello **stesso 5 settembre**, e le quattro Edge Function passano tutte da `entroLimite`. È `SECURITY DEFINER`: `INSERT` + `UPDATE` su `public.clients` **scavalcando la RLS**, annullati da un rollback interno che però lascia comunque tuple morte, WAL e subtransazioni. La sua unica chiamata legittima gira su **staging** (`rls.yml` dichiara che `RLS_TEST_URL` non deve mai puntare alla produzione): in produzione il grant è superficie e basta | `supabase/migrations/20260905130000_audit_clients_update.sql:75,98`; DB (`proacl`) |
 | **M-2** | 🟡 Media | **Nessuna coda di scrittura offline.** L'app gestisce benissimo *leggere* da offline (guscio in cache, due strisce persistenti) e non gestisce affatto *scrivere*: fuori rete la `persist()` fallisce, parte il rollback e resta un toast rosso — il lavoro dell'utente è perso. Su un gestionale con **2 driver sul campo** è la lacuna di UX più concreta. L'architettura è già pronta (registry dichiarativo, `rollback`, `pendingWrites`): manca l'outbox | `src/hooks/useSyncedDispatch.js`, `src/hooks/useOnlineStatus.js`, `src/components/shell/OfflineBanner.jsx` |
 | **M-3** | 🟡 Media | **`strict: false`.** `checkJs` ora copre tutto `src/` (i passi 1-12 di `M-4` del 5 settembre hanno chiuso anche `src/components/`), quindi il ratchet ha finito la sua corsa orizzontale — ma con `strict` spento `null`/`undefined` non sono controllati, e su una codebase dove metà dei campi del dominio sono opzionali è la metà del valore che `checkJs` può dare | `jsconfig.json:45` |
@@ -274,7 +274,7 @@ dichiara `private: true`, e poi cambia tutto insieme.
 
 **Perché è una criticità.** Il 5 settembre il rilievo diceva «punto singolo
 di guasto **latente**, con un precedente di un mese documentato dal repo
-stesso». Oggi non è più latente: in questa sessione
+stesso». In questa sessione:
 
 ```
 npm error code E403
@@ -282,11 +282,28 @@ npm error 403 Forbidden - GET https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tg
 ```
 
 e con lui sono caduti 2 file di test e i 2 soli errori di `verifica:tipi`.
-Un `403` da quella URL ferma **ogni** installazione: CI, build Vercel, la
-macchina di chiunque entri nel progetto domani. E la conseguenza peggiore non
-è il rosso: è che `npm ci` fallito **prima** di `npm run lint` fa fallire il
-job con un messaggio che parla di rete, quando la stessa build sarebbe stata
-verde.
+
+⚠️ **«Latente» resta la parola giusta, e ora si sa per chi.** Il commit di
+questo audit è la misura che il 5 settembre non aveva: sullo stesso `head_sha`
+la CI GitHub è **verde** (`build` completo — `npm ci`, lint, tipi, test,
+build, bundle, audit — in 1 m 55 s) e il preview Vercel **Ready**. Da quei due
+ambienti il CDN oggi si raggiunge. Il guasto è quindi **dipendente
+dall'ambiente**:
+
+| Ambiente | Esito |
+|---|---|
+| CI GitHub, build Vercel | ✅ verde, su questo stesso commit |
+| Rete ristretta (sessioni di audit del 5 e dell'8 settembre) | ❌ `403`, **due su due** |
+
+Il rilievo non è quindi «la CI è rotta» — non lo è — ma «una dipendenza di
+produzione si risolve da un host che non è il registry, e il suo
+raggiungimento non è una proprietà del progetto». Chi entra nel progetto
+domani da una rete che filtra l'egress non riesce a installarlo, e il giorno
+in cui quel `403` toccasse anche i runner GitHub arriverebbe nel momento
+peggiore: `npm ci` fallisce **prima** di `npm run lint`, quindi il job muore
+con un messaggio che parla di rete mentre la build sarebbe stata verde — e
+succederebbe alla prima correzione urgente da deployare, perché è lì che si
+guarda la CI.
 
 **Soluzione — vendorare il tarball nel repository.** È l'unica che tolga la
 dipendenza dalla rete di terzi *e* conservi la versione senza CVE. Il tarball

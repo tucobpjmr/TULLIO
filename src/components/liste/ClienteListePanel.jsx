@@ -100,7 +100,7 @@ export function ClienteListePanel({ cliente }) {
     return (
       <div style={txtF13Muted2}>
         Non riesco a caricare le liste di questo cliente.
-        <div style={txtF12Mt4}>{loadError.message}</div>
+        <div style={txtF12Mt4}>{loadError instanceof Error ? loadError.message : String(loadError)}</div>
         <button
           onClick={() => riprova((n) => n + 1)}
           style={boxF13Bold}

@@ -116,7 +116,85 @@
     // senza `.getTime()` esplicito — lo stesso confronto che
     // `lib/searchTask.js` (già in scope dal via) scrive già con `.getTime()`.
     "src/components/calendar/**/*.jsx",
-    "src/components/calendar/**/*.js"
+    "src/components/calendar/**/*.js",
+    // M-4, passo 9. `clients/` per nona: 11 file fra `.jsx` e `.js`. Ha
+    // raggiunto per import quattro file di `liste/` mai coperti finora
+    // (`ClienteListePanel.jsx` dinamico da `ClienteDetailPanel.jsx`, e da lì
+    // `modals/LvOverlay.jsx`, `modals/NuovaListaModal.jsx`,
+    // `useSalvataggioLista.js`), corretti insieme a questa cartella. Tre errori
+    // di forma già viste: `new Date(a) - new Date(b)` senza `.getTime()`
+    // (stesso limite del passo 8, in `ClientiView.jsx`), `key` su un
+    // componente senza `@types/react` (stesso `@ts-expect-error` mirato dei
+    // passi 5 e 8, qui su `ClienteCard`), e un `catch` tipizzato `unknown` da
+    // `hooks/useCaricamento.js` letto come se fosse un `Error` in
+    // `ClienteListePanel.jsx` (narrowing con `instanceof Error`, come già in
+    // `chat/chatCommands.js`). Il quarto è nuovo: il JSDoc di `LvOverlay.jsx`
+    // documentava un solo parametro (`chiudiSuVelo`) per una funzione a
+    // cinque prop distrutte, quindi `tsc` leggeva l'intero oggetto props come
+    // `boolean` — riscritto nella forma `@param {object} props` +
+    // `props.<nome>` già usata da `ui/Modal.jsx`.
+    "src/components/clients/**/*.jsx",
+    "src/components/clients/**/*.js",
+    // M-4, passo 10. `liste/` per decima: dei suoi 37 file, quattro
+    // (`ClienteListePanel.jsx`, `modals/LvOverlay.jsx`,
+    // `modals/NuovaListaModal.jsx`, `useSalvataggioLista.js`) erano già a zero
+    // dal passo 9, raggiunti per import da `clients/`. Sei errori sul resto,
+    // tutti forme già viste: `new Date(a) - new Date(b)` senza `.getTime()`
+    // (`ArchivedListe.jsx`, come ai passi 8 e 9), `key` su un componente senza
+    // `@types/react` (`CellEditor` in `ListaDetail.jsx`, `ListaRow` due volte
+    // in `ListeViaggio.jsx` — stesso `@ts-expect-error` mirato dei passi 5, 8
+    // e 9), e un parametro con default a livello di destrutturazione
+    // (`{ enabled = true } = {}`) il cui JSDoc lo dichiarava obbligatorio
+    // invece che opzionale (`useListeData.js`, `[opts.enabled=true]` invece di
+    // `opts.enabled`).
+    "src/components/liste/**/*.jsx",
+    "src/components/liste/**/*.js",
+    // M-4, passo 11. `tasks/` per undicesima: 27 file. Diciassette errori,
+    // cinque forme:
+    //   · `new Date(a) - new Date(b)` senza `.getTime()` (`Archive.jsx`,
+    //     `Trash.jsx`, `TaskHistoryPanel.jsx`) — come ai passi 8-10.
+    //   · `key` su `Avatar` senza `@types/react` (`Archive.jsx` ×2,
+    //     `Trash.jsx`), stesso `@ts-expect-error` mirato, qui su un
+    //     `.map(id => <Avatar .../>)` scritto su una riga sola: portato su più
+    //     righe perché il commento vive sulla riga PRIMA di quella con `key`.
+    //   · tre componenti di `ui/` con una prop opzionale nella pratica ma
+    //     senza default nella firma, quindi letta come obbligatoria da `tsc`
+    //     (`ui/CategoryChip.jsx` — `small`; `ui/DateTimePicker.jsx` —
+    //     `hasError`/`style`; `ui/ContactText.jsx`,
+    //     `tasks/bulk/RowAttachments.jsx` — `style`): stesso `= undefined`/
+    //     `= false` già usato in `ui/ContactActions.jsx` e
+    //     `ui/ContactMenuItem.jsx`. Riguarda `ui/`, cartella già in scope dal
+    //     passo 1, ma i call site che la violavano stavano tutti in `tasks/`.
+    //   · `RipristinaTaskModal.jsx`: `onClose` dichiarato `Function` nel JSDoc
+    //     invece di `() => void`, il tipo più stretto richiesto da
+    //     `useSalvataggio`'s `alSuccesso` — stesso limite del passo 9 in
+    //     `useSalvataggioLista.js`, qui però nel verso opposto (il chiamante
+    //     va stretto, non il fornitore allargato).
+    //   · `TaskCard.jsx`: `ReactNode` nudo nel JSDoc, mai importato — stessa
+    //     forma `import('react').ReactNode` di `ui/Modal.jsx`.
+    "src/components/tasks/**/*.jsx",
+    "src/components/tasks/**/*.js",
+    // M-4, passo 12 — ultima cartella di `src/components/`. `dashboard/` per
+    // dodicesima: 15 file. Ventisei errori all'attivazione, ridotti a venti
+    // da un solo fix: come `LvOverlay.jsx` al passo 9, il JSDoc di
+    // `QueueShell.jsx` documentava i campi per nome nudo (`icon`, `title`…)
+    // invece che `props.<nome>`, quindi `tsc` collassava l'intero tipo dei
+    // props sul primo tag (`accent`, l'unione delle cinque tinte) — un guscio
+    // condiviso dalle cinque code, quindi un solo buco nel JSDoc appariva
+    // moltiplicato per ogni chiamante. Riscritto nella stessa forma.
+    //
+    // Il resto, forme già viste: `new Date(a) - new Date(b)` senza
+    // `.getTime()` (`Dashboard.jsx`, `NoticeBoard.jsx`, `PersonalQueue.jsx`);
+    // `key` su `SwipeActions` (le cinque code) e su `FilterChip`
+    // (`PersonalQueue.jsx`) senza `@types/react`, stesso `@ts-expect-error`
+    // mirato — su `SwipeActions` il commento è `//` e non `{/* */}` perché la
+    // riga precede ancora la JSX dentro un `.map(t => (...))`, non è un figlio
+    // JSX; tre prop opzionali nella pratica ma obbligatorie nella firma
+    // (`QueueTab.jsx` → `dangerCount`, `FilterChip.jsx` → `title`,
+    // `FilterRow.jsx` → `accentRgb`), stesso `= false`/`= undefined` dei passi
+    // precedenti.
+    "src/components/dashboard/**/*.jsx",
+    "src/components/dashboard/**/*.js"
   ],
   "exclude": [
     "node_modules"

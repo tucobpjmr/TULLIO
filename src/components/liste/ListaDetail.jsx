@@ -267,6 +267,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
                     const handleEditMetodo = (e) => { e.stopPropagation(); setEditCell({ id: m.id, campo: "metodo" }); };
                     return editCell?.id === m.id ? (
                       <CellEditor
+                        // @ts-expect-error key è gestita da React, non da CellEditor (M-4, assenza di @types/react)
                         key={m.id}
                         movimento={m}
                         campo={editCell.campo}

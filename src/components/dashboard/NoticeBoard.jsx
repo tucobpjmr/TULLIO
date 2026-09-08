@@ -65,7 +65,7 @@ export const NoticeBoard = ({ notices, loading = false }) => {
     .filter(n => activeTags.size === 0 || (n.tags || []).some(t => activeTags.has(t)))
     .sort((a, b) => {
       if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-      return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
+      return new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime();
     }), [notices, activeTags]);
 
   const formatRel = (iso) => {

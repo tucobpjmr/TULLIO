@@ -94,7 +94,7 @@ export const ArchivedListe = ({ isMobile }) => {
     const q = query.trim().toLowerCase();
     const hay = `${l.clients?.name || ""} ${l.titolo || ""} ${l.note || ""}`.toLowerCase();
     return hay.includes(q);
-  }).sort((a, b) => new Date(b.closed_at || 0) - new Date(a.closed_at || 0));
+  }).sort((a, b) => new Date(b.closed_at || 0).getTime() - new Date(a.closed_at || 0).getTime());
 
   const hasActiveFilter = query.trim() || period !== "all";
   const resetFilters = () => { setQuery(""); setPeriod("all"); };

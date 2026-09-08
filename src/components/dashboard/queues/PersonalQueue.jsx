@@ -68,7 +68,7 @@ export const PersonalQueue = ({ tasks, me, enableDateFilter = false, loading = f
       if (!a.dueDate && !b.dueDate) return 0;
       if (!a.dueDate) return 1;
       if (!b.dueDate) return -1;
-      return new Date(a.dueDate) - new Date(b.dueDate);
+      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
     });
     return filtered;
   }, [tasks, enableDateFilter, dateFilter, sortBy]);
@@ -102,6 +102,7 @@ export const PersonalQueue = ({ tasks, me, enableDateFilter = false, loading = f
         <FilterRow>
           <FilterLabel>Ordina:</FilterLabel>
           {QUEUE_SORT_OPTIONS.map(opt => (
+            // @ts-expect-error key è gestita da React, non da FilterChip (M-4, assenza di @types/react)
             <FilterChip key={opt.key} active={sortBy === opt.key} onClick={() => setSortBy(opt.key)}>
               {opt.label}
             </FilterChip>
@@ -147,6 +148,7 @@ export const PersonalQueue = ({ tasks, me, enableDateFilter = false, loading = f
             const overdue = isOverdue(t);
             const urgent = isUrgent(t);
             return (
+              // @ts-expect-error key è gestita da React, non da SwipeActions (M-4, assenza di @types/react)
               <SwipeActions key={t.id} task={t}>
                 <TaskCard
                   task={t}

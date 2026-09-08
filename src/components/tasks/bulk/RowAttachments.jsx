@@ -17,7 +17,7 @@ const txtMuted = { color: "var(--text-muted)", flexShrink: 0 };
 // della task (path `<task_id>/…` e policy RLS del bucket 'task-files'), quindi
 // avviene in handleCreate subito dopo la persistenza — stesso schema di
 // QuickAddTask per la creazione singola.
-export const RowAttachments = ({ files, onAdd, onRemove, disabled, style }) => {
+export const RowAttachments = ({ files, onAdd, onRemove, disabled, style = undefined }) => {
   const inputRef = useRef(null);
   return (
     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, minWidth: 0, ...style }}>

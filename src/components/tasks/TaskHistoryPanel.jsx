@@ -99,7 +99,7 @@ export function TaskHistoryPanel({ taskId }) {
       <div style={colGap8}>
         {(righe || [])
           .slice()
-          .sort((a, b) => new Date(a.time) - new Date(b.time))
+          .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
           .map(h => (
             <div key={h.id} style={rowStartGap10}>
               <div style={txtF14TxtCenter}>

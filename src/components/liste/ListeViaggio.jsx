@@ -422,6 +422,7 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
                   </div>
                 ) : filter === "cestino" ? (
                   visibili.map((l) => (
+                    // @ts-expect-error key è gestita da React, non da ListaRow (M-4, assenza di @types/react)
                     <ListaRow key={l.id} lista={l} saldo={saldi[l.id]} trashed>
                       <button className="lv-btn sm" onClick={() => ripristina(l.id)}>Ripristina</button>
                       <button className="lv-btn danger sm" onClick={() => eliminaDefinitiva(l)}>
@@ -432,6 +433,7 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
                 ) : (
                   <>
                     {finestra.visibili.map((l) => (
+                      // @ts-expect-error key è gestita da React, non da ListaRow (M-4, assenza di @types/react)
                       <ListaRow key={l.id} lista={l} saldo={saldi[l.id]} onOpen={() => impostaListaAperta(l.id)} />
                     ))}
                     {finestra.restanti > 0 && (

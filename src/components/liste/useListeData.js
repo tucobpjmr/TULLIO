@@ -35,9 +35,10 @@ const perListaId = (righe) =>
   Object.fromEntries((righe || []).map((s) => [s.lista_id, s]));
 
 /**
- * @param {object}  opts
- * @param {boolean} opts.enabled  false per i ruoli senza accesso al modulo
- *                                (il Driver): niente fetch, niente subscription.
+ * @param {object}  [opts]
+ * @param {boolean} [opts.enabled=true]  false per i ruoli senza accesso al
+ *                                modulo (il Driver): niente fetch, niente
+ *                                subscription.
  */
 export function useListeData({ enabled = true } = {}) {
   const [dati, setDati] = useState(VUOTO);

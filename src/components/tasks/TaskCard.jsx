@@ -49,10 +49,10 @@ const lift = (on) => (e) => {
  *
  * @param {object}    task           il task da mostrare
  * @param {function}  onOpen         (task) => void. Assente = card non cliccabile.
- * @param {ReactNode} badges         slot destro dell'header (StatusBadge, priorità, 🔒 read-only…)
- * @param {ReactNode} subheader      slot sotto il titolo (usato dall'Archivio per i suoi badge)
- * @param {ReactNode} meta           slot nella riga meta, dopo il cliente (di norma la scadenza)
- * @param {ReactNode} footer         slot in fondo (bottoni azione)
+ * @param {import('react').ReactNode} badges         slot destro dell'header (StatusBadge, priorità, 🔒 read-only…)
+ * @param {import('react').ReactNode} subheader      slot sotto il titolo (usato dall'Archivio per i suoi badge)
+ * @param {import('react').ReactNode} meta           slot nella riga meta, dopo il cliente (di norma la scadenza)
+ * @param {import('react').ReactNode} footer         slot in fondo (bottoni azione)
  * @param {string}    border         override del bordo (ogni coda ha la sua semantica di colore)
  * @param {string}    accent         colore del bordo sinistro (priorità); assente = nessun accento
  * @param {boolean}   hoverLift      solleva la card al passaggio del mouse

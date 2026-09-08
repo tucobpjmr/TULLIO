@@ -8,6 +8,12 @@
 import { useState } from "react";
 import * as stiliComuni from "../../styles/common.js";
 
+/**
+ * Ogni altra prop (`id`, `value`, `onChange`, `placeholder`, `autoComplete`,
+ * `onFocus`, `onBlur`, …) viene inoltrata all'`<input>` via `...inputProps`,
+ * quindi il tipo resta aperto con `Record<string, any>`.
+ * @param {{ inputStyle?: object, show?: boolean, onToggle?: Function, eyeColor?: string } & Record<string, any>} props
+ */
 export function PasswordField({ inputStyle, show: showProp, onToggle, eyeColor, ...inputProps }) {
   const [showInner, setShowInner] = useState(false);
   const controlled = showProp !== undefined;

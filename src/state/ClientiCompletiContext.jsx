@@ -58,6 +58,7 @@ const ClientiCompletiContext = createContext(null);
  *                                    la prima volta e poi non fa più nulla
  *                                    (`useAppHydration().clientiCompleti.richiedi`)
  * @param {boolean}  props.caricando  true finché quella richiesta è in volo
+ * @param {import('react').ReactNode} props.children
  */
 export function ClientiCompletiProvider({ richiedi, caricando = false, children }) {
   const value = useMemo(() => ({ richiedi, caricando }), [richiedi, caricando]);

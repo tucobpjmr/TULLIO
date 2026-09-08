@@ -64,6 +64,7 @@ export const CalendarMonthGrid = memo(function CalendarMonthGrid({
         </div>
         <div style={colGap8}>
           {dayTasks.map(t => (
+            // @ts-expect-error key è gestita da React, non da SwipeActions (stesso limite di search/AdvancedSearchPanel.jsx)
             <SwipeActions key={t.id} task={t}>
               <TaskRow
                 task={t}

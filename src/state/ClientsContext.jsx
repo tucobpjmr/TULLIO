@@ -17,6 +17,7 @@ const ClientsContext = createContext(null);
 /**
  * @param {object} props
  * @param {Array}  props.clients  l'anagrafica dello state del reducer (state.clients)
+ * @param {import('react').ReactNode} props.children
  */
 export function ClientsProvider({ clients, children }) {
   const value = useMemo(() => ({ clients: clients || [] }), [clients]);

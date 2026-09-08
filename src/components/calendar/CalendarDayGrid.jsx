@@ -120,6 +120,7 @@ export const CalendarDayGrid = memo(function CalendarDayGrid({ dayDate, dayTasks
                   {t.assignees?.length > 0 && height >= 42 && (
                     <div style={rowGap2}>
                       {t.assignees.slice(0, 3).map(id => (
+                        // @ts-expect-error key è gestita da React, non da Avatar (M-4, assenza di @types/react)
                         <Avatar key={id} memberId={id} size={14} />
                       ))}
                       {t.assignees.length > 3 && (

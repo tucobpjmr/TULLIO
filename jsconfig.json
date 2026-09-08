@@ -81,7 +81,42 @@
     // (`.js`, `src/state/**/*.js` copre solo `state/`, non `components/liste/`)
     // e `state/StoricoTaskContext.jsx` (`.jsx`, fuori dal pattern `.js` di
     // `src/state/`) — entrambi corretti insieme a questa cartella.
-    "src/components/search/**/*.jsx"
+    "src/components/search/**/*.jsx",
+    // M-4, prerequisito del passo 6. `src/state/**/*.js` non prendeva i suoi
+    // OTTO file `.jsx` (i provider di contesto: TasksContext, ClientsContext,
+    // ClientiCompletiContext, StoricoTaskContext, AppProviders, ConfirmContext,
+    // AppDataContext, DispatchContext) — coperti solo quando una cartella
+    // components/ li raggiungeva per import (così è stato chiuso
+    // StoricoTaskContext al passo 5). Misurando le sette cartelle rimaste,
+    // TasksContext/ClientsContext/ClientiCompletiContext comparivano OGNI
+    // volta con lo stesso errore («`children` non dichiarato in JSDoc»): non
+    // un problema della cartella che li raggiungeva, ma un buco nel pattern di
+    // `state/` stesso. Chiuso con la riga di JSDoc che manca (stessa forma già
+    // usata in `ui/Modal.jsx` e `state/StoricoTaskContext.jsx`,
+    // `@param {import('react').ReactNode} props.children`), poi l'intera
+    // cartella misurata di nuovo: zero errori sugli otto file insieme.
+    "src/state/**/*.jsx",
+    // M-4, passo 6. `shell/` per sesta: la più economica delle sette rimaste
+    // dopo il passo 5 (3 errori su 13 file, prima ancora del fix ai provider —
+    // uno dei tre era proprio l'eco di `TasksContext.jsx` qui sopra).
+    "src/components/shell/**/*.jsx",
+    "src/components/shell/**/*.js",
+    // M-4, passo 7. `admin/` per settima: 4 errori su 14 file, la seconda più
+    // economica misurata allo stesso momento del passo 6.
+    "src/components/admin/**/*.jsx",
+    "src/components/admin/**/*.js",
+    // M-4, passo 8. `calendar/` per ottava: 4 errori su 9 file, la più
+    // economica delle cinque cartelle rimaste dopo il passo 7. Due sono lo
+    // stesso limite già visto al passo 5 (`SwipeActions key={t.id}` in
+    // `AdvancedSearchPanel.jsx`): senza `@types/react`, `tsc` non sa che
+    // `key` è una prop speciale di JSX tolta da React prima che il
+    // componente la riceva — qui su `SwipeActions` (CalendarMonthGrid) e
+    // `Avatar` (CalendarDayGrid), stesso `@ts-expect-error` mirato. Il terzo
+    // è `calendarLayout.js`: `new Date(a) - new Date(b)` in un `.sort()`
+    // senza `.getTime()` esplicito — lo stesso confronto che
+    // `lib/searchTask.js` (già in scope dal via) scrive già con `.getTime()`.
+    "src/components/calendar/**/*.jsx",
+    "src/components/calendar/**/*.js"
   ],
   "exclude": [
     "node_modules"

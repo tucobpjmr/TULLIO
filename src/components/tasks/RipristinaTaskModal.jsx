@@ -53,7 +53,7 @@ const REGOLE = { title: obbligatorio("Il titolo è obbligatorio: senza, la task 
 /**
  * @param {object}   props
  * @param {object}   props.task     la task cestinata da ripristinare.
- * @param {Function} props.onClose  chiude la modale (riuscita o annullamento).
+ * @param {() => void} props.onClose  chiude la modale (riuscita o annullamento).
  */
 export function RipristinaTaskModal({ task, onClose }) {
   const dispatch = useDispatch();

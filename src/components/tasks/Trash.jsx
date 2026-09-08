@@ -66,7 +66,7 @@ export const Trash = memo(function Trash({ loading = false }) {
   // task, e senza memo si rifacevano a ogni cambio di chip del periodo.
   const trashed = useMemo(
     () => io.taskVisibili(getTrashedTasks(tasks))
-      .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt)),
+      .sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime()),
     [tasks, io]);
   const visible = useMemo(
     () => filterByPeriod(trashed, period, "deletedAt"), [trashed, period]);
@@ -221,7 +221,10 @@ export const Trash = memo(function Trash({ loading = false }) {
                   <td style={padding3}>
                     <div style={stiliComuni.rowGap4}>
                       {task.assignees?.length
-                        ? task.assignees.map(id => <Avatar key={id} memberId={id} size={22} />)
+                        ? task.assignees.map(id => (
+                          // @ts-expect-error key è gestita da React, non da Avatar (M-4, assenza di @types/react)
+                          <Avatar key={id} memberId={id} size={22} />
+                        ))
                         : <span style={stiliComuni.txtF12Muted}>—</span>
                       }
                     </div>

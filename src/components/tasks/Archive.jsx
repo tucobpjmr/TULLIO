@@ -76,7 +76,7 @@ export const Archive = memo(function Archive({ loading = false }) {
   // perimetro non comprendeva.
   const archived = useMemo(
     () => io.taskVisibili(getArchivedTasks(tasks))
-      .sort((a, b) => new Date(b.completedAt || b.dueDate || 0) - new Date(a.completedAt || a.dueDate || 0)),
+      .sort((a, b) => new Date(b.completedAt || b.dueDate || 0).getTime() - new Date(a.completedAt || a.dueDate || 0).getTime()),
     [tasks, io]);
 
   // M-3 · L'indice di ricerca delle righe archiviate, ricostruito quando
@@ -262,7 +262,10 @@ export const Archive = memo(function Archive({ loading = false }) {
                         )}
                         {task.assignees?.length > 0 && (
                           <div style={rowGap3}>
-                            {task.assignees.map(id => <Avatar key={id} memberId={id} size={20} />)}
+                            {task.assignees.map(id => (
+                              // @ts-expect-error key è gestita da React, non da Avatar (M-4, assenza di @types/react)
+                              <Avatar key={id} memberId={id} size={20} />
+                            ))}
                           </div>
                         )}
                       </div>
@@ -322,7 +325,10 @@ export const Archive = memo(function Archive({ loading = false }) {
                       <td style={padding3}>
                         <div style={stiliComuni.rowGap4}>
                           {task.assignees?.length
-                            ? task.assignees.map(id => <Avatar key={id} memberId={id} size={22} />)
+                            ? task.assignees.map(id => (
+                              // @ts-expect-error key è gestita da React, non da Avatar (M-4, assenza di @types/react)
+                              <Avatar key={id} memberId={id} size={22} />
+                            ))
                             : <span style={stiliComuni.txtF12Muted}>—</span>
                           }
                         </div>

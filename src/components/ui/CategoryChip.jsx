@@ -2,7 +2,7 @@
 // Estratto dal monolite (Step P Phase 2e).
 import { useAppData } from "../../state/AppDataContext.jsx";
 
-export const CategoryChip = ({ category, small }) => {
+export const CategoryChip = ({ category, small = false }) => {
   const { categories } = useAppData();
   const c = categories[category] || categories.admin || {};
   return (

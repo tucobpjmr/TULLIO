@@ -7,7 +7,7 @@ import { ContactActions } from "./ContactActions.jsx";
 // Rende un testo libero (es. tasks.contact = "Mario 340 123 4567 / mail@x.it")
 // individuando la prima porzione telefonica e rendendola cliccabile. Il resto
 // del testo resta invariato. Se non trova un numero, ritorna il testo semplice.
-export function ContactText({ text, style }) {
+export function ContactText({ text, style = undefined }) {
   const phone = firstPhoneIn(text);
   if (!phone) return <span style={style}>{text}</span>;
   const idx = text.indexOf(phone);

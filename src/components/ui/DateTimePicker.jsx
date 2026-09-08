@@ -150,7 +150,7 @@ function useIsMobile() {
 // all'ultimo frame: nel BulkTaskCreator, dove si passa da un campo all'altro
 // senza toccare "OK", le task nascevano senza scadenza ("la data inserita
 // non persiste"). "Cancella" resta l'unico modo per azzerare una data.
-export function DateTimePicker({ value, onChange, hasError, style, placeholder = "gg/mm/aaaa --:--", align = "left", withTime = true, ariaLabel }) {
+export function DateTimePicker({ value, onChange, hasError = false, style = undefined, placeholder = "gg/mm/aaaa --:--", align = "left", withTime = true, ariaLabel }) {
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState(() => (value ? new Date(value) : new Date()));
   const [draftDay, setDraftDay] = useState(() => (value ? new Date(value) : null));

@@ -173,7 +173,28 @@
     //   · `TaskCard.jsx`: `ReactNode` nudo nel JSDoc, mai importato — stessa
     //     forma `import('react').ReactNode` di `ui/Modal.jsx`.
     "src/components/tasks/**/*.jsx",
-    "src/components/tasks/**/*.js"
+    "src/components/tasks/**/*.js",
+    // M-4, passo 12 — ultima cartella di `src/components/`. `dashboard/` per
+    // dodicesima: 15 file. Ventisei errori all'attivazione, ridotti a venti
+    // da un solo fix: come `LvOverlay.jsx` al passo 9, il JSDoc di
+    // `QueueShell.jsx` documentava i campi per nome nudo (`icon`, `title`…)
+    // invece che `props.<nome>`, quindi `tsc` collassava l'intero tipo dei
+    // props sul primo tag (`accent`, l'unione delle cinque tinte) — un guscio
+    // condiviso dalle cinque code, quindi un solo buco nel JSDoc appariva
+    // moltiplicato per ogni chiamante. Riscritto nella stessa forma.
+    //
+    // Il resto, forme già viste: `new Date(a) - new Date(b)` senza
+    // `.getTime()` (`Dashboard.jsx`, `NoticeBoard.jsx`, `PersonalQueue.jsx`);
+    // `key` su `SwipeActions` (le cinque code) e su `FilterChip`
+    // (`PersonalQueue.jsx`) senza `@types/react`, stesso `@ts-expect-error`
+    // mirato — su `SwipeActions` il commento è `//` e non `{/* */}` perché la
+    // riga precede ancora la JSX dentro un `.map(t => (...))`, non è un figlio
+    // JSX; tre prop opzionali nella pratica ma obbligatorie nella firma
+    // (`QueueTab.jsx` → `dangerCount`, `FilterChip.jsx` → `title`,
+    // `FilterRow.jsx` → `accentRgb`), stesso `= false`/`= undefined` dei passi
+    // precedenti.
+    "src/components/dashboard/**/*.jsx",
+    "src/components/dashboard/**/*.js"
   ],
   "exclude": [
     "node_modules"

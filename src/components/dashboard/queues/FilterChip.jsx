@@ -3,7 +3,7 @@
 //
 // Chip di filtro/ordinamento. Esisteva in quattro varianti divergenti; `accent`
 // è il colore dello stato attivo, che cambia per coda.
-export const FilterChip = ({ active, onClick, accent = "var(--navy)", title, children }) => (
+export const FilterChip = ({ active, onClick, accent = "var(--navy)", title = undefined, children }) => (
   <button
     type="button"
     onClick={onClick}

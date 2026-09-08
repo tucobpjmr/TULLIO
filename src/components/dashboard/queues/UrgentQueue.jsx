@@ -209,6 +209,7 @@ export const UrgentQueue = ({ tasks, onOpenChat, uid, loading = false }) => {
           // le task non assegnate (coda globale) restano editabili anche qui.
           const editable = per(uid).modificaTask(t);
           return (
+            // @ts-expect-error key è gestita da React, non da SwipeActions (M-4, assenza di @types/react)
             <SwipeActions key={t.id} task={t}>
               <TaskCard
                 task={t}

@@ -34,14 +34,17 @@ export const QUEUE_ACCENTS = {
 };
 
 /**
- * @param {'personal'|'urgent'|'unassigned'|'overdue'|'waiting'} accent
- * @param {ReactNode} icon        contenuto del riquadro 34×34 (emoji o iniziali)
- * @param {string}    [iconBg]    override del fondo icona (PersonalQueue usa il colore del membro)
- * @param {string}    [iconFg]
- * @param {string}    title
- * @param {ReactNode} [badge]     contenuto del badge conteggio; assente = nessun badge
- * @param {boolean}   [tight]     coda vuota: azzera il margine sotto la testata
- * @param {ReactNode} [filters]   riga dei filtri, sotto la testata
+ * @param {object} props
+ * @param {'personal'|'urgent'|'unassigned'|'overdue'|'waiting'} props.accent
+ * @param {import('react').ReactNode} props.icon        contenuto del riquadro 34×34 (emoji o iniziali)
+ * @param {string}    [props.iconBg]    override del fondo icona (PersonalQueue usa il colore del membro)
+ * @param {string}    [props.iconFg]
+ * @param {number}    [props.iconSize]
+ * @param {string}    props.title
+ * @param {import('react').ReactNode} [props.badge]     contenuto del badge conteggio; assente = nessun badge
+ * @param {boolean}   [props.tight]     coda vuota: azzera il margine sotto la testata
+ * @param {import('react').ReactNode} [props.filters]   riga dei filtri, sotto la testata
+ * @param {import('react').ReactNode} props.children
  */
 export function QueueShell({
   accent, icon, iconBg, iconFg, iconSize = 18, title, badge = null,

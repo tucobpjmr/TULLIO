@@ -108,6 +108,7 @@ export const WaitingQueue = ({ tasks, loading = false }) => {
             const prio = PRIORITIES[t.priority] || { color: "#6B7280", bg: "#F9FAFB", label: t.priority };
             const overdue = isOverdue(t);
             return (
+              // @ts-expect-error key è gestita da React, non da SwipeActions (M-4, assenza di @types/react)
               <SwipeActions key={t.id} task={t}>
                 <TaskCard
                   task={t}

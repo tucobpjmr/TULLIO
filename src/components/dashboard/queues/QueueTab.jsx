@@ -3,7 +3,7 @@
 // ─── QUEUE TAB (Dashboard tab card) ───────────────────────────────────────
 import { conTastiera } from "../../../lib/a11y.js";
 
-export const QueueTab = ({ active, onClick, icon, label, count, isMobile, dangerCount }) => {
+export const QueueTab = ({ active, onClick, icon, label, count, isMobile, dangerCount = false }) => {
   return (
     <button
       onClick={onClick}

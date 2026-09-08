@@ -53,7 +53,7 @@ const byDueDate = (a, b) => {
   if (!a.dueDate && !b.dueDate) return 0;
   if (!a.dueDate) return 1;
   if (!b.dueDate) return -1;
-  return new Date(a.dueDate) - new Date(b.dueDate);
+  return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
 };
 const PRIORITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
 const byPriorityThenDueDate = (a, b) => {
@@ -340,6 +340,7 @@ export const Dashboard = memo(function Dashboard({
           ) : (
           <div style={stiliComuni.colGap10}>
             {next7.map(t => (
+              // @ts-expect-error key è gestita da React, non da SwipeActions (M-4, assenza di @types/react)
               <SwipeActions key={t.id} task={t}>
                 <TaskRow
                   task={t}

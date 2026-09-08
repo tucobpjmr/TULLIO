@@ -173,7 +173,7 @@ export const ClientiView = memo(function ClientiView({ loading = false }) {
       if (sortBy === "name_z") return (b.name || "").localeCompare(a.name || "", "it");
       if (sortBy === "city")   return (a.city || "").localeCompare(b.city || "", "it");
       // date: più recenti prima (createdAt desc)
-      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
     });
   }, [ricercaAttiva, ricercaServer.risultati, clients, sortBy, linkFilter, listeByClient]);
 
@@ -330,6 +330,7 @@ export const ClientiView = memo(function ClientiView({ loading = false }) {
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(340px, 1fr))", gap: 14 }}>
             {visibili.map(c => (
               <ClienteCard
+                // @ts-expect-error key è gestita da React, non da ClienteCard (M-4, assenza di @types/react)
                 key={c.id}
                 cliente={c}
                 onEdit={puoModificare ? (c => overlayDispatch({ type: "MODIFICA", cliente: c })) : null}

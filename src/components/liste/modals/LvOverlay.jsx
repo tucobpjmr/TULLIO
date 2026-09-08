@@ -27,7 +27,12 @@ import { useTrappolaFocus } from "../../../hooks/useTrappolaFocus.js";
 // reintroduce il bug della positioning: contribuisce zero altezza al layout
 // perché il suo unico figlio è position:fixed.
 /**
- * @param {boolean} [chiudiSuVelo=false]  se il click sul velo chiude il modale.
+ * @param {object} props
+ * @param {import('react').ReactNode} props.children
+ * @param {function} props.onClose
+ * @param {boolean} [props.wide=false]
+ * @param {string} [props.labelledBy]  id del titolo, per aria-labelledby
+ * @param {boolean} [props.chiudiSuVelo=false]  se il click sul velo chiude il modale.
  *
  * Il default è FALSE, e non TRUE come in `ui/Modal` (M-2): questi undici
  * modali sono i form più lunghi dell'app (ST-5) e sono sul denaro — un click

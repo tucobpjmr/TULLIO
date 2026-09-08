@@ -116,7 +116,25 @@
     // senza `.getTime()` esplicito — lo stesso confronto che
     // `lib/searchTask.js` (già in scope dal via) scrive già con `.getTime()`.
     "src/components/calendar/**/*.jsx",
-    "src/components/calendar/**/*.js"
+    "src/components/calendar/**/*.js",
+    // M-4, passo 9. `clients/` per nona: 11 file fra `.jsx` e `.js`. Ha
+    // raggiunto per import quattro file di `liste/` mai coperti finora
+    // (`ClienteListePanel.jsx` dinamico da `ClienteDetailPanel.jsx`, e da lì
+    // `modals/LvOverlay.jsx`, `modals/NuovaListaModal.jsx`,
+    // `useSalvataggioLista.js`), corretti insieme a questa cartella. Tre errori
+    // di forma già viste: `new Date(a) - new Date(b)` senza `.getTime()`
+    // (stesso limite del passo 8, in `ClientiView.jsx`), `key` su un
+    // componente senza `@types/react` (stesso `@ts-expect-error` mirato dei
+    // passi 5 e 8, qui su `ClienteCard`), e un `catch` tipizzato `unknown` da
+    // `hooks/useCaricamento.js` letto come se fosse un `Error` in
+    // `ClienteListePanel.jsx` (narrowing con `instanceof Error`, come già in
+    // `chat/chatCommands.js`). Il quarto è nuovo: il JSDoc di `LvOverlay.jsx`
+    // documentava un solo parametro (`chiudiSuVelo`) per una funzione a
+    // cinque prop distrutte, quindi `tsc` leggeva l'intero oggetto props come
+    // `boolean` — riscritto nella forma `@param {object} props` +
+    // `props.<nome>` già usata da `ui/Modal.jsx`.
+    "src/components/clients/**/*.jsx",
+    "src/components/clients/**/*.js"
   ],
   "exclude": [
     "node_modules"

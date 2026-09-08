@@ -60,7 +60,7 @@ import { useSalvataggio } from "../../hooks/useSalvataggio.js";
  *        positivo — chiudere l'editor, ricaricare. Le modali NON ne hanno
  *        bisogno: `run()` chiude già l'overlay al proprio interno, e il guard
  *        di smontaggio fa il resto.
- * @returns {{salva: (...argomenti: any[]) => void, inVolo: boolean}}
+ * @returns {{salva: Function, inVolo: boolean}}
  */
 export function useSalvataggioLista(scrivi, { alSuccesso } = {}) {
   const { salva, inVolo } = useSalvataggio(

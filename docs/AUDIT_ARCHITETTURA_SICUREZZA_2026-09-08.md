@@ -81,7 +81,7 @@ nessuna.
 
 | # | Priorità | Rilievo | File / oggetto |
 |---|---|---|---|
-| **A-1** | 🔴 Alta | **I canali Realtime broadcast e presence non autorizzano nessuno.** Verificato in produzione: `realtime.messages` ha `relrowsecurity = false` e **0 policy**, e nessun `supabase.channel(...)` del progetto passa `config: { private: true }`. Sono quindi canali **pubblici**: qualunque sessione valida — compresi i **2 account `driver`**, che la RLS esclude da chat, clienti e liste — può sottoscrivere `typing:<conversationId>` di una conversazione che non può leggere, riceverne gli eventi e **pubblicarne di propri**, e può `track()` sul canale `presenza:agenzia` sotto una **chiave arbitraria**, cioè far risultare online/occupato/assente un altro membro. Un ex-partecipante rimosso da una conversazione conserva l'UUID e con esso l'accesso, per sempre | `src/lib/realtime.js:190,222,262`; DB (`realtime.messages`) |
+| **A-1** | 🔴 Alta | **I canali Realtime broadcast e presence non autorizzano nessuno.** Non perché `realtime.messages` sia aperta — è già fail-closed (`relrowsecurity = true`, **0 policy**, su staging e produzione) — ma perché **non viene mai consultata**: Realtime la interroga solo per i canali dichiarati `private: true`, e `src/lib/realtime.js` non lo dichiarava per nessuno dei due. Un canale pubblico non fallisce l'autorizzazione, la **salta**. Con 7 utenti di cui **2 driver** (il ruolo che ogni policy esclude da chat, anagrafica e liste), un driver poteva sottoscrivere `typing:<conversationId>` di una conversazione che la RLS non gli lascia leggere, riceverne gli eventi e **pubblicarne di propri**, e fare `track()` su `presenza:agenzia` sotto una **chiave arbitraria** — la chiave di presence la sceglie il client. Un ex-partecipante conserva l'UUID, e con esso l'accesso. ⚠️ **Correzione di questo stesso audit**: la prima stesura diceva `relrowsecurity = false`. Era una lettura delle **partizioni** giornaliere (`relkind = 'r'`, dove il flag è false) presa per la tabella padre partizionata (`relkind = 'p'`, dove è true) — misurare un livello e concludere su un altro. Il rischio non cambia, la diagnosi e il rimedio sì: non c'è una RLS da accendere, ci sono le policy che mancano. ⚙️ **Metà chiusa**: `private: true` sui due canali, migrazione `20260908120000` scritta, guardia `canaliPrivati.test.js` (4 casi, 2 mutazioni verificate). **Metà aperta**: la migrazione non è applicata da nessuna parte — `realtime.messages` è di `supabase_realtime_admin` e `apply_migration` gira come `postgres`, che non ne è proprietario. Va applicata dalla dashboard | `src/lib/realtime.js:190,229,273`; DB (`realtime.messages`) |
 | **A-2** | 🔴 Alta | **Riportato dal 5 settembre (`A-1`), con una seconda occorrenza misurata e il perimetro finalmente delimitato.** `xlsx` è risolto da `https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`, non dal registry: **in questa sessione `npm ci` è fallito con `403 Forbidden`**, e con lui i 2 file di test che importano la libreria e i 2 errori di `verifica:tipi`. ⚠️ **Il guasto dipende dall'ambiente, e questa è la misura che il 5 settembre mancava**: sullo stesso commit di questo audit la CI GitHub è **verde** e il preview Vercel **Ready**, cioè da lì il CDN oggi si raggiunge. Resta quindi **latente** per CI e produzione e **attivo** per chi lavora da una rete ristretta — due sessioni su due. Non è un difetto del sorgente: è l'installazione a riuscire o no a seconda di una terza parte | `package.json:31`, `package-lock.json`, `.github/workflows/ci.yml` |
 | **M-1** | 🟡 Media | **`public.sonda_audit_clients_update()` è concessa a OGNI utente autenticato in produzione**, senza gate di ruolo e senza limite di frequenza — mentre `send_test_push()` ne ha uno da `B-5` dello **stesso 5 settembre**, e le quattro Edge Function passano tutte da `entroLimite`. È `SECURITY DEFINER`: `INSERT` + `UPDATE` su `public.clients` **scavalcando la RLS**, annullati da un rollback interno che però lascia comunque tuple morte, WAL e subtransazioni. La sua unica chiamata legittima gira su **staging** (`rls.yml` dichiara che `RLS_TEST_URL` non deve mai puntare alla produzione): in produzione il grant è superficie e basta | `supabase/migrations/20260905130000_audit_clients_update.sql:75,98`; DB (`proacl`) |
 | **M-2** | 🟡 Media | **Nessuna coda di scrittura offline.** L'app gestisce benissimo *leggere* da offline (guscio in cache, due strisce persistenti) e non gestisce affatto *scrivere*: fuori rete la `persist()` fallisce, parte il rollback e resta un toast rosso — il lavoro dell'utente è perso. Su un gestionale con **2 driver sul campo** è la lacuna di UX più concreta. L'architettura è già pronta (registry dichiarativo, `rollback`, `pendingWrites`): manca l'outbox | `src/hooks/useSyncedDispatch.js`, `src/hooks/useOnlineStatus.js`, `src/components/shell/OfflineBanner.jsx` |
@@ -98,175 +98,112 @@ nessuna.
 
 ### A-1 · Autorizzare i canali Realtime
 
-**Dove.** `src/lib/realtime.js:222` e `:262`; `realtime.messages` in produzione.
+**Dove.** `src/lib/realtime.js:229` e `:273`; `realtime.messages` in produzione.
 
-**Perché è una criticità.** Il progetto ha una posizione dichiarata e
-applicata ovunque — «il client decide cosa mostrare, il database cosa è
-permesso» — e la applica su tre livelli: `lib/permissions.js`, i `guard` dei
-registry, le policy RLS, con `src/test/integration/rls.test.js` a misurare
-che i tre non divergano. Su Realtime quella posizione non è mai stata presa,
-e non per una scelta: perché la domanda non è mai stata posta. I canali
-`postgres_changes` sono al sicuro (Realtime valuta le policy per conto
-dell'utente prima di consegnare l'evento), ma **broadcast e presence sono un
-protocollo diverso** e non passano da lì.
+⚙️ **Stato: metà chiusa, metà bloccata.** Il repository ha ora entrambe le
+parti; il database no, e non per una scelta — vedi «Il blocco» in fondo.
 
-Verificato in produzione, non dedotto:
+**Perché è una criticità.** Il progetto autorizza su tre livelli e li misura
+(`src/test/integration/rls.test.js`). Su Realtime quella disciplina copre
+**metà** del protocollo: `postgres_changes` sì — Realtime valuta le policy
+della tabella per conto dell'utente — broadcast e presence no, perché
+passano da una tabella di autorizzazione propria, `realtime.messages`.
 
-```sql
-select c.relname, c.relrowsecurity, (select count(*) from pg_policy p where p.polrelid = c.oid)
-from pg_class c join pg_namespace n on n.oid = c.relnamespace
-where n.nspname = 'realtime' and c.relkind = 'r';
---  messages_2026_09_05 … messages_2026_09_11 → relrowsecurity = false, 0 policy
-```
+⚠️ **La causa non è quella che avevo scritto per prima.** `realtime.messages`
+è già fail-closed: `relrowsecurity = true` e zero policy, cioè nega tutto, su
+staging come in produzione. La causa è che **non viene mai consultata**:
+Realtime la interroga solo per i canali dichiarati `private: true`, e il
+client non lo dichiarava. Un canale pubblico non fallisce l'autorizzazione,
+la salta.
 
-Con RLS spenta su `realtime.messages` e nessun `private: true` lato client,
-`presenza:agenzia` e `typing:<uuid>` sono **canali pubblici**: chiunque abbia
-un access token valido può entrarci. Nel team di oggi sono 7 persone, di cui
-**2 driver** — il ruolo che ogni policy del progetto esclude da chat,
-anagrafica e liste. Su quei due canali non è escluso da niente.
+La prima stesura diceva «RLS spenta». Veniva da una query che aveva letto le
+**partizioni** giornaliere (`messages_2026_09_08`, `relkind = 'r'`, dove il
+flag è effettivamente false) invece della tabella **padre partizionata**
+(`relkind = 'p'`, dove è true). È lo stesso errore di metodo che questo
+repository si contesta altrove — misurare un livello e concludere su un
+altro — e cambia il rimedio: non c'è una RLS da accendere, mancano le policy.
 
-Cosa può fare, concretamente:
+**Cosa poteva fare chi non doveva.** Con 7 utenti di cui 2 `driver`:
 
-* `supabase.channel('typing:<conversationId>').on('broadcast', …).subscribe()`
-  → riceve `{ userId, typing }` di una conversazione che la RLS non gli
-  lascia leggere. L'UUID lo conosce chi è **stato** partecipante: il progetto
-  ha già una migrazione dedicata agli ex-partecipanti
-  (`20260827075157_chat_files_orfani_ex_partecipanti`), quindi il caso non è
-  teorico — è già stato riconosciuto come reale su un'altra superficie.
+* `channel('typing:<conversationId>').on('broadcast', …).subscribe()` → riceve
+  `{ userId, typing }` di una conversazione che la RLS non gli lascia leggere.
+  L'UUID lo conosce chi è **stato** partecipante, e il progetto ha già una
+  migrazione dedicata agli ex-partecipanti (`20260827075157`): il caso non è
+  teorico.
 * `channel.send({ type: 'broadcast', event: 'typing', payload: { userId: <altrui>, typing: true } })`
   → «Mario sta scrivendo…» in una chat in cui Mario non c'è.
-* `supabase.channel('presenza:agenzia', { config: { presence: { key: '<id altrui>' } } })`
-  poi `track({ status: 'busy', at: Date.now() })` → il pallino di chiunque,
-  di qualunque colore, per chiunque guardi. La chiave di presence la sceglie
-  **il client**: `key: myId` in `usePresence.js` è una convenzione del nostro
-  codice, non un vincolo del protocollo.
+* `channel('presenza:agenzia', { config: { presence: { key: '<id altrui>' } } })`
+  poi `track(...)` → il pallino di chiunque, di qualunque colore.
 
-**Soluzione.** Due metà, e servono entrambe: la migrazione da sola non
-cambia nulla finché i canali restano pubblici, e `private: true` da solo
-fallirebbe la sottoscrizione perché non c'è policy che la consenta.
+**La correzione, e perché è in due metà inseparabili.**
 
-*Metà database* — `supabase/migrations/20260908120000_realtime_canali_privati.sql`:
+*Metà repository* — ✅ fatta in questa sessione:
 
-```sql
--- A-1 dell'audit dell'8 settembre.
---
--- `realtime.messages` è la tabella su cui Realtime valuta l'autorizzazione
--- dei canali PRIVATI (broadcast e presence). Con la RLS spenta — lo stato
--- di default, e quello in cui il progetto è vissuto finora — non c'è nulla
--- da valutare: `presenza:agenzia` e `typing:<uuid>` sono canali pubblici,
--- aperti a ogni sessione valida. Sono l'unica superficie del progetto senza
--- un gate, ed è la ragione per cui nessuno dei venticinque audit precedenti
--- l'ha trovata: si guarda dove i gate ci sono.
---
--- ⚠️ QUESTA MIGRAZIONE NON BASTA DA SOLA. Le policy qui sotto valgono per i
--- canali dichiarati `private: true` dal client (src/lib/realtime.js): un
--- canale pubblico non le attraversa affatto. Le due metà vanno applicate
--- insieme — è il motivo per cui questo commento sta qui e non solo là.
-alter table realtime.messages enable row level security;
+* `supabase/migrations/20260908120000_realtime_canali_privati.sql`: quattro
+  policy su `realtime.messages` (SELECT per ricevere, INSERT per pubblicare,
+  su ciascun canale) più `private.puo_typing(text)`, che rispecchia
+  `conversations_select`.
+* `src/lib/realtime.js`: `private: true` su entrambi i canali.
+* `src/test/realtime/canaliPrivati.test.js`: la guardia di forma — ogni canale
+  non-`postgres_changes` deve chiedere `private: true`, e quello tabellare
+  **non** deve. 4 casi, verdi, e **2 mutazioni provate**: togliendo `private`
+  al typing e mettendolo al canale tabellare il test fallisce in entrambi i
+  versi.
 
--- `realtime.topic()` è la funzione che Realtime espone alle policy per
--- leggere il nome del topic della richiesta corrente. `extension` distingue
--- 'broadcast' da 'presence': sullo stesso topic arrivano entrambi, e la
--- presenza non va concessa dove si concede solo il broadcast.
+Due dettagli emersi scrivendo il codice, che la bozza dell'action plan aveva
+sbagliati e che vale la pena registrare perché sono entrambi silenziosi:
 
--- ── presenza:agenzia ───────────────────────────────────────────────────────
--- Il canale della presenza è di TUTTO il team, driver compresi: chi è
--- collegato è un fatto operativo, non un dato di dominio. Il gate è quindi
--- il minimo comune — utente attivo e approvato — e non `can_liste()`.
---
--- ⚠️ La policy NON impedisce a un utente legittimo di pubblicare sotto la
--- chiave di un altro: la chiave di presence viaggia nel payload, non nel
--- topic, e nessuna policy la vede. Ciò che chiude è il perimetro — solo chi
--- è nel team entra nel canale — non l'identità della singola voce. È un
--- limite dichiarato: falsificare il proprio pallino resta possibile per i
--- sette membri del team, ed è un rischio di categoria diversa (un collega
--- che mente sul proprio stato) da quello che questa migrazione chiude (un
--- estraneo al perimetro che legge e scrive).
-create policy "presenza_team_attivo"
-  on realtime.messages for select to authenticated
-  using (realtime.topic() = 'presenza:agenzia' and (select private.is_active_user()));
+1. **`private.puo_typing` deve avere EXECUTE per `authenticated`.** La bozza lo
+   revocava, copiando la disciplina delle funzioni trigger. Una policy che
+   chiama una funzione la esegue con i privilegi di chi interroga: senza il
+   grant la policy fallisce per permesso negato invece di valutare. Gli
+   helper esistenti (`is_admin`, `is_active_user`, `can_liste`) lo concedono
+   tutti — verificato in `proacl`.
+2. **Le policy scopano anche per `extension`** (`'broadcast'` per il typing,
+   `'presence'` per la presenza), che è la forma documentata da Supabase. È
+   l'unico punto che poggia sulla documentazione e non su una misura: da
+   questo ambiente la rete verso `*.supabase.co` è bloccata, quindi nessuna
+   sottoscrizione reale è stata possibile.
 
-create policy "presenza_team_attivo_pubblica"
-  on realtime.messages for insert to authenticated
-  with check (realtime.topic() = 'presenza:agenzia' and (select private.is_active_user()));
+**⚠️ L'ordine di applicazione, che è il contrario di quello che si crede.**
 
--- ── typing:<conversation_id> ───────────────────────────────────────────────
--- Il gate è lo STESSO della policy `conversations_select` (auth.uid() =
--- any(participants) or is_admin()), e deve restarlo: se un domani cambia la
--- regola di chi vede una conversazione, questa deve seguirla — altrimenti
--- torna esattamente lo scarto fra due livelli che questo audit ha trovato.
---
--- Il topic porta l'id come testo: `substring` lo estrae e il cast a uuid
--- fallirebbe su un topic malformato, quindi si valida prima con un regex —
--- una `raise` dentro una policy sarebbe un errore 500 al posto di un
--- rifiuto.
-create or replace function private.puo_typing(p_topic text)
-returns boolean
-language sql stable security definer
-set search_path = ''
-as $$
-  select case
-    when p_topic ~ '^typing:[0-9a-fA-F-]{36}$' then exists (
-      select 1 from public.conversations c
-      where c.id = substring(p_topic from 8)::uuid
-        and ((select auth.uid()) = any (c.participants) or (select private.is_admin()))
-    )
-    else false
-  end;
-$$;
+| Ordine | Conseguenza |
+|---|---|
+| Migrazione prima, client dopo | Fra i due momenti non cambia **nulla**: i canali restano pubblici finché il client non chiede `private: true`, e le policy non vengono consultate. Nessun disservizio |
+| Client prima, migrazione dopo | Il client chiede canali privati, la tabella nega tutto perché senza policy: **«sta scrivendo» e i pallini di presenza smettono di funzionare per tutti** |
 
-revoke execute on function private.puo_typing(text) from public, anon, authenticated;
+Sbagliare ordine non riapre il buco: rompe la funzione. Per questo la PR che
+porta il `private: true` **non va unita** prima che la migrazione sia
+applicata — è la stessa lezione di `docs/MIGRAZIONI_SUPABASE.md`, dove due
+migrazioni di hardening mergiate ma mai applicate lasciarono il modulo Liste
+senza controlli per giorni: conta solo ciò che è applicato.
 
-comment on function private.puo_typing(text) is
-  'Gate del canale realtime typing:<conversation_id>. Rispecchia '
-  'conversations_select. A-1 dell''audit dell''8 settembre.';
+**Il blocco.** La migrazione **non è applicabile** dal canale abituale, ed è
+un limite della piattaforma. `realtime.messages` è di proprietà di
+`supabase_realtime_admin`; `apply_migration` (e l'SQL Editor) girano come
+`postgres`, che su quella tabella ha i privilegi DML ma non la proprietà —
+e `CREATE POLICY` la richiede. Misurato su `tullio-staging` l'8 settembre:
 
-create policy "typing_partecipanti"
-  on realtime.messages for select to authenticated
-  using ((select private.puo_typing(realtime.topic())));
-
-create policy "typing_partecipanti_pubblica"
-  on realtime.messages for insert to authenticated
-  with check ((select private.puo_typing(realtime.topic())));
+```
+apply_migration                                    → 42501 must be owner of table messages
+grant supabase_realtime_admin to postgres          → 42501
+set role supabase_admin / supabase_realtime_admin  → 42501
+alter table realtime.messages owner to postgres    → 42501
 ```
 
-*Metà client* — `src/lib/realtime.js`:
+Resta da provare la **dashboard → SQL Editor** (che potrebbe girare con
+privilegi diversi da questa connessione) e, se anche lì rispondesse 42501, il
+**supporto Supabase**. Non esiste un percorso in-repo per ottenere quella
+proprietà, e forzarla non va tentato.
 
-```js
-// riga 222 — presenza
-    const channel = supabase.channel(CANALE_PRESENZA, {
-      // `private: true` è ciò che manda Realtime a valutare le policy su
-      // realtime.messages (migrazione 20260908120000). Senza, il canale è
-      // PUBBLICO e le policy non vengono nemmeno consultate — A-1
-      // dell'audit dell'8 settembre.
-      config: { presence: { key }, private: true },
-    });
-
-// riga 262 — typing
-      .channel(`typing:${conversationId}`, {
-        config: { broadcast: { self: false }, private: true },
-      })
-```
-
-**Guardie perché non torni.** Due, e vanno insieme al codice:
-
-1. `src/test/realtime/canaliPrivati.test.js` — invariante di forma: **ogni**
-   `supabase.channel(...)` in `src/` che non sia `postgres_changes` deve
-   passare `private: true`. Si legge il sorgente di `lib/realtime.js` come già
-   fa `useUrlStato.test.jsx` con `VoyageDeskInner.jsx`, così un canale nuovo
-   scritto domani non può nascere pubblico in silenzio.
-2. Due casi in `src/test/integration/rls.test.js` (che gira su staging con
-   sessioni vere di ogni ruolo): il driver **non** riesce a sottoscrivere
-   `typing:<id>` di una conversazione altrui, e un non-partecipante nemmeno.
-   È il solo livello a cui questa correzione si possa misurare davvero — le
-   policy di `realtime.messages` non le attraversa nessun test unitario.
-
-**Nota operativa.** Applicare la migrazione **prima** del deploy del client:
-nell'ordine inverso i canali resterebbero pubblici per la durata del
-disallineamento; in quest'ordine non cambia nulla finché il client non
-dichiara `private: true`, e poi cambia tutto insieme.
-
----
+**Cosa verificare su staging prima della produzione.** La verifica SQL prova
+il *predicato*; non prova che Realtime scriva le righe con l'`extension` che
+le policy si aspettano. Quello si vede solo usando l'app: due utenti in due
+browser → i pallini si accendono; una conversazione condivisa → «sta
+scrivendo…» arriva; l'utente `driver`, non partecipante → **non** arriva.
+Il terzo punto è quello che chiude il rilievo. Se i primi due falliscono,
+l'errore è quasi certamente l'`extension`: togliere quel filtro dalle policy
+e riprovare, prima di toccare altro.
 
 ### A-2 · Togliere il CDN dalla catena di build
 

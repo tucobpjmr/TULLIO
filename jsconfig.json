@@ -134,7 +134,21 @@
     // `boolean` — riscritto nella forma `@param {object} props` +
     // `props.<nome>` già usata da `ui/Modal.jsx`.
     "src/components/clients/**/*.jsx",
-    "src/components/clients/**/*.js"
+    "src/components/clients/**/*.js",
+    // M-4, passo 10. `liste/` per decima: dei suoi 37 file, quattro
+    // (`ClienteListePanel.jsx`, `modals/LvOverlay.jsx`,
+    // `modals/NuovaListaModal.jsx`, `useSalvataggioLista.js`) erano già a zero
+    // dal passo 9, raggiunti per import da `clients/`. Sei errori sul resto,
+    // tutti forme già viste: `new Date(a) - new Date(b)` senza `.getTime()`
+    // (`ArchivedListe.jsx`, come ai passi 8 e 9), `key` su un componente senza
+    // `@types/react` (`CellEditor` in `ListaDetail.jsx`, `ListaRow` due volte
+    // in `ListeViaggio.jsx` — stesso `@ts-expect-error` mirato dei passi 5, 8
+    // e 9), e un parametro con default a livello di destrutturazione
+    // (`{ enabled = true } = {}`) il cui JSDoc lo dichiarava obbligatorio
+    // invece che opzionale (`useListeData.js`, `[opts.enabled=true]` invece di
+    // `opts.enabled`).
+    "src/components/liste/**/*.jsx",
+    "src/components/liste/**/*.js"
   ],
   "exclude": [
     "node_modules"

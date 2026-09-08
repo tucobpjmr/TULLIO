@@ -53,6 +53,12 @@ const REGOLE = {
 // L'ordine VISIVO dei campi, che è quello in cui il focus deve tornare.
 const ORDINE = ["name", "email"];
 
+/**
+ * @param {object} props
+ * @param {() => void} props.onClose
+ * @param {Array} props.existingIds
+ * @param {() => void} [props.onInvited]  chiamata dopo un invito via email riuscito
+ */
 export const AddTeamMemberModal = ({ onClose, existingIds, onInvited }) => {
   const dispatch = useDispatch();
   const [name, setName] = useState("");

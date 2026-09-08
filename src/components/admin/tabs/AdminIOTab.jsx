@@ -116,7 +116,10 @@ export const AdminIOTab = ({ agencyName, notices = [] }) => {
     const reader = new FileReader();
     reader.onload = async (ev) => {
       try {
-        const data = JSON.parse(ev.target.result);
+        // `readAsText` (in fondo alla funzione) garantisce un risultato
+        // stringa: il tipo dell'evento resta `string | ArrayBuffer | null`
+        // perché lo stesso `onload` serve a tutti i metodi di lettura.
+        const data = JSON.parse(/** @type {string} */ (ev.target.result));
         const { fatalError, sanitized, warnings } = validateBackup(data);
         if (fatalError) throw new Error(fatalError);
         if (warnings.length > 0) {

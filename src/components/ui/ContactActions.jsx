@@ -17,6 +17,12 @@ const rowCenterGap6 = {
   alignItems: "center", gap: 6,
 };
 
+/**
+ * @param {object} props
+ * @param {string} props.phone
+ * @param {string} [props.label]  testo del bottone; se assente ricade sul numero
+ * @param {object} [props.style]
+ */
 export function ContactActions({ phone, label, style = undefined }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);

@@ -95,7 +95,16 @@
     // usata in `ui/Modal.jsx` e `state/StoricoTaskContext.jsx`,
     // `@param {import('react').ReactNode} props.children`), poi l'intera
     // cartella misurata di nuovo: zero errori sugli otto file insieme.
-    "src/state/**/*.jsx"
+    "src/state/**/*.jsx",
+    // M-4, passo 6. `shell/` per sesta: la più economica delle sette rimaste
+    // dopo il passo 5 (3 errori su 13 file, prima ancora del fix ai provider —
+    // uno dei tre era proprio l'eco di `TasksContext.jsx` qui sopra).
+    "src/components/shell/**/*.jsx",
+    "src/components/shell/**/*.js",
+    // M-4, passo 7. `admin/` per settima: 4 errori su 14 file, la seconda più
+    // economica misurata allo stesso momento del passo 6.
+    "src/components/admin/**/*.jsx",
+    "src/components/admin/**/*.js"
   ],
   "exclude": [
     "node_modules"

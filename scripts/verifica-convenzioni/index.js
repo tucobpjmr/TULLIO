@@ -207,6 +207,20 @@ const AUDIT = [
   // Nasce con dodici rilievi tutti aperti e NESSUN critico, quindi i prefissi
   // sono tre: A (alta), M (media), B (bassa).
   { file: 'AUDIT_ARCHITETTURA_SICUREZZA_2026-09-05.md', prefisso: ['A', 'M', 'B'] },
+  // L'audit di architettura e sicurezza dell'8 settembre. Registrato insieme al
+  // documento, per la ragione scritta piu' sopra.
+  //
+  // E' il primo che guarda il protocollo REALTIME come superficie di
+  // autorizzazione a se', invece che come il trasporto degli eventi
+  // `postgres_changes` — che la RLS la attraversano, ed e' il motivo per cui
+  // venticinque audit hanno concluso "realtime a posto" senza sbagliare: la
+  // meta' che avevano guardato lo era. A-1 sta nell'altra meta' (broadcast e
+  // presence), che non passa dalle policy delle tabelle e in produzione non
+  // passava da nessuna.
+  //
+  // Nasce con dieci rilievi tutti aperti e NESSUN critico, quindi i prefissi
+  // sono tre: A (alta), M (media), B (bassa).
+  { file: 'AUDIT_ARCHITETTURA_SICUREZZA_2026-09-08.md', prefisso: ['A', 'M', 'B'] },
 ];
 
 // Misura i warning di una regola sul sorgente dell'app.

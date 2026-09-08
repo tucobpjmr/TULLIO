@@ -81,7 +81,21 @@
     // (`.js`, `src/state/**/*.js` copre solo `state/`, non `components/liste/`)
     // e `state/StoricoTaskContext.jsx` (`.jsx`, fuori dal pattern `.js` di
     // `src/state/`) — entrambi corretti insieme a questa cartella.
-    "src/components/search/**/*.jsx"
+    "src/components/search/**/*.jsx",
+    // M-4, prerequisito del passo 6. `src/state/**/*.js` non prendeva i suoi
+    // OTTO file `.jsx` (i provider di contesto: TasksContext, ClientsContext,
+    // ClientiCompletiContext, StoricoTaskContext, AppProviders, ConfirmContext,
+    // AppDataContext, DispatchContext) — coperti solo quando una cartella
+    // components/ li raggiungeva per import (così è stato chiuso
+    // StoricoTaskContext al passo 5). Misurando le sette cartelle rimaste,
+    // TasksContext/ClientsContext/ClientiCompletiContext comparivano OGNI
+    // volta con lo stesso errore («`children` non dichiarato in JSDoc»): non
+    // un problema della cartella che li raggiungeva, ma un buco nel pattern di
+    // `state/` stesso. Chiuso con la riga di JSDoc che manca (stessa forma già
+    // usata in `ui/Modal.jsx` e `state/StoricoTaskContext.jsx`,
+    // `@param {import('react').ReactNode} props.children`), poi l'intera
+    // cartella misurata di nuovo: zero errori sugli otto file insieme.
+    "src/state/**/*.jsx"
   ],
   "exclude": [
     "node_modules"

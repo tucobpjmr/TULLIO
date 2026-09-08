@@ -43,6 +43,7 @@ const TasksContext = createContext(null);
 /**
  * @param {object} props
  * @param {Array}  props.tasks  i task dello state del reducer (state.tasks)
+ * @param {import('react').ReactNode} props.children
  */
 export function TasksProvider({ tasks, children }) {
   const value = useMemo(() => ({ tasks: tasks || [] }), [tasks]);

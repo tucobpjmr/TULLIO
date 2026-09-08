@@ -5,7 +5,7 @@
 
 // Returns array of { task, col, totalCols } with non-overlapping column placement.
 export function layoutColumns(dayTasks) {
-  const sorted = [...dayTasks].sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+  const sorted = [...dayTasks].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   const colEnds = []; // end-minute of last event assigned to each column
   const items = sorted.map(t => {
     const d = new Date(t.dueDate);

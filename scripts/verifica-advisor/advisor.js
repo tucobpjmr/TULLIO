@@ -128,14 +128,21 @@ const FUNZIONI_SECURITY_DEFINER_VERIFICATE = new Set([
   // gli anonimi insieme, potatura a 90 giorni con tetto di 5.000 righe
   // (migrazione 20260903094500).
   'segnala_errore_client',
-  // ─── Sonda di M-2 (audit del 5 settembre) ────────────────────────────────
+  // ─── Sonda di M-2 (audit del 5 settembre), richiusa da M-1 (10 settembre) ─
   // public.sonda_audit_clients_update() inserisce e aggiorna un cliente di
   // prova per verificare che trg_audit_clients_update scriva davvero in
   // audit_log, poi annulla tutto con un rollback interno — nessuna riga
   // sopravvive alla chiamata, nessun dato restituito oltre un conteggio.
-  // Aperta ad `authenticated` (non `anon`) perché non ha nulla da proteggere
-  // ma richiede comunque un login valido. Usata da .github/workflows/
-  // rls.yml tramite scripts/verifica-audit-vivo/index.js.
+  //
+  // ⚠️ La riga che stava qui — «aperta ad `authenticated` perché non ha nulla
+  // da proteggere» — era vera sul DATO RESTITUITO e falsa sul CARICO: è una
+  // definer che scrive `clients` scavalcando la RLS, quindi chiamabile in
+  // ciclo da qualunque login. Da M-1 del 10 settembre il grant resta
+  // `authenticated` (il gate è nel corpo, come per send_test_push) ma la
+  // funzione chiede `private.can_clienti_scrittura()` — admin/manager/agent
+  // attivi e non pending, cioè chi la RLS lascerebbe scrivere comunque — e ha
+  // un tetto di 20 esecuzioni all'ora per chiamante. Usata da
+  // .github/workflows/rls.yml tramite scripts/verifica-audit-vivo/index.js.
   'sonda_audit_clients_update',
 ]);
 

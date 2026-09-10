@@ -21,9 +21,22 @@ esecuzioni l'ora per chiamante. La CI non cambia (il junior dei segreti è un
 incrementa PRIMA del blocco `begin/exception`, perché quel blocco è un
 SAVEPOINT e la sua eccezione annullerebbe anche il contatore — un rate limit
 che si auto-cancella sembra esserci ed è peggio di nessun rate limit.
-Migrazione `20260910120000_sonda_audit_ruolo_rate_limit.sql`, **committata e
-non ancora applicata** (le due cose sono separate su questo progetto:
-`docs/MIGRAZIONI_SUPABASE.md`).
+Migrazione `20260910120000_sonda_audit_ruolo_rate_limit.sql`, **applicata il
+10 settembre** — prima a `tullio-staging`, poi alla produzione — e registrata
+come `20260910155421 sonda_audit_ruolo_rate_limit` (il timestamp è quello di
+applicazione: il disallineamento fra versione del file e versione registrata è
+quello descritto in `docs/MIGRAZIONI_SUPABASE.md`, e il `name` combacia, che è
+il secondo criterio di `verifica:migrazioni`).
+
+**Verificata impersonando utenti veri dentro una transazione**, non dedotta —
+il dry-run di `docs/MIGRAZIONI_SUPABASE.md`. Su staging: driver attivo
+`RIFIUTATA`, agent pending `RIFIUTATA`, agent attivo `PASSATA (ritorno=1)`,
+cioè il trigger di audit risponde. In produzione: driver `RIFIUTATA`, admin
+`PASSATA (ritorno=1)`. Dopo entrambe le esecuzioni: **zero** righe
+`__sonda_audit__` sopravvissute e **zero** note `__sonda__` (il rollback
+interno tiene), e il contatore di `rate_limit` a 1 — cioè il conteggio NON
+viene annullato dal SAVEPOINT, che è la proprietà su cui poggia l'ordine delle
+righe.
 
 **M-2 · Scrivere da offline non perde più il lavoro.** Leggere da offline
 funzionava dal 5 settembre (il service worker tiene il guscio); scrivere no:

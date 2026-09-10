@@ -1,5 +1,173 @@
 # CHANGELOG — VoyageDesk
 
+## 10 settembre (ii) — i tre rilievi di priorità bassa
+
+> La coda **bassa** rimasta dopo i cinque di priorità media. Sono tre cose che
+> nessun utente ha mai visto succedere, ed è precisamente la loro categoria:
+> una perdita di memoria che si presenta come una scheda lenta dopo tre
+> giorni, una somma giusta per fortuna, e duemila test di cui nessuno sapeva
+> cosa lasciassero scoperto.
+
+**B-1 · Le cache di signed URL non crescono più per sempre.** Erano due `Map`
+nude. Una scadenza in realtà l'avevano — ogni voce portava il suo `expiresAt`,
+e il getter lo leggeva — ma serviva solo a SALTARE la voce, mai a toglierla; e
+nulla poneva un tetto al numero di chiavi. Sugli avatar non si vede (le chiavi
+sono al più le persone in squadra); sugli allegati sì, perché la chiave è il
+path di un file e in una PWA che resta aperta per giorni — i due driver la
+tengono aperta per mestiere — l'insieme dei file aperti in sessione non ha un
+limite naturale. Ora `src/lib/cacheScadenza.js` tiene **due regole separate di
+proposito**: la scadenza rende il contenuto corretto (la voce scaduta non
+viene restituita e viene tolta appena la si guarda), il tetto rende il consumo
+limitato (oltre 200 voci escono prima le scadute, poi la meno usata di
+recente). ⚠️ La potatura è pigra ed è una scelta: spazzare l'intera Map a ogni
+lettura costerebbe O(n) su ogni `<Avatar>` montato, cioè pagare a ogni render
+per un problema che è di fine giornata. Il tetto si osserva **dal di fuori**
+nei test — `signedUrlCache` è privata di `lib/api/` — cioè nell'unico modo in
+cui un tetto si manifesta davvero: una URL che c'era e va rifirmata.
+
+**B-2 · La somma di denaro ha una controparte esatta.** Il totale delle liste
+di un cliente (`ClienteListePanel`) era l'unica cifra di denaro dell'app senza
+un numero con cui confrontarsi: ogni altro saldo arriva dalla vista
+`liste_saldi`, cioè da un `sum(numeric)` di Postgres, e il ricalcolo locale è
+soltanto il ripiego per quando quella riga non è ancora arrivata. Ora
+`sommaImporti` (`src/lib/importi.js`, accanto a `parseImporto` e per la stessa
+ragione) somma in **centesimi interi**, che è per costruzione la risposta di
+quel `sum`; i quattro ripieghi e il totale delle righe in bozza di
+`BulkMovimentiModal` passano di lì, così la regola è una sola.
+⚠️ **Onestà su cosa non ripara:** non si conosce nessun caso in cui a schermo
+si sia visto un centesimo sbagliato, e non se ne conoscerà — lo scarto di un
+`+` in virgola mobile su qualche decina di addendi è ~1e-13, sotto `EPS`
+(mezzo centesimo) e sotto la cifra che `toLocaleString` arrotonda. Il difetto
+era che questo fosse vero **per fortuna**, cioè in funzione di quanti addendi
+ci sono: mille addendi da un centesimo, in float, fanno 9,999999999999831, e
+c'è un test che lo dice.
+
+**B-3 · La copertura dei test è un numero, e in CI è un gate.** Duemila test
+sono una quantità, non una misura: non dicono quale parte del prodotto nessuno
+esercita. `npm run verifica:copertura` (provider v8) misura **righe 74,02% ·
+istruzioni 70,71% · funzioni 62,72% · rami 60,40%** su 2.248 test, e in CI ha
+preso il posto di `npm test` — è la stessa suite con la misura addosso, non un
+secondo giro. Le soglie in `vite.config.js` stanno **un punto sotto** la
+misura, e il punto non è prudenza generica: la stessa suite, rimisurata pochi
+minuti dopo sullo stesso albero, ha dato 73,99 · 70,68 · 62,66 · 60,32. Una
+soglia al valore arrotondato per difetto (74) sarebbe passata alla prima
+esecuzione e fallita alla seconda senza che nessuno avesse toccato una riga —
+e un gate che lampeggia smette di essere un gate. È
+lo stesso argomento che A-3 del 22 agosto ha usato per portare
+`verifica:tipi` in CI, e che `jsconfig.json` usa contro se stesso: un
+controllo che nessuno esegue passa perché non ha trovato niente da verificare.
+
+
+## 10 settembre — i cinque rilievi di priorità media, chiusi in un intervento
+
+> Non un audit nuovo: la coda di rilievi **media** rimasta aperta dopo il 5
+> settembre. Cinque, e sono cinque cose diverse — una porta privilegiata, una
+> promessa non mantenuta a chi lavora offline, un interruttore di tipi mai
+> alzato, un'app con una faccia sola e un file che era diventato il posto dove
+> le cose si parlano perché stanno insieme.
+
+**M-1 · `sonda_audit_clients_update()` non è più aperta a chiunque abbia un
+login.** Era `SECURITY DEFINER`, scriveva `clients` scavalcando la RLS e
+bastava essere autenticati — mentre B-5 dello stesso 5 settembre aveva appena
+messo un tetto a `send_test_push()` chiamandola «l'unica porta privilegiata
+senza rate limit». La sonda è nata il giorno dopo, senza, ed è più
+privilegiata. Ora chiede `private.can_clienti_scrittura()` — lo stesso
+predicato delle policy di `clients`, cioè può eseguirla solo chi la RLS
+lascerebbe scrivere comunque: per loro non è un'escalation — più 20
+esecuzioni l'ora per chiamante. La CI non cambia (il junior dei segreti è un
+`agent`). ⚠️ L'ordine delle righe è parte della correzione: il contatore si
+incrementa PRIMA del blocco `begin/exception`, perché quel blocco è un
+SAVEPOINT e la sua eccezione annullerebbe anche il contatore — un rate limit
+che si auto-cancella sembra esserci ed è peggio di nessun rate limit.
+Migrazione `20260910120000_sonda_audit_ruolo_rate_limit.sql`, **applicata il
+10 settembre** — prima a `tullio-staging`, poi alla produzione — e registrata
+come `20260910155421 sonda_audit_ruolo_rate_limit` (il timestamp è quello di
+applicazione: il disallineamento fra versione del file e versione registrata è
+quello descritto in `docs/MIGRAZIONI_SUPABASE.md`, e il `name` combacia, che è
+il secondo criterio di `verifica:migrazioni`).
+
+**Verificata impersonando utenti veri dentro una transazione**, non dedotta —
+il dry-run di `docs/MIGRAZIONI_SUPABASE.md`. Su staging: driver attivo
+`RIFIUTATA`, agent pending `RIFIUTATA`, agent attivo `PASSATA (ritorno=1)`,
+cioè il trigger di audit risponde. In produzione: driver `RIFIUTATA`, admin
+`PASSATA (ritorno=1)`. Dopo entrambe le esecuzioni: **zero** righe
+`__sonda_audit__` sopravvissute e **zero** note `__sonda__` (il rollback
+interno tiene), e il contatore di `rate_limit` a 1 — cioè il conteggio NON
+viene annullato dal SAVEPOINT, che è la proprietà su cui poggia l'ordine delle
+righe.
+
+**M-2 · Scrivere da offline non perde più il lavoro.** Leggere da offline
+funzionava dal 5 settembre (il service worker tiene il guscio); scrivere no:
+un `Failed to fetch` finiva nello stesso percorso di un rifiuto del server —
+rollback e toast rosso — cioè buttava via ciò che l'utente aveva appena fatto,
+e lo faceva ai due driver in mobilità, che vanno offline per mestiere. Ora una
+scrittura persa per assenza di rete finisce in una coda su **IndexedDB**, che
+sopravvive al reload e alla chiusura della PWA, e riparte al ritorno della
+rete e a ogni montaggio. Tre pezzi: `lib/depositoIdb.js` (il deposito, senza
+librerie), `state/codaScritture.js` (la coda e la distinzione rete/rifiuto) e
+`hooks/useCodaScritture.js` (il quando). Si accodano solo le entry che
+dichiarano `offline: true`, e il criterio è una promessa di idempotenza, non
+un giudizio di importanza — vedi `state/persistence.js`. `useSyncedDispatch`
+risponde allora `{ error: null }`, cioè un successo: è il valore di ritorno a
+chiudere le form (A-1 del 4 settembre), e una modifica accodata è stata
+accettata. Che la consegna sia differita lo dice la striscia persistente, che
+ora conta anche quante modifiche aspettano.
+
+**M-3 · `strict` acceso, meno un flag.** `checkJs` aveva finito la corsa su
+tutto `src/` e `strict: false` era l'ultimo interruttore spento. Acceso tutto
+tranne `noImplicitAny`, con i 72 errori che ne sono usciti **corretti** — 63
+di `strictNullChecks`, 9 di `useUnknownInCatchVariables` — non silenziati. Fra
+i difetti veri che ha trovato: `catch (e) { e.message }` in nove punti (ora
+`lib/errori.js`), tre `FileReader` che leggevano `ev.target.result` senza
+guardia, `toDbRole()` che può tornare `null` dentro un `includes`, e una
+mezza dozzina di prop dichiarate `= null` — il cui TIPO diventava `null`,
+quindi il valore vero non era assegnabile. `noImplicitAny` resta l'eccezione
+misurata: 7.412 errori, di cui 4.424 sono `@types/react` che non è installato;
+il passo successivo è quello, e in quest'ordine (vedi il commento in
+`jsconfig.json`).
+
+**M-4 · Tema scuro, e i token che lo rendono possibile.** L'app aveva una
+faccia sola, chiara, su un telefono che di sera in cabina è l'unica fonte di
+luce. Non è una seconda serie di regole: sono gli **stessi token ridefiniti**
+(`styles/global.css`), sotto tre condizioni in ordine — chiaro di base,
+`prefers-color-scheme: dark` se l'utente non ha scelto il chiaro,
+`[data-tema="scuro"]` per la scelta esplicita. L'interruttore ha tre stati e
+non due (`sistema` non è un ripiego: è la scelta di chi vuole che l'app segua
+il telefono) e sta nel menù utente; `main.jsx` applica la scelta **prima di
+`createRoot`**, altrimenti l'app parte chiara e vira sotto gli occhi.
+Due passaggi hanno reso il resto possibile: `--navy` è tornato a essere una
+SUPERFICIE (i 20 punti che lo usavano come colore di testo sono passati a
+`--heading`, che in chiaro *è* `var(--navy)` — zero differenze visibili), e
+l'anello di focus ha due token propri invece di due colori scritti in duro.
+Restano 310 colori in duro fuori da `src/styles/`: sono contati da
+`verifica:convenzioni` con un ratchet, e il docblock di `coloriInDuro` dice
+quali di loro sono legittimi.
+
+**M-5 · `ConversationView.jsx` da 530 righe a 259.** Il rilievo diceva la cosa
+giusta: i 6 ref di coordinamento erano il sintomo, non il difetto — esistevano
+per far parlare effetti che stavano nello stesso file perché stavano nello
+stesso file. Separati per ciò di cui si occupano, restano **zero** `useEffect`
+nella vista e due soli ref, entrambi a nodi del DOM. I sei hook nuovi
+(`useTypingConversazione`, `useElencoMessaggi`, `useInvioMessaggi`,
+`useComposerPrefill`, `useLetturaConversazione`, `useAzioniMessaggio`) non
+sono cartelle nuove: stanno accanto alla vista, in `components/chat/`. Una
+fonte di verità in meno, per giunta: la mappa dei typer viveva nel reducer del
+pannello **e** in un ref che la rispecchiava, con un effetto a tenerli
+allineati — ora vive solo dove viene scritta. E l'indicatore «sta scrivendo»,
+che per essere esercitato chiedeva di montare la vista intera, ha finalmente
+un test suo.
+
+**Misure.** 2.194 test verdi, 57 più di prima (2.227 casi in tutto: 25 skip —
+i due nuovi sono i casi RLS della sonda, che girano solo col progetto di
+staging configurato — e 8 non eseguibili da questa rete, quelli di `xlsx`, per
+l'irraggiungibilità del tarball SheetJS già descritta in A-1 del 5 settembre).
+Lint 0 errori 0 warning,
+`verifica:tipi` 0 errori con `strict` acceso, `verifica:convenzioni` 66
+controlli senza divergenze, `verifica:bundle` OK — con la soglia del chunk
+dell'app rimisurata da 51 a 57 kB gzip (49,25 → 51,42 misurati prima e dopo
+sullo stesso albero: la coda offline e il selettore del tema stanno nel
+percorso caldo per costruzione, non sono un chunk lazy rientrato in eager).
+
 ## 31 agosto — «permission denied for table …» a sessione valida
 
 > Guasto in produzione, non un rilievo d'audit: al rientro dopo un periodo di

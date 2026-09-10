@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { eur, parseImporto, todayISO } from "../listeFormato.js";
+import { eur, parseImporto, sommaImporti, todayISO } from "../listeFormato.js";
 import { LvOverlay } from "./LvOverlay.jsx";
 import { MetodoSelect } from "./MetodoSelect.jsx";
 import { SegnoSeg } from "./SegnoSeg.jsx";
@@ -87,7 +87,7 @@ export function BulkMovimentiModal({ onSave, onClose }) {
     });
   };
 
-  const totale = rows.reduce((s, r) => s + (parseImporto(r.imp, r.segno) || 0), 0);
+  const totale = sommaImporti(rows.map((r) => parseImporto(r.imp, r.segno)));
   const totCls = totale > 0.004 ? "pos" : totale < -0.004 ? "neg" : "";
 
   const { salva, inVolo } = useSalvataggioLista(onSave.run);

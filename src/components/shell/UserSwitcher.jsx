@@ -12,24 +12,25 @@ import { roleLabel, toDbRole, toSeniority } from "../../lib/taskConstants.js";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 import { conTastiera } from "../../lib/a11y.js";
+import { useTema } from "../../hooks/useTema.js";
+import { ETICHETTE_TEMA, TEMI } from "../../lib/tema.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
 const rowCenterGap8 = {
   display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
-  background: "#fff", border: "1px solid rgba(15,32,68,0.15)",
+  background: "var(--card)", border: "1px solid var(--border)",
   borderRadius: 8, padding: "3px 8px 3px 4px", fontFamily: "inherit",
 };
 const boxW30H30 = { width: 30, height: 30, borderRadius: "50%", objectFit: "cover" };
 const textAlign2 = { textAlign: "left" };
-const txtF12Bold = { color: "var(--navy)", fontSize: 12, fontWeight: 600, lineHeight: 1.2 };
-const txtF10 = { color: "rgba(15,32,68,0.75)", fontSize: 10 };
-const txtF102 = { color: "rgba(15,32,68,0.7)", fontSize: 10, marginLeft: 2 };
+const txtF12Bold = { color: "var(--heading)", fontSize: 12, fontWeight: 600, lineHeight: 1.2 };
+const txtF102 = { color: "var(--text-muted)", fontSize: 10, marginLeft: 2 };
 const rowCenterGap10 = {
   width: "100%", display: "flex", alignItems: "center", gap: 10,
   padding: "10px 10px", background: "transparent",
   border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
-  color: "var(--navy)", textAlign: "left", borderBottom: "1px solid var(--border)", marginBottom: 4,
+  color: "var(--heading)", textAlign: "left", borderBottom: "1px solid var(--border)", marginBottom: 4,
 };
 const txtF16 = { fontSize: 16 };
 const txtBold = { fontWeight: 600 };
@@ -41,6 +42,22 @@ const boxF9Bold = {
   padding: "1px 5px", borderRadius: 4, letterSpacing: 0.3,
 };
 const txtF14Success = { color: "var(--success)", fontSize: 14 };
+
+// ─── Selettore del tema (M-4 dell'audit del 10 settembre) ──────────────────
+// Tre scelte e non un interruttore a due stati: «sistema» non è un ripiego fra
+// chiaro e scuro, è una scelta a sé — l'utente che la tiene vuole che l'app
+// segua il telefono, che di sera cambia da solo. Un toggle a due posizioni la
+// perderebbe al primo tocco, senza modo di tornarci.
+const etichettaTema = { fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "8px 10px 4px", letterSpacing: 1 };
+const gruppoTema = { display: "flex", gap: 4, padding: "0 8px 8px" };
+const btnTemaBase = {
+  flex: 1, padding: "7px 4px", borderRadius: 6, cursor: "pointer",
+  fontFamily: "inherit", fontSize: 11, fontWeight: 700,
+  border: "1px solid var(--border)", background: "transparent", color: "var(--text-muted)",
+};
+const btnTemaAttivo = {
+  ...btnTemaBase, background: "var(--navy)", color: "#fff", borderColor: "var(--navy)",
+};
 
 // Chunk async: porta con sé CropModal.jsx — 14.2 kB insieme, aperti solo da
 // "Modifica profilo" nel menù utente, non dal primo render della Topbar.
@@ -58,6 +75,7 @@ const ProfileEditor = lazy(() =>
 export const UserSwitcher = () => {
   const dispatch = useDispatch();
   const { team, currentUserId, getMember, per } = useAppData();
+  const { tema, effettivo, scegli: scegliTema } = useTema();
   const [open, setOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -127,7 +145,7 @@ export const UserSwitcher = () => {
         )}
         <div className="vd-hide-mobile" style={textAlign2}>
           <div style={txtF12Bold}>{curr.name}</div>
-          <div style={txtF10}>{roleLabel(curr)}</div>
+          <div style={stiliComuni.txtF10Muted}>{roleLabel(curr)}</div>
         </div>
         <span style={txtF102}>▾</span>
       </button>
@@ -135,7 +153,7 @@ export const UserSwitcher = () => {
       {open && (
         <div style={{
           position: "absolute", top: "calc(100% + 8px)", right: 0,
-          background: "#fff", border: "1px solid var(--border)", borderRadius: 10,
+          background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10,
           boxShadow: "0 12px 30px rgba(0,0,0,0.2)", zIndex: Z.panel,
           minWidth: 240, padding: 6,
         }}>
@@ -151,6 +169,27 @@ export const UserSwitcher = () => {
             <span style={txtF16}>👤</span>
             <span style={txtBold}>Modifica profilo</span>
           </button>
+
+          {/* Tema. `aria-pressed` e non `radiogroup`: sono tre pulsanti che
+              cambiano una preferenza applicata all'istante, non un modulo da
+              confermare — chi usa uno screen reader sente quale è premuto
+              senza dover uscire dal menù. */}
+          <div style={etichettaTema} id="vd-tema-label">
+            TEMA{tema === "sistema" ? ` — ora ${effettivo}` : ""}
+          </div>
+          <div style={gruppoTema} role="group" aria-labelledby="vd-tema-label">
+            {TEMI.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => scegliTema(t)}
+                aria-pressed={tema === t}
+                style={tema === t ? btnTemaAttivo : btnTemaBase}
+              >
+                {ETICHETTE_TEMA[t]}
+              </button>
+            ))}
+          </div>
 
           {SHOW_DEMO_SWITCH && (
             <>

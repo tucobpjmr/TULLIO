@@ -1,8 +1,9 @@
-import { eur, fmtDate, intestazioneLista, saldoClass } from "../listeFormato.js";
+import { eur, fmtDate, intestazioneLista, saldoClass, sommaImporti } from "../listeFormato.js";
 import { riepilogoTesto } from "../listeDocumenti.js";
 import { LvOverlay } from "./LvOverlay.jsx";
 import { dataNumerica } from "../../../lib/dates.js";
 import { useDispatch } from "../../../state/DispatchContext.jsx";
+import { nomeEccezione } from "../../../lib/errori.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -19,7 +20,7 @@ const txtRight = { textAlign: "right" };
 // se è già disponibile. Il ricalcolo locale resta come fallback.
 export function RiepilogoClienteModal({ lista, movimenti, saldo: saldoEsatto, onClose }) {
   const dispatch = useDispatch();
-  const saldo = saldoEsatto !== undefined ? saldoEsatto : movimenti.reduce((s, m) => s + Number(m.importo), 0);
+  const saldo = saldoEsatto !== undefined ? saldoEsatto : sommaImporti(movimenti.map((m) => m.importo));
   const cls = saldoClass(saldo);
 
   const invia = async () => {
@@ -28,7 +29,7 @@ export function RiepilogoClienteModal({ lista, movimenti, saldo: saldoEsatto, on
       try {
         await navigator.share({ title: "Riepilogo buono viaggio", text: testo });
       } catch (ex) {
-        if (ex.name !== "AbortError") {
+        if (nomeEccezione(ex) !== "AbortError") {
           dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: "Invio non riuscito" } });
         }
       }

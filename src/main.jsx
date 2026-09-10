@@ -8,6 +8,15 @@ import { installaHandlerGlobali } from './lib/errorReporting.js';
 // dall'entry perché Vite lo emetta come <link> nell'HTML iniziale — non
 // più come <style> iniettato al mount. Vedi styles/global.css (M-1).
 import './styles/global.css';
+// Il tema scelto va scritto sul documento PRIMA del primo paint, altrimenti
+// l'app parte chiara e diventa scura sotto gli occhi di chi l'ha aperta di
+// notte — cioè il difetto che il tema scuro esiste per togliere. Qui e non in
+// un <script> inline in index.html perché la CSP è `script-src 'self'`
+// (vercel.json): questo modulo è il primo codice nostro che gira.
+// M-4 dell'audit del 10 settembre.
+import { applicaTema, leggiTema } from './lib/tema.js';
+
+applicaTema(leggiTema());
 
 // Rete di sicurezza per gli errori che NON passano dai registry di persistenza
 // e che quindi nessuno mostrerebbe: promise non gestite, errori in handler

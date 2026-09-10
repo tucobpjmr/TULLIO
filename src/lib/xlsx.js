@@ -17,6 +17,7 @@
 //   npm install --save https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
 // Il worker non la sostituisce: la rende non urgente.
 import { withPrototypePollutionGuard } from "./prototypeGuard.js";
+import { testoEccezione } from "./errori.js";
 
 // Limite di dimensione per i file importati: riduce la superficie della ReDoS
 // (GHSA-5pgg-2g8v-p4x9), che è amplificata da input molto grandi. Resta
@@ -82,7 +83,7 @@ function esegui(messaggio) {
       // significherebbe eseguire SheetJS nel realm della sessione, cioè
       // rinunciare all'unica proprietà per cui questo modulo è fatto così.
       // Meglio un import che fallisce con un messaggio chiaro.
-      reject(new Error(`Impossibile avviare la lettura del file: ${e?.message ?? "worker non disponibile"}`));
+      reject(new Error(`Impossibile avviare la lettura del file: ${testoEccezione(e, "worker non disponibile")}`));
       return;
     }
 

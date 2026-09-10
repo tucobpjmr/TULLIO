@@ -29,7 +29,7 @@ import * as stiliComuni from "../../../styles/common.js";
 // misurabile la duplicazione; rowCenterGap8 perché è identico a una forma già
 // promossa.
 const rowGap2 = { display: "flex", flexDirection: "column", gap: 2, padding: "8px 4px", borderBottom: "1px solid var(--surface2)" };
-const txtF12Codice = { fontSize: 12, fontWeight: 700, color: "var(--navy)", fontFamily: "monospace" };
+const txtF12Codice = { fontSize: 12, fontWeight: 700, color: "var(--heading)", fontFamily: "monospace" };
 const txtF12Attore = { fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" };
 
 const formatoAssoluto = (iso) =>

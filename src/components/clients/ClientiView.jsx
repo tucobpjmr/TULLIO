@@ -394,7 +394,13 @@ export const ClientiView = memo(function ClientiView({ loading = false }) {
         // esiste una (anche solo nel cestino, che è un soft delete) il
         // database rifiuta l'eliminazione. Meglio dirlo qui, con il numero,
         // che far premere "Rimuovi" e restituire un errore.
-        const bloccato = (l?.totali || 0) > 0;
+        // Il conteggio quando è BLOCCANTE, non un booleano accanto a esso:
+        // il ramo "non si può rimuovere" mostra i numeri (`l.totali`,
+        // `l.attive`), e tenerli nella stessa variabile che decide il ramo è
+        // ciò che rende la condizione leggibile — al lettore e al compilatore,
+        // che con `strictNullChecks` non ha modo di sapere che un `bloccato`
+        // vero implica un `l` non nullo (M-3 dell'audit del 10 settembre).
+        const bloccato = l && l.totali > 0 ? l : null;
         return (
           <Modal
             open
@@ -409,9 +415,9 @@ export const ClientiView = memo(function ClientiView({ loading = false }) {
             {bloccato ? (
               <div style={txtF14Muted}>
                 <strong>{confirmDelete.name}</strong> è collegato a{" "}
-                {l.totali === 1 ? "una lista viaggio" : `${l.totali} liste viaggio`}{" "}
+                {bloccato.totali === 1 ? "una lista viaggio" : `${bloccato.totali} liste viaggio`}{" "}
                 (come titolare o cointestatario)
-                {l.totali > l.attive && `, di cui ${l.totali - l.attive} nel cestino: restano collegate anche lì`}.
+                {bloccato.totali > bloccato.attive && `, di cui ${bloccato.totali - bloccato.attive} nel cestino: restano collegate anche lì`}.
                 <div style={mt8}>
                   Le liste sono agganciate a questa scheda: per rimuoverla vanno prima
                   eliminate definitivamente dal cestino del modulo Liste viaggio, o questo

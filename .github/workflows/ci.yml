@@ -28,7 +28,12 @@ jobs:
       # risolto» — applicato un livello più su. Lo scope è un ratchet
       # (src/lib/ + src/state/): sta qui perché resti tale.
       - run: npm run verifica:tipi
-      - run: npm test
+      # B-3 (audit del 10 settembre): è `npm test` più la misura di copertura,
+      # non un secondo giro della suite — gli stessi 2.248 test, con le soglie
+      # di vite.config.js che li fanno fallire se la copertura scende. Duemila
+      # test senza un numero sono una quantità, non una misura: non dicono
+      # quale parte del prodotto nessuno esercita.
+      - run: npm run verifica:copertura
       - run: npm run build
       - run: npm run verifica:bundle
       # S-1 (audit del 30 agosto): senza questo gate `npm audit` resta rosso

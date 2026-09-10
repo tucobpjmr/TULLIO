@@ -55,7 +55,13 @@ import { esitoScrittura } from "../lib/esitoScrittura.js";
 // (`mapErrror`, `sucessMsg`), che oggi non produrrebbe alcun errore — la entry
 // verrebbe semplicemente eseguita senza quel comportamento, in silenzio.
 export const CAMPI_COMUNI = ["persist", "guard", "mapError"];
-export const CAMPI_OTTIMISTICI = ["normalize", "rollback", "entityId"];
+// `offline` sta fra gli OTTIMISTICI e non fra i comuni, ed è una scelta di
+// dominio: accodare una scrittura significa tenere a schermo un valore che il
+// server non ha ancora visto, cioè esattamente ciò che la famiglia «conferma
+// prima» rifiuta di fare — lì il dato è denaro (acconti, saldi di un buono
+// viaggio) e un saldo mostrato che il database non ha è un difetto di
+// un'altra categoria. M-2 dell'audit del 10 settembre.
+export const CAMPI_OTTIMISTICI = ["normalize", "rollback", "entityId", "offline"];
 export const CAMPI_CONFERMA_PRIMA = ["successMsg"];
 
 /**

@@ -307,7 +307,9 @@ export const PERSISTENCE_ADMIN = {
     rollback: (s, a, res) => {
       const falliti = res?.falliti || [];
       if (!falliti.length) return null;
+      /** @type {{tasks: any[], categories: Record<string, any>, notices: any[]}} */
       const daRipristinare = { tasks: [], categories: {}, notices: [] };
+      /** @type {{tasks: any[], categories: any[], notices: any[]}} */
       const daRimuovere = { tasks: [], categories: [], notices: [] };
       for (const f of falliti) {
         if (f.esisteva) {

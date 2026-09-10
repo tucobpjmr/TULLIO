@@ -10,7 +10,11 @@ const txtF13LvMuted = { fontSize: 13, color: "var(--lv-muted)" };
 // Il merge (importa_backup) somma ai dati esistenti e salta i duplicati per
 // id: non cancella nulla, ma un file sbagliato può comunque aggiungere righe
 // indesiderate, quindi resta una conferma esplicita prima della RPC.
-export function ImportaBackupConfirmModal({ nL, nB = 0, nM, progress = null, onClose, onSave }) {
+// L'avanzamento del ripristino, quando c'è. Il ripiego è `null` — il caricamento
+// non è ancora partito — ma il TIPO della prop deve restare l'avanzamento:
+// con `= null` e basta i suoi campi non esistevano più per il compilatore
+// (M-3 dell'audit del 10 settembre).
+export function ImportaBackupConfirmModal({ nL, nB = 0, nM, progress = /** @type {{done: number, total: number}|null} */ (null), onClose, onSave }) {
 
   // Il carico di un backup e' l'operazione piu' lunga del modulo (molte
   // chiamate in fila, vedi `progress` qui sotto): e' anche quella su cui un
@@ -33,7 +37,11 @@ export function ImportaBackupConfirmModal({ nL, nB = 0, nM, progress = null, onC
         I dati verranno AGGIUNTI a quelli esistenti; i duplicati (stesso
         identificativo) vengono saltati. Nulla viene cancellato.
       </p>
-      {perc !== null && (
+      {/* `progress &&` prima di `perc`: la percentuale non è nulla SOLO quando
+          l'avanzamento c'è, ma è una conseguenza che il compilatore non può
+          dedurre da una variabile diversa — e la riga sotto legge i suoi campi
+          (M-3 dell'audit del 10 settembre). */}
+      {progress && perc !== null && (
         <p style={txtF13LvMuted} role="status">
           Caricamento: {progress.done} di {progress.total} righe ({perc}%)
         </p>

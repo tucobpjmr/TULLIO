@@ -25,6 +25,9 @@ const boxF11Bold = {
   background: "var(--navy)", color: "#fff", border: "none", borderRadius: 6,
   padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
 };
+// La pallina dell'interruttore: bianca su entrambi i temi, come su iOS — è
+// l'elemento che si muove su una pista colorata, non una superficie
+// (M-4 dell'audit del 10 settembre).
 const boxW18H18 = { width: 18, height: 18, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" };
 
 const PUSH_HINTS = {

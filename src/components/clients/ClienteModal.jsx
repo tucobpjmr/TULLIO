@@ -36,7 +36,13 @@ const REGOLE = {
 };
 const ORDINE = ["name", "email"];
 
-export function ClienteModal({ cliente, onSave, onClose, liste = null, tasksCollegati = [] }) {
+// Il ripiego della prop `liste` è `null`, ma il TIPO deve restare il
+// conteggio: scritto `= null` e basta, con `strictNullChecks` la prop
+// diventava di tipo `null` e passarle un conteggio vero era un errore
+// (M-3 dell'audit del 10 settembre).
+/** @typedef {import("../liste/listeModuleApi.js").ConteggioListe} ConteggioListe */
+
+export function ClienteModal({ cliente, onSave, onClose, liste = /** @type {ConteggioListe|null} */ (null), tasksCollegati = [] }) {
   const [form, setForm] = useState(cliente
     ? { name: cliente.name, email: cliente.email || "", phone: cliente.phone || "", address: cliente.address || "", city: cliente.city || "", notes: cliente.notes || "" }
     : { ...EMPTY_FORM }

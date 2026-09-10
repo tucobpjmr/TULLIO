@@ -126,7 +126,11 @@ export const TemplateTab = ({ onCreate, onClose, onCancel, onDirty, clients = []
 
   return (
     <div style={stiliComuni.colGap14}>
-      {!selectedId ? (
+      {/* La condizione è `!tpl` e non `!selectedId`: sono la stessa cosa —
+          `tpl` è il template CON quell'id — ma solo la prima dice al lettore
+          (e al compilatore) che nel ramo `else` il template esiste, ed è lì
+          che se ne leggono i campi (M-3 dell'audit del 10 settembre). */}
+      {!tpl ? (
         <div ref={rifTemplate} tabIndex={-1}>
           <FieldError id="vd-tpl-scelta-err">{errori.selectedId}</FieldError>
           <div style={stiliComuni.grid2ColGap12}>

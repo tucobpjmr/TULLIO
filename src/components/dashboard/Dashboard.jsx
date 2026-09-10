@@ -30,7 +30,7 @@ import { useDispatch } from "../../state/DispatchContext.jsx";
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
 const rowEndBetween = { display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 };
-const txtF35Bold = { fontSize: 35, fontWeight: 700, color: "var(--navy)" };
+const txtF35Bold = { fontSize: 35, fontWeight: 700, color: "var(--heading)" };
 const rowCenterGap8 = { color: "var(--text-muted)", fontSize: 14, marginTop: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 };
 const rowCenterGap5 = { display: "inline-flex", alignItems: "center", gap: 5 };
 const boxF11Bold = { fontSize: 11, padding: "2px 8px", background: "var(--surface3)", borderRadius: 99, color: "var(--text-muted)", fontWeight: 600, letterSpacing: 0.3 };
@@ -86,8 +86,13 @@ const TICK_URGENZE_MS = 60 * 1000;
 // e sono BOOLEANI e non un oggetto `loading`: una prop primitiva non ha
 // identità da preservare, quindi non c'è modo che questa scelta rompa il
 // bail-out del `memo` (vedi src/test/domainProviders.test.jsx).
+/** @typedef {import("../../state/reducer.js").RichiestaCoda} RichiestaCoda */
+
 export const Dashboard = memo(function Dashboard({
-  onOpenChat, notices = [], dashboardQueue = null,
+  // Il ripiego è `null`, ma il TIPO della prop deve restare la richiesta:
+  // scritto `= null` e basta, con `strictNullChecks` la prop diventava di tipo
+  // `null` e i suoi campi non esistevano più (M-3 dell'audit del 10 settembre).
+  onOpenChat, notices = [], dashboardQueue = /** @type {RichiestaCoda|null} */ (null),
   tasksLoading = false, noticesLoading = false,
 }) {
   const dispatch = useDispatch();

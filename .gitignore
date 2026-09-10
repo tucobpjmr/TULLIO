@@ -8,3 +8,7 @@ dist
 # Output dello strumento di import delle liste storiche
 # (JSON con dati clienti reali: non va versionato)
 import-liste/
+
+# Report di copertura (B-3): si rigenera a ogni `npm run verifica:copertura`,
+# e il numero che conta è la soglia in vite.config.js, non il report.
+coverage/

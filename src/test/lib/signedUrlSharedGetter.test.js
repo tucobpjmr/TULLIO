@@ -21,7 +21,7 @@ vi.mock("../../lib/supabase", () => {
   return { supabase, getSupabase: () => Promise.resolve(supabase) };
 });
 
-const { Users, Messages, TaskFiles } = await import("../../lib/api.js");
+const { Users, Messages, TaskFiles, svuotaCacheUrl } = await import("../../lib/api.js");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -132,5 +132,45 @@ describe("un fallimento della signed URL non va in cache", () => {
     const secondo = await Messages.getFileUrl("conv2/x.pdf");
     expect(secondo.url).toBe("https://firmata.example/y");
     expect(createSignedUrlMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("il tetto della cache — B-1 dell'audit del 10 settembre", () => {
+  it("oltre 200 allegati la voce meno usata di recente esce, e il path successivo si rifirma", async () => {
+    // La cache degli allegati era una Map senza tetto: la chiave è il path di
+    // un file, e in una PWA che resta aperta per giorni l'insieme dei file
+    // aperti non ha un limite naturale. Qui il tetto si osserva dal DI FUORI —
+    // `signedUrlCache` è privata di lib/api/ e i test non la importano — cioè
+    // dall'unico modo in cui un tetto si manifesta davvero: una URL che
+    // c'era e va rifirmata.
+    svuotaCacheUrl();
+    for (let i = 0; i < 200; i++) await Messages.getFileUrl(`tetto/f${i}.pdf`);
+    expect(createSignedUrlMock).toHaveBeenCalledTimes(200);
+
+    // Il 201esimo path fa uscire il meno usato di recente, che è il primo.
+    await Messages.getFileUrl("tetto/oltre.pdf");
+    createSignedUrlMock.mockClear();
+
+    await Messages.getFileUrl("tetto/f0.pdf");
+    expect(createSignedUrlMock).toHaveBeenCalledTimes(1);
+    // …mentre l'ultimo entrato è ancora lì: non è stata svuotata la cache,
+    // è stata sacrificata una voce sola.
+    await Messages.getFileUrl("tetto/oltre.pdf");
+    expect(createSignedUrlMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("una voce scaduta smette di occupare posto appena la si richiede", async () => {
+    svuotaCacheUrl();
+    await TaskFiles.getFileUrl("scadenza/uno.pdf");
+    vi.advanceTimersByTime(55 * 60 * 1000 + 1000);
+    createSignedUrlMock.mockClear();
+    // Due giri sullo stesso path scaduto: il primo la rimuove e rifirma, il
+    // secondo trova la voce NUOVA in cache. Se la scadenza si limitasse a
+    // saltare la voce senza toglierla, il conto sarebbe lo stesso — ciò che
+    // cambia è che la vecchia resterebbe in memoria per sempre, ed è per
+    // questo che la rimozione ha un test suo su lib/cacheScadenza.js.
+    await TaskFiles.getFileUrl("scadenza/uno.pdf");
+    await TaskFiles.getFileUrl("scadenza/uno.pdf");
+    expect(createSignedUrlMock).toHaveBeenCalledTimes(1);
   });
 });

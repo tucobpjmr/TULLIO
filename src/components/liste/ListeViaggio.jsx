@@ -52,7 +52,11 @@ const HOME_PAGE_SIZE = 10;
 // guarda i task, quindi consuma il solo contesto clienti; `listeTarget` (la
 // lista da aprire, richiesta dal tab della scheda cliente) resta una prop,
 // piccola e con identità stabile.
-export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
+// La richiesta di aprire una lista precisa, quando c'è. Vedi la nota gemella
+// in Dashboard.jsx: il ripiego è `null`, il tipo della prop no.
+/** @typedef {import("../../state/reducer.js").RichiestaLista} RichiestaLista */
+
+export const ListeViaggio = memo(function ListeViaggio({ listeTarget = /** @type {RichiestaLista|null} */ (null) }) {
   const dispatch = useDispatch();
   const { isMobile } = useViewport();
   const { team, io } = useAppData();
@@ -296,9 +300,9 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = null }) {
           style={{
             position: "absolute", left: isMobile ? 16 : 28,
             width: 34, height: 34, borderRadius: "50%",
-            background: "#fff", border: "1px solid var(--border)",
+            background: "var(--card)", border: "1px solid var(--border)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 16, color: "var(--navy)", cursor: "pointer", flexShrink: 0,
+            fontSize: 16, color: "var(--heading)", cursor: "pointer", flexShrink: 0,
           }}
         >
           ←

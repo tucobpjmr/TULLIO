@@ -21,7 +21,7 @@ const colCenterMiddle = {
   flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
   justifyContent: "center", gap: 3, padding: "6px 2px",
   background: "transparent", border: "none", cursor: "pointer",
-  color: "rgba(15,32,68,0.75)", borderTop: "2px solid transparent",
+  color: "var(--text-muted)", borderTop: "2px solid transparent",
   transition: "color 0.2s", position: "relative",
 };
 const txtF9 = { fontSize: 9, fontWeight: 500, whiteSpace: "nowrap" };
@@ -29,7 +29,7 @@ const colCenterMiddle2 = {
   flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
   justifyContent: "center", gap: 3, padding: "6px 2px",
   background: "transparent", border: "none", cursor: "pointer",
-  color: "var(--navy)", borderTop: "2px solid transparent",
+  color: "var(--heading)", borderTop: "2px solid transparent",
   transition: "color 0.2s", position: "relative",
 };
 const txtF9Bold = { fontSize: 9, fontWeight: 600, whiteSpace: "nowrap" };
@@ -54,7 +54,7 @@ export const BottomNav = memo(function BottomNav({ activeView, onOpenBulk, onOpe
               flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
               justifyContent: "center", gap: 3, padding: "6px 2px",
               background: "transparent", border: "none", cursor: "pointer",
-              color: active ? "var(--navy)" : "rgba(15,32,68,0.75)",
+              color: active ? "var(--heading)" : "var(--text-muted)",
               borderTop: active ? "2px solid var(--gold)" : "2px solid transparent",
               transition: "color 0.2s", position: "relative",
             }}

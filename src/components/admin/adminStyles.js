@@ -15,7 +15,7 @@ import { btn, field, Z } from "../../styles/tokens.js";
 
 export const sectionH = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 };
 export const cardStyle = { background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, padding: 18 };
-export const cardH = { margin: 0, marginBottom: 6, fontSize: 15, fontWeight: 700, color: "var(--navy)" };
+export const cardH = { margin: 0, marginBottom: 6, fontSize: 15, fontWeight: 700, color: "var(--heading)" };
 export const cardP = { fontSize: 13, color: "var(--text-muted)", marginTop: 0, marginBottom: 14 };
 export const labelStyle = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 4 };
 

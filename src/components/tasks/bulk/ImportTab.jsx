@@ -18,6 +18,7 @@ import {
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
 import * as stiliComuni from "../../../styles/common.js";
 import { attivaConTastiera, conTastiera } from "../../../lib/a11y.js";
+import { testoEccezione } from "../../../lib/errori.js";
 import {
   boxF12Bold, boxF12Warning, boxF13Danger, boxR8, boxR82, boxStickyBold, boxTxtCenterR12,
   boxW8H8, gridGap8, maxW180, mt4Op085, rowCenterBetween, rowCenterBetween3, rowCenterGap5,
@@ -74,7 +75,7 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
       try {
         // Lettura "hardened" (limite dimensione + guard anti prototype-pollution)
         // centralizzata in src/lib/xlsx.js — vedi nota sicurezza SheetJS 0.18.5.
-        const json = await readFirstSheetRows(evt.target.result);
+        const json = await readFirstSheetRows(evt.target?.result);
         if (!json.length) { impostaErroreFile("Il file è vuoto o non contiene righe leggibili."); return; }
         const cols = Object.keys(json[0]);
         setRows(json); setColumns(cols);
@@ -82,7 +83,7 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
         setMapping(auto);
         setAutoDetected(Object.fromEntries(Object.entries(auto).filter(([, v]) => v).map(([k]) => [k, true])));
       } catch (err) {
-        impostaErroreFile("Impossibile leggere il file: " + err.message);
+        impostaErroreFile("Impossibile leggere il file: " + testoEccezione(err));
       }
     };
     reader.readAsArrayBuffer(file);

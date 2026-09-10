@@ -14,7 +14,7 @@
 // li ha verificati uno per uno. Un sesto punto aggiunto senza `escHtml`
 // sarebbe l'unico sink di HTML grezzo dell'app.
 import { dataNumerica } from "../../lib/dates.js";
-import { actionLabel, eur, fmtDate, intestazioneLista } from "./listeFormato.js";
+import { actionLabel, eur, fmtDate, intestazioneLista, sommaImporti } from "./listeFormato.js";
 
 // Qui si costruisce HTML come stringa (non JSX): a differenza del rendering
 // React, non c'è escaping automatico, quindi va fatto a mano prima di
@@ -41,7 +41,7 @@ export const docHtml = (lista, movimenti, storico, usersById = {}, saldoEsatto) 
       <td style="width:110px;text-align:right">${Number(m.importo) < 0 ? '-' : ''}€ ${Math.abs(Number(m.importo)).toLocaleString('it-IT', { minimumFractionDigits: 2 })}</td>
       <td style="width:80px">${m.metodo ? escHtml(m.metodo.toUpperCase()) : ''}</td>
     </tr>`).join('');
-  const saldo = saldoEsatto !== undefined ? saldoEsatto : movimenti.reduce((s, m) => s + Number(m.importo), 0);
+  const saldo = saldoEsatto !== undefined ? saldoEsatto : sommaImporti(movimenti.map((m) => m.importo));
   const storicoHtml = storico && storico.length ? `
     <h2 style="font-size:12pt;margin-top:18pt">Storico modifiche</h2>
     <table>${storico.map((h) => `
@@ -68,7 +68,7 @@ export const docHtml = (lista, movimenti, storico, usersById = {}, saldoEsatto) 
 // clipboard): niente metodi di pagamento, niente storico.
 export const riepilogoTesto = (lista, movimenti, saldoEsatto) => {
   const righe = movimenti.map((m) => `${fmtDate(m.data_movimento)}  ${m.descrizione}  ${eur(m.importo)}`).join('\n');
-  const saldo = saldoEsatto !== undefined ? saldoEsatto : movimenti.reduce((s, m) => s + Number(m.importo), 0);
+  const saldo = saldoEsatto !== undefined ? saldoEsatto : sommaImporti(movimenti.map((m) => m.importo));
   return `RIEPILOGO BUONO VIAGGIO\n${intestazioneLista(lista)}${lista.titolo ? ' — ' + lista.titolo : ''}\n\n`
     + (righe || 'Nessun movimento registrato.')
     + `\n\nSALDO: ${eur(saldo)}`

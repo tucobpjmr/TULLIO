@@ -55,6 +55,18 @@ const completedAtPatch = (prevStatus, nextStatus) => {
   return { completedAt: null };
 };
 
+// ─── LE DUE RICHIESTE DI NAVIGAZIONE ──────────────────────────────────────
+// `listeTarget` e `dashboardQueue` non sono "un id" e "una tab": sono richieste
+// con un `seq`, e il `seq` è la ragione per cui esistono come oggetti — fa
+// scattare l'effetto anche quando il valore richiesto è lo stesso dell'ultima
+// volta (vedi i due punti in SET_VIEW qui sotto). I due tipi stanno qui,
+// accanto a chi li COSTRUISCE, e i componenti che li ricevono come prop li
+// importano da qui: prima ciascuno dichiarava `= null` e basta, cioè con
+// `strictNullChecks` una prop di tipo `null` a cui la richiesta vera non era
+// assegnabile (M-3 dell'audit del 10 settembre).
+/** @typedef {{ id: string, seq: number }} RichiestaLista */
+/** @typedef {{ tab: string, seq: number }} RichiestaCoda */
+
 function baseReducer(state, action) {
   // Le fette con reducer proprio rispondono `null` a ciò che non possiedono,
   // quindi questa delega non può cambiare l'esito di nessun altro case: o una

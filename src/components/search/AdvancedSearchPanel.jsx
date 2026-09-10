@@ -340,7 +340,7 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
                   style={{
                     padding: "10px 18px", borderBottom: "1px solid var(--border)",
                     cursor: "pointer", display: "flex", alignItems: "center", gap: 12,
-                    transition: "background 0.15s", background: "#fff",
+                    transition: "background 0.15s", background: "var(--card)",
                     opacity: t.deletedAt ? 0.6 : 1,
                   }}
                   {...conTastiera(
@@ -407,7 +407,7 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
                 style={{
                   padding: "10px 18px", borderBottom: "1px solid var(--border)",
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 12,
-                  transition: "background 0.15s", background: "#fff",
+                  transition: "background 0.15s", background: "var(--card)",
                   opacity: l.deleted_at ? 0.6 : 1,
                 }}
                 {...conTastiera(

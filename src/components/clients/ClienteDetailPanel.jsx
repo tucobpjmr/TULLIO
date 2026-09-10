@@ -32,7 +32,13 @@ const ClienteListePanel = lazy(() =>
 // Il tab "Liste viaggio" è il secondo punto d'ingresso al modulo Liste (il
 // primo è il bottone nell'header della Dashboard). Il modulo non ha una voce
 // di sidebar/bottom-nav: si arriva da qui e da lì.
-export function ClienteDetailPanel({ cliente, tasks, onClose, showListe, liste = null, initialTab = null }) {
+// Il ripiego della prop `liste` è `null`, ma il TIPO deve restare il
+// conteggio: scritto `= null` e basta, con `strictNullChecks` la prop
+// diventava di tipo `null` e passarle un conteggio vero era un errore
+// (M-3 dell'audit del 10 settembre).
+/** @typedef {import("../liste/listeModuleApi.js").ConteggioListe} ConteggioListe */
+
+export function ClienteDetailPanel({ cliente, tasks, onClose, showListe, liste = /** @type {ConteggioListe|null} */ (null), initialTab = null }) {
   const [tab, setTab] = useState("task");
 
   // Cambiando cliente si riparte dal tab Task: il tab Liste rifà comunque la

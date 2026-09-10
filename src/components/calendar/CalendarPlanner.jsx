@@ -23,7 +23,7 @@ import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Identità condivisa per «nessun task quel giorno»: un `[]` nuovo a ogni
 // chiamata sveglierebbe il `memo` dei figli per una cella vuota.
-const VUOTO = Object.freeze([]);
+const VUOTO = Object.freeze(/** @type {any[]} */ ([]));
 
 const DAY_NAMES = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 

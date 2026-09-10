@@ -44,7 +44,7 @@ const riquadro = {
 const testo = { flex: 1, minWidth: 200, fontSize: 13, lineHeight: 1.45, color: "var(--text)" };
 const btnRiprova = {
   padding: "7px 16px", borderRadius: 8, border: "1px solid var(--border)",
-  background: "var(--card)", color: "var(--navy)", fontWeight: 700,
+  background: "var(--card)", color: "var(--heading)", fontWeight: 700,
   cursor: "pointer", fontSize: 12.5, fontFamily: "inherit", flexShrink: 0,
 };
 
@@ -74,7 +74,7 @@ export function StatoEntita({ voci = [], children }) {
           {/* L'unica azione utile, e c'è: prima di A-3 l'unico rimedio era
               ricaricare la pagina, e l'interfaccia non lo diceva da nessuna
               parte. */}
-          <button onClick={stato.riprova} style={btnRiprova}>Riprova</button>
+          <button onClick={stato?.riprova} style={btnRiprova}>Riprova</button>
         </div>
       ))}
       {children}

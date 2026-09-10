@@ -69,7 +69,7 @@ import { useEffect, useState } from "react";
  * @param {{iniziale?: T, suErrore?: (e: unknown) => void}} [opzioni]
  * @returns {{dato: T, caricando: boolean, errore: unknown, imposta: Function}}
  */
-export function useCaricamento(carica, deps, { iniziale = null, suErrore } = {}) {
+export function useCaricamento(carica, deps, { iniziale = /** @type {T} */ (/** @type {unknown} */ (null)), suErrore } = {}) {
   const [dato, setDato] = useState(iniziale);
   const [caricando, setCaricando] = useState(true);
   const [errore, setErrore] = useState(null);

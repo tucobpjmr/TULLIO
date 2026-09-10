@@ -195,7 +195,11 @@ const RUOLI_LISTE = ['admin', 'manager', 'agent'];
 export const canAccessListe = (team, userId) => {
   const m = getMember(team, userId);
   if (!m || m.active === false || m.pending) return false;
-  return RUOLI_LISTE.includes(toDbRole(m.role));
+  // `toDbRole` torna `null` per un ruolo fuori enum, e `null` non è in
+  // RUOLI_LISTE: il ramo esplicito dice la stessa cosa di prima, ma la dice
+  // (M-3 dell'audit del 10 settembre).
+  const ruolo = toDbRole(m.role);
+  return ruolo !== null && RUOLI_LISTE.includes(ruolo);
 };
 
 export const getVisibleTasks = (team, tasks, userId) =>

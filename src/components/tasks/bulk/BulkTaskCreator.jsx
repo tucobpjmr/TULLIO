@@ -54,7 +54,7 @@ const rowCenterMiddle2 = {
 };
 const txtF15Bold = { fontSize: 15, fontWeight: 700, color: "var(--text)" };
 const boxF10Bold = {
-  marginLeft: "auto", fontSize: 10, fontWeight: 700, color: "var(--navy)",
+  marginLeft: "auto", fontSize: 10, fontWeight: 700, color: "var(--heading)",
   background: "rgba(212,168,67,0.18)", borderRadius: 999, padding: "2px 8px", flexShrink: 0,
 };
 const txtF12Muted = { fontSize: 12, color: "var(--text-muted)", lineHeight: 1.45 };

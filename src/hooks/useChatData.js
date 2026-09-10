@@ -146,7 +146,10 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
     }
     const msgsByConv = {};
     for (const r of msgsRes.data || []) {
+      // Vedi la nota gemella in useAppHydration: il mapper torna `null` per
+      // una riga assente, e saltarla costa meno di presumerla.
       const m = fromDbMessage(r);
+      if (!m) continue;
       (msgsByConv[m.conversation_id] ||= []).push(m);
     }
     // Se `soloMessaggi`, le conversazioni già in stato non sono state

@@ -23,6 +23,7 @@ import { demoState } from "./state/demoState.js";
 // idratazione, notifiche, presenza, push, chat — per un totale di ~800 righe
 // che rendevano impossibile toccare una feature senza aprire il file di tutte.
 import { useSyncedDispatch } from "./hooks/useSyncedDispatch.js";
+import { useCodaScritture } from "./hooks/useCodaScritture.js";
 import { useAppHydration } from "./hooks/useAppHydration.js";
 import { useNotifications } from "./hooks/useNotifications.js";
 import { usePresence } from "./hooks/usePresence.js";
@@ -166,11 +167,23 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   let demo = null;
   if (import.meta.env.DEV && !useSupabase) demo = demoState();
 
+  // M-2 dell'audit del 10 settembre · la coda delle scritture offline. Sta qui,
+  // prima di `dispatch`, perché è `dispatch` a doverla ricevere: quando una
+  // scrittura fallisce per assenza di rete finisce lì invece di essere annullata.
+  // `api` ha identità stabile (vedi hooks/useCodaScritture.js), quindi passarla
+  // non rompe la stabilità di `dispatch` da cui dipende la memoizzazione dei figli.
+  const { api: codaScritture, inAttesa: scrittureInAttesa } = useCodaScritture({
+    enabled: useSupabase,
+    uid: state.currentUserId,
+    state,
+    rawDispatch,
+  });
+
   // Il wrapper dispatch (283 righe di switch: permessi + mapping + chiamate DB
   // + rollback) è stato sostituito dal registry dichiarativo in
   // state/persistence.js, orchestrato da questo hook. Stessa firma di prima:
   // ritorna Promise<{ error }> e ha identità stabile tra i render.
-  const dispatch = useSyncedDispatch(state, rawDispatch, { enabled: useSupabase });
+  const dispatch = useSyncedDispatch(state, rawDispatch, { enabled: useSupabase, coda: codaScritture });
 
   // Toast d'errore: firma unica per tutti gli hook, che così non conoscono né
   // il reducer né la forma dell'azione.
@@ -421,7 +434,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
             schermo sono l'ultimo stato noto, non lo stato attuale, e ogni
             salvataggio fallirà. Il componente si nasconde da sé quando la rete
             c'è, quindi non ha un guard qui. */}
-        <OfflineBanner />
+        <OfflineBanner inAttesa={scrittureInAttesa} />
         {/* Il banner esiste solo per il cambio-utente demo, che il reducer
             accetta solo in DEV (reducer.js, case SET_CURRENT_USER). In
             produzione `import.meta.env.DEV` è la costante `false`: il ramo

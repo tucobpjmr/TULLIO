@@ -4,6 +4,7 @@
 // disattivazione e la RIPARAZIONE della sottoscrizione (syncPushSubscription).
 // UI: toggle nel NotificationsPanel (Topbar.jsx).
 import { Push } from './api.js';
+import { testoEccezione } from './errori.js';
 
 // Memoria dell'intenzione dell'utente ("voglio le push su questo dispositivo").
 // Serve a syncPushSubscription: senza, dopo una revoca di iOS non sapremmo
@@ -122,7 +123,7 @@ export async function enablePush(userId) {
     writeIntent(true);
     return { error: null };
   } catch (e) {
-    return { error: e?.message || 'Attivazione push fallita' };
+    return { error: testoEccezione(e, 'Attivazione push fallita') };
   }
 }
 
@@ -138,7 +139,7 @@ export async function disablePush() {
     }
     return { error: null };
   } catch (e) {
-    return { error: e?.message || 'Disattivazione push fallita' };
+    return { error: testoEccezione(e, 'Disattivazione push fallita') };
   }
 }
 
@@ -180,7 +181,7 @@ export async function syncPushSubscription(userId) {
     if (error) return { error: error.message || 'Salvataggio sottoscrizione fallito', repaired: false };
     return { error: null, repaired: true };
   } catch (e) {
-    return { error: e?.message || 'Sincronizzazione push fallita', repaired: false };
+    return { error: testoEccezione(e, 'Sincronizzazione push fallita'), repaired: false };
   }
 }
 

@@ -51,18 +51,29 @@ export async function listeRicercabili() {
 }
 
 /**
+ * Il conteggio delle liste viaggio di UN cliente: quante ne ha in tutto e
+ * quante non sono nel cestino. Vive qui — accanto a chi lo produce — e non nei
+ * tre componenti dell'anagrafica che lo ricevono, che prima lo dichiaravano
+ * ciascuno come `null` e basta: con `strictNullChecks` quel `null` diventava
+ * il tipo della prop, e passarle un conteggio vero era un errore di tipo
+ * (M-3 dell'audit del 10 settembre).
+ *
+ * @typedef {{ attive: number, totali: number }} ConteggioListe
+ */
+
+/**
  * Conteggio liste per cliente, già aggregato: { [clientId]: { attive, totali } }.
  *
  * Serve all'anagrafica PRIMA di modificare o eliminare un cliente, non dopo: è
  * la differenza fra sapere che cosa si sta toccando e scoprirlo da un errore di
  * foreign key.
  *
- * @returns {Promise<{ data: Record<string, {attive:number, totali:number}>, error: Error|null }>}
+ * @returns {Promise<{ data: Record<string, ConteggioListe>, error: Error|null }>}
  */
 export async function conteggioListePerCliente() {
   const { data, error } = await ListeAPI.clientiConListe();
   if (error) return { data: {}, error };
-  /** @type {Record<string, {attive:number, totali:number}>} */
+  /** @type {Record<string, ConteggioListe>} */
   const mappa = {};
   for (const r of data || []) {
     const voce = mappa[r.client_id] || (mappa[r.client_id] = { attive: 0, totali: 0 });

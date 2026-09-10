@@ -9,9 +9,9 @@ import * as stiliComuni from "../../styles/common.js";
 export const rowCenterBetween = {
   padding: "14px 18px", borderBottom: "1px solid var(--border)",
   display: "flex", alignItems: "center", justifyContent: "space-between",
-  background: "#fff",
+  background: "var(--card)",
 };
-export const txtF15Bold = { fontSize: 15, fontWeight: 700, color: "var(--navy)" };
+export const txtF15Bold = { fontSize: 15, fontWeight: 700, color: "var(--heading)" };
 export const boxF12Muted = {
   background: "transparent", border: "1px solid var(--border)",
   borderRadius: 6, padding: "5px 10px", fontSize: 12, color: "var(--text-muted)",
@@ -30,7 +30,7 @@ export const boxF12WFull = {
   border: "1px solid var(--border)", fontSize: 12, outline: "none", fontFamily: "inherit", boxSizing: "border-box",
 };
 export const rowCenterGap8 = { display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "var(--text)" };
-export const box2 = { background: "#fff" };
+export const box2 = { background: "var(--card)" };
 export const txtF13Muted = { padding: "32px 20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 };
 export const boxStickyF11 = {
   padding: "8px 18px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)",

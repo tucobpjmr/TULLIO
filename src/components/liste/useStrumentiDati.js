@@ -62,7 +62,7 @@ export function useStrumentiDati({
       `backup_liste_viaggio_${todayISO()}.json`,
     );
     dispatch(toastSuccesso(
-      `Backup scaricato: ${data.liste.length} liste, ${data.movimenti.length} movimenti`,
+      `Backup scaricato: ${data?.liste.length ?? 0} liste, ${data?.movimenti.length ?? 0} movimenti`,
     ));
   };
 

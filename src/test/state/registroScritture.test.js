@@ -55,6 +55,25 @@ describe("vocabolario delle entry", () => {
     }
   });
 
+  // M-2 dell'audit del 10 settembre. `offline: true` promette che la
+  // scrittura può essere rigiocata più tardi; se poi il server la rifiuta per
+  // davvero, la coda deve poter rimettere a posto lo stato ottimistico che nel
+  // frattempo l'utente ha continuato a guardare. Senza `rollback` quella
+  // promessa resta a metà: la voce sparisce dalla coda, il toast lo dice, e a
+  // schermo resta un valore che sul server non esiste.
+  it("una entry accodabile porta con sé il proprio rollback", () => {
+    for (const [nome, spec] of voci(PERSISTENCE)) {
+      if (!spec.offline) continue;
+      expect(spec.rollback, `${nome}: offline senza rollback`).toBeTypeOf("function");
+    }
+  });
+
+  it("nessuna entry della famiglia «conferma prima» si dichiara accodabile", () => {
+    for (const [nome, spec] of voci(LISTE_WRITES)) {
+      expect(spec.offline, `${nome}: le liste non si accodano`).toBeUndefined();
+    }
+  });
+
   it("entrambi i registry nominano l'operazione allo stesso modo", () => {
     for (const [nome, spec] of [...voci(PERSISTENCE), ...voci(LISTE_WRITES)]) {
       expect(spec.persist, `${nome} senza persist`).toBeTypeOf("function");

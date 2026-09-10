@@ -23,7 +23,7 @@ const txtF12Mt4 = { fontSize: 12, marginTop: 4 };
 const boxF13Bold = {
   marginTop: 10, padding: "6px 14px", borderRadius: 8,
   border: "1px solid var(--border)", background: "var(--card)",
-  color: "var(--navy)", cursor: "pointer", fontSize: 13, fontWeight: 600,
+  color: "var(--heading)", cursor: "pointer", fontSize: 13, fontWeight: 600,
   fontFamily: "inherit",
 };
 const boxMt4 = { background: "transparent", marginTop: 4 };

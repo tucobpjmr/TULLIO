@@ -52,7 +52,9 @@ export function fondiScrittureInVolo(incoming, locali, pending) {
   // cancellato).
   const tenute = arrivate
     .filter(r => !pending.has(r.id) || perId.has(r.id))
-    .map(r => (pending.has(r.id) ? perId.get(r.id) : r));
+    // `?? r`: `Map.get` può tornare `undefined` per il tipo, mai qui — il ramo
+    // gira solo dopo `perId.has(r.id)`. Il ripiego rende la riga totale.
+    .map(r => (pending.has(r.id) ? perId.get(r.id) ?? r : r));
   // …e il simmetrico: una riga creata in ottimistico che il server non serve
   // ancora va tenuta, altrimenti il refetch la fa sparire appena creata.
   const serviti = new Set(arrivate.map(r => r.id));

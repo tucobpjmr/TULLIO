@@ -18,7 +18,7 @@ const boxF12Bold = {
   fontSize: 12, fontWeight: 600,
 };
 const boxF12Bold2 = {
-  background: "#fff", border: "none",
+  background: "var(--card)", border: "none",
   color: "#C8832A", borderRadius: 6, padding: "3px 10px", cursor: "pointer",
   fontSize: 12, fontWeight: 700,
 };

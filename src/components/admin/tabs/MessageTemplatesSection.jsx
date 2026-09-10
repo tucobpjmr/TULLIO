@@ -51,7 +51,13 @@ const boxF12W28 = { background: "var(--card)", border: "1px solid var(--border)"
 const boxF12Danger = { background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 12, color: "var(--danger)" };
 
 // ─── TEMPLATE MESSAGGI CHAT (v2.8) ─────────────────────────────────────────
-export const MessageTemplatesSection = ({ templates = [] }) => {
+/** @typedef {{ id: string, label: string, text: string }} Template */
+
+// `= []` da solo dava alla prop il tipo `never[]`, cioè "una lista che non può
+// contenere niente": passarle i template veri era un errore di tipo appena
+// acceso `strictNullChecks` (M-3 dell'audit del 10 settembre). Il ripiego resta
+// la lista vuota, il tipo dice di COSA.
+export const MessageTemplatesSection = ({ templates = /** @type {Template[]} */ ([]) }) => {
   const dispatch = useDispatch();
   const conferma = useConfirm();
   const [editingId, setEditingId] = useState(null);

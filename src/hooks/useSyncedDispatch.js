@@ -42,8 +42,11 @@ import { isAdmin } from "../lib/permissions.js";
 // evento davanti allo stesso utente.
 import { erroreDiScrittura, testoErrore, toastErrore } from "../state/registroScritture.js";
 import { erroreDiPermesso } from "../lib/esitoScrittura.js";
+// M-2 (audit del 10 settembre): la distinzione fra «il server ha rifiutato» e
+// «la rete non c'era» vive in state/codaScritture.js, con la coda che la usa.
+import { guastoDiRete } from "../state/codaScritture.js";
 
-export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
+export function useSyncedDispatch(state, rawDispatch, { enabled = true, coda = /** @type {import("./useCodaScritture.js").ApiCoda|null} */ (null) } = {}) {
   // Snapshot vivo dello state: leggendolo da un ref invece che dalle deps,
   // `dispatch` resta un'identità stabile. Con [state] nelle deps verrebbe
   // ricreato a ogni mutazione, rompendo la memoizzazione dei figli.
@@ -164,6 +167,40 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
       return { error: err };
     };
 
+    // ─── M-2 · PRIMA DI FALLIRE, PROVA AD ACCODARE ─────────────────────────
+    // Un `Failed to fetch` non è un rifiuto: è una scrittura che non è mai
+    // arrivata al server. Trattarlo come gli altri — rollback e toast rosso —
+    // buttava via il lavoro di chi stava lavorando offline, che su questa app
+    // sono i due driver in mobilità, cioè la popolazione che va offline per
+    // mestiere e non per incidente.
+    //
+    // Tre condizioni, tutte necessarie: la coda esiste (in modalità demo no),
+    // la entry si dichiara rigiocabile (`offline: true`, criterio in
+    // state/persistence.js) e il guasto è di rete. Se anche una sola manca si
+    // torna esattamente al comportamento di prima — compreso il caso «coda
+    // piena o IndexedDB non disponibile», in cui `accoda` torna `false`:
+    // promettere una consegna che non si può garantire sarebbe peggio del
+    // toast rosso.
+    //
+    // ⚠️ TORNA `{ error: null }`, cioè un SUCCESSO, ed è deliberato. È il
+    // valore di ritorno a decidere se le quindici form di `useSalvataggio` si
+    // chiudono (A-1 dell'audit del 4 settembre): una modifica accodata è stata
+    // accettata — è nello stato locale, è nel deposito, partirà — e tenere
+    // aperta la modale butterebbe via ciò che l'utente ha appena scritto,
+    // esattamente il difetto che A-1 ha chiuso. Che la consegna sia DIFFERITA
+    // lo dice la striscia persistente in cima allo schermo, non un toast che
+    // sparisce.
+    const accodaOppureFallisci = async (err, fallback, res) => {
+      if (coda && spec.offline && guastoDiRete(err)) {
+        const accodata = await coda.accoda({ tipo: action.type, azione: toDispatch });
+        if (accodata) {
+          console.warn(`[VoyageDesk] ${action.type} in coda: rete assente`, err);
+          return { error: null };
+        }
+      }
+      return fail(err, fallback, res);
+    };
+
     return Promise.resolve()
       .then(() => spec.persist(s, toDispatch, uid))
       .then((res) => {
@@ -173,9 +210,9 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
         // mirata a una riga" come un rifiuto, non solo un `error` esplicito —
         // vedi il commento sull'import in cima al file.
         const err = erroreDiScrittura(res);
-        return err ? fail(err, "errore sconosciuto", res) : { error: null };
+        return err ? accodaOppureFallisci(err, "errore sconosciuto", res) : { error: null };
       })
-      .catch((e) => fail(e, "errore di rete"))
+      .catch((e) => accodaOppureFallisci(e, "errore di rete"))
       // finally e non .then(): un errore di rete che lasciasse l'id marcato per
       // sempre sarebbe un difetto PEGGIORE di quello che questo meccanismo
       // chiude — quel task smetterebbe di aggiornarsi da realtime per il resto
@@ -184,5 +221,5 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true } = {}) {
       .finally(() => {
         if (ids.length) rawDispatch({ type: "UNMARK_PENDING_WRITE", payload: ids });
       });
-  }, [enabled, rawDispatch]);
+  }, [enabled, rawDispatch, coda]);
 }

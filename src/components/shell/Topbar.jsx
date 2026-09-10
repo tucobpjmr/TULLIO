@@ -19,6 +19,9 @@ import { useDispatch } from "../../state/DispatchContext.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+// `#fff` e non `var(--card)`, anche al buio: è la piastrella che sta DIETRO
+// il logo (un PNG disegnato per fondo chiaro). Un tema non deve cambiare il
+// fondo di un marchio — M-4 dell'audit del 10 settembre.
 const rowCenterMiddle = {
   width: 32, height: 32, background: "#fff", borderRadius: 8,
   display: "flex", alignItems: "center", justifyContent: "center",
@@ -27,17 +30,17 @@ const rowCenterMiddle = {
 };
 const w266H266 = { display: "block", width: 26.6, height: 26.6 };
 const boxP0 = { background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" };
-const txtF15Bold = { color: "var(--navy)", fontSize: 15, fontWeight: 700, lineHeight: 1 };
-const txtF10 = { color: "rgba(15,32,68,0.75)", fontSize: 10, letterSpacing: 1.5 };
+const txtF15Bold = { color: "var(--heading)", fontSize: 15, fontWeight: 700, lineHeight: 1 };
+const txtF10 = { color: "var(--text-muted)", fontSize: 10, letterSpacing: 1.5 };
 const relativeFlex1MaxW520 = { flex: 1, maxWidth: 520, position: "stiliComuni.relative" };
-const iconaRicerca = { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(15,32,68,0.7)", display: "flex" };
+const iconaRicerca = { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", display: "flex" };
 const boxF13Navy = {
-  width: "100%", background: "#fff", border: "1px solid rgba(15,32,68,0.15)",
-  borderRadius: 8, padding: "7px 12px 7px 36px", color: "var(--navy)", fontSize: 13,
+  width: "100%", background: "var(--card)", border: "1px solid var(--border)",
+  borderRadius: 8, padding: "7px 12px 7px 36px", color: "var(--heading)", fontSize: 13,
   outline: "none", transition: "all 0.2s", boxSizing: "border-box",
 };
 const rowCenterMiddle2 = {
-  background: "#fff", border: "1px solid rgba(15,32,68,0.15)",
+  background: "var(--card)", border: "1px solid var(--border)",
   borderRadius: 8, width: 36, height: 36, cursor: "pointer",
   display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "stiliComuni.relative"
 };
@@ -170,7 +173,7 @@ export const Topbar = memo(function Topbar({
             value={ricerca}
             onChange={e => { onSearchChange(e.target.value); setSearchOpen(true); }}
             onFocus={e => { setSearchOpen(true); e.target.style.borderColor = "var(--gold)"; }}
-            onBlur={e => { e.target.style.borderColor = "rgba(15,32,68,0.15)"; }}
+            onBlur={e => { e.target.style.borderColor = "var(--border)"; }}
             placeholder={isMobile ? "Cerca..." : "Cerca task, clienti, categorie... (Ctrl+K)"}
             aria-label="Cerca"
             style={boxF13Navy}

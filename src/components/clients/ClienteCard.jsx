@@ -32,7 +32,13 @@ const boxF12Danger = {
   background: "var(--card)", cursor: "pointer", fontSize: 12, color: "var(--danger)",
 };
 
-export function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected, liste = null }) {
+// Il ripiego della prop `liste` è `null`, ma il TIPO deve restare il
+// conteggio: scritto `= null` e basta, con `strictNullChecks` la prop
+// diventava di tipo `null` e passarle un conteggio vero era un errore
+// (M-3 dell'audit del 10 settembre).
+/** @typedef {import("../liste/listeModuleApi.js").ConteggioListe} ConteggioListe */
+
+export function ClienteCard({ cliente, onEdit, onDelete, onSelect, selected, liste = /** @type {ConteggioListe|null} */ (null) }) {
   const [hovered, setHovered] = useState(false);
   // I dati anagrafici ereditati dall'import (Codice Fiscale, CAP, Provincia…)
   // stanno nelle note ma non sono note: in elenco si contano soltanto, per

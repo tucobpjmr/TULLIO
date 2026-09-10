@@ -51,9 +51,23 @@ const btnStriscia = {
   fontFamily: "inherit", flexShrink: 0,
 };
 
-export function OfflineBanner() {
+/**
+ * @param {object} props
+ * @param {number} [props.inAttesa] quante scritture aspettano in coda (M-2
+ *   dell'audit del 10 settembre). Arriva da `useCodaScritture` attraverso
+ *   VoyageDeskInner: una prop e non un context perché il salto è UNO — chi
+ *   disegna la striscia è figlio diretto di chi tiene la coda.
+ */
+export function OfflineBanner({ inAttesa = 0 }) {
   const online = useOnlineStatus();
   const freschezzaDegradata = useFreschezzaRealtime();
+  // «N modifiche in attesa» compare in ENTRAMBE le strisce e anche da sola:
+  // la coda è una condizione che dura, esattamente come le altre due, e
+  // dirla una volta in un toast che sparisce sarebbe l'errore che il
+  // preambolo di questo file descrive.
+  const attesa = inAttesa > 0
+    ? `${inAttesa === 1 ? "1 modifica è" : `${inAttesa} modifiche sono`} in attesa di partire.`
+    : null;
 
   // L'offline VINCE, e l'ordine non è arbitrario: quando la rete è giù i canali
   // sono giù per conseguenza, quindi le due condizioni sono vere insieme.
@@ -65,8 +79,26 @@ export function OfflineBanner() {
         <span style={stiliComuni.txtF15} aria-hidden="true">📡</span>
         <span>
           <strong>Sei offline.</strong>{" "}
-          I dati a schermo sono fermi all&#39;ultimo aggiornamento e le modifiche
-          non verranno salvate finché la connessione non torna.
+          I dati a schermo sono fermi all&#39;ultimo aggiornamento. Le modifiche
+          alle task restano in coda e partono da sole appena la rete torna; le
+          altre non verranno salvate.{attesa ? ` ${attesa}` : ""}
+        </span>
+      </div>
+    );
+  }
+
+  // Rete tornata, coda non ancora vuota: è la finestra in cui il drenaggio sta
+  // girando (o è appena fallito e riproverà). Vale la striscia d'avviso e non
+  // quella rossa per la stessa ragione dell'altra: qui non si sta perdendo
+  // niente, si sta aspettando.
+  if (attesa) {
+    return (
+      <div role="status" aria-live="polite" style={rowCenterGap10Avviso}>
+        <span style={stiliComuni.txtF15} aria-hidden="true">📤</span>
+        <span>
+          <strong>Invio delle modifiche in corso.</strong>{" "}
+          {attesa} Restano salvate sul dispositivo finché il server non le accetta:
+          puoi chiudere l&#39;app senza perderle.
         </span>
       </div>
     );

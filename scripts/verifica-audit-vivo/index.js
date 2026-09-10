@@ -12,10 +12,16 @@
 //
 //   npm run verifica:audit-vivo
 //
-// Legge RLS_TEST_URL / RLS_TEST_ANON_KEY e una delle coppie email/password
-// già usate da src/test/integration/rls.test.js e da .github/workflows/
-// rls.yml — va bene una qualunque: la RPC gira SECURITY DEFINER e il suo
-// esito non dipende dal ruolo di chi la chiama, solo da un login valido.
+// Legge RLS_TEST_URL / RLS_TEST_ANON_KEY e la coppia RLS_TEST_JUNIOR_*, già
+// usata da src/test/integration/rls.test.js e da .github/workflows/rls.yml.
+//
+// ⚠️ NON va più bene una coppia qualunque, e la riga che diceva il contrario
+// è stata riscritta con M-1 dell'audit del 10 settembre. La RPC gira sì
+// SECURITY DEFINER, ma da quella migrazione chiede al chiamante di passare
+// `private.can_clienti_scrittura()` — admin, manager o agent, attivo e non
+// pending — perché una definer che scrive `clients` scavalcando la RLS non
+// poteva restare eseguibile da chiunque avesse un login. Il junior dei
+// segreti è un `agent`, quindi passa; il driver e il pending no.
 //
 // Uscita: 0 se il trigger ha scritto esattamente una riga, 1 se ha scritto
 // un numero diverso da uno (silenzio o duplicazione), 2 per un errore di
@@ -65,7 +71,29 @@ async function main() {
 
   if (!r.ok) {
     console.error(`RPC sonda_audit_clients_update rifiutata (HTTP ${r.status}): ${JSON.stringify(corpo)}`);
-    console.error('Verifica inconcludente: probabile migrazione 20260905130000 non applicata.');
+    // Due cause distinte, e distinguerle qui evita di andare a cercare la
+    // migrazione sbagliata. M-1 dell'audit del 10 settembre ha chiuso la sonda
+    // dietro `private.can_clienti_scrittura()` (admin/manager/agent, attivo e
+    // non pending) e un tetto orario: da allora un rifiuto può voler dire
+    // «RPC assente» come prima, ma anche «l'utente di queste credenziali non è
+    // fra i ruoli che possono scrivere clients» — cioè un segreto cambiato,
+    // non uno schema indietro.
+    const motivo = String(corpo?.message || '');
+    if (/permesso negato/i.test(motivo)) {
+      console.error(
+        'Verifica inconcludente: le credenziali RLS_TEST_JUNIOR_* non passano ' +
+        'private.can_clienti_scrittura() — serve un utente admin/manager/agent, ' +
+        'attivo e non pending (M-1 dell\'audit del 10 settembre).'
+      );
+    } else if (/troppe esecuzioni/i.test(motivo)) {
+      console.error(
+        'Verifica inconcludente: tetto orario della sonda raggiunto per questo ' +
+        'utente (20/ora, M-1 dell\'audit del 10 settembre). Non è un guasto ' +
+        'del trigger: rilanciare più tardi.'
+      );
+    } else {
+      console.error('Verifica inconcludente: probabile migrazione 20260905130000 non applicata.');
+    }
     process.exit(2);
   }
 

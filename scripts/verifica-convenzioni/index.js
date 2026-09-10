@@ -51,6 +51,7 @@ import {
   // B-3 (26 agosto): i test stanno in cartelle che rispecchiano il sorgente.
   testSciolti,
 } from './convenzioni.js';
+import { coloriInDuro } from './colori.js';
 // M-3 (2 settembre): un rilievo ancorato a una condizione verificabile sul
 // sorgente, non solo a una riga di tabella — vedi ANCORE più sotto. File a sé
 // (ancore.js) perché convenzioni.js aveva superato la soglia di max-lines.
@@ -511,6 +512,17 @@ async function main() {
     nome: `file oltre ${TETTO_FISICO} righe fisiche`, dove: 'scripts/verifica-convenzioni/convenzioni.js',
     dichiarato: 0, misurato: troppoLunghi.length,
     rimedio: `La parte NARRATIVA (com'era prima, quale audit lo ha cambiato) va in docs/, non cancellata: ${troppoLunghi.map(f => `${f.path} (${f.righe})`).join(', ')}`,
+  });
+
+  // 5-quater-bis · M-4 (audit del 10 settembre). Il tema scuro vale per ciò che
+  //    passa dai token: ogni colore scritto in duro fuori da `src/styles/` è un
+  //    pezzo di interfaccia che al buio resta chiaro. Ratchet — vedi il
+  //    docblock di `coloriInDuro` per cosa resta legittimamente dentro.
+  const COLORI_IN_DURO = 310;
+  controlli.push({
+    nome: 'colori scritti in duro fuori da src/styles/', dove: 'scripts/verifica-convenzioni/convenzioni.js',
+    dichiarato: COLORI_IN_DURO, misurato: coloriInDuro(sorgenti),
+    rimedio: 'Se è sceso, abbassa la soglia qui accanto. Se è salito, il colore nuovo va preso da un token di styles/global.css — o motivato in un commento come le due eccezioni già presenti (la piastrella del logo, la pallina dell\'interruttore push).',
   });
 
   // 5-quinquies e 5-sexies · le forme di stile duplicate (A-5). Stessa

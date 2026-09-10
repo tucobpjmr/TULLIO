@@ -39,7 +39,7 @@ export const boxF14Muted = {
 export const rowCenterGap8 = {
   display: "flex", alignItems: "center", gap: 8,
   background: "none", border: "none", cursor: "pointer",
-  color: "var(--navy)", fontSize: 13, fontWeight: 600,
+  color: "var(--heading)", fontSize: 13, fontWeight: 600,
   padding: "6px 0", fontFamily: "inherit",
 };
 export const txtF11Muted2 = { fontSize: 11, color: "var(--text-muted)", marginLeft: 2 };

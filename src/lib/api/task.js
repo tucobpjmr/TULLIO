@@ -112,7 +112,7 @@ export const Tasks = {
   // (`inizioFinestra` in hooks/useAppHydration.js, dove sta la spiegazione
   // lunga); qui resta scritto perché è un vincolo di QUESTA firma, e il
   // prossimo chiamante non avrà letto quel file.
-  list: async ({ includeDeleted = false, withComments = false, completeDal = null } = {}) => {
+  list: async ({ includeDeleted = false, withComments = false, completeDal = /** @type {string|null} */ (null) } = {}) => {
     const supabase = await getSupabase();
     const select = withComments ? TASK_SELECT_WITH_COMMENTS : '*';
     return fetchAllRows(() => {

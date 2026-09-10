@@ -13,6 +13,7 @@ import { downloadFile, escapeCSV } from "../adminExport.js";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../../styles/common.js";
 import { useDispatch } from "../../../state/DispatchContext.jsx";
+import { testoEccezione } from "../../../lib/errori.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -119,7 +120,7 @@ export const AdminIOTab = ({ agencyName, notices = [] }) => {
         // `readAsText` (in fondo alla funzione) garantisce un risultato
         // stringa: il tipo dell'evento resta `string | ArrayBuffer | null`
         // perché lo stesso `onload` serve a tutti i metodi di lettura.
-        const data = JSON.parse(/** @type {string} */ (ev.target.result));
+        const data = JSON.parse(/** @type {string} */ (ev.target?.result));
         const { fatalError, sanitized, warnings } = validateBackup(data);
         if (fatalError) throw new Error(fatalError);
         if (warnings.length > 0) {
@@ -136,7 +137,7 @@ export const AdminIOTab = ({ agencyName, notices = [] }) => {
         }
         dispatch({ type: "RESTORE_BACKUP", payload: sanitized });
       } catch (err) {
-        dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Ripristino non riuscito: ${err.message}` } });
+        dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Ripristino non riuscito: ${testoEccezione(err)}` } });
       }
     };
     reader.readAsText(file);

@@ -17,6 +17,7 @@ import { Modal } from "../ui/Modal.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
 import * as stiliComuni from "../../styles/common.js";
+import { testoEccezione } from "../../lib/errori.js";
 import {
   boxF125Warning, boxF13Danger, boxF14White, boxF95Bold, boxR8, boxTxtCenterR12, boxW8H8,
   colFlex1Gap14, cursor2, mt2, rowCenterBetween, rowCenterBetween2, rowCenterBetween3,
@@ -171,7 +172,7 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
-        const { rows: json, columns: cols } = await readFirstSheetRowsAutoHeader(evt.target.result, HEADER_HINTS);
+        const { rows: json, columns: cols } = await readFirstSheetRowsAutoHeader(evt.target?.result, HEADER_HINTS);
         if (!json.length) { impDispatch({ type: "ERRORE", messaggio: "Il file è vuoto o non contiene righe leggibili." }); return; }
         const auto = {
           name: pickBestColumn(cols, json, FIELD_KEYWORDS.name),
@@ -189,7 +190,7 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
           autoDetected: Object.fromEntries(Object.entries(auto).filter(([, v]) => v).map(([k]) => [k, true])),
         });
       } catch (err) {
-        impDispatch({ type: "ERRORE", messaggio: "Impossibile leggere il file: " + err.message });
+        impDispatch({ type: "ERRORE", messaggio: "Impossibile leggere il file: " + testoEccezione(err) });
       }
     };
     reader.readAsArrayBuffer(file);

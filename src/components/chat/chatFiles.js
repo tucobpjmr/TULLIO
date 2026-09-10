@@ -19,7 +19,10 @@ export const MAX_FILE_SIZE = 25 * 1024 * 1024;
 // (è un documento eseguibile) — classificarlo "img" prometterebbe
 // un'anteprima a un upload che il server rifiuta (B-4, audit 14/8).
 export const fileKindFromName = (name = "") => {
-  const ext = name.split(".").pop().toLowerCase();
+    // `pop()` su un array non vuoto non torna mai `undefined`, ma il tipo di
+  // `split` non lo sa: il ripiego rende esplicito ciò che era implicito
+  // (M-3 dell'audit del 10 settembre), senza cambiare un solo esito.
+const ext = (name.split(".").pop() || "").toLowerCase();
   if (ext === "pdf") return "pdf";
   if (["jpg", "jpeg", "png", "gif", "webp", "heic"].includes(ext)) return "img";
   if (["xls", "xlsx", "csv"].includes(ext)) return "xls";

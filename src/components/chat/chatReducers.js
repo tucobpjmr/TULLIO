@@ -11,7 +11,12 @@ export const convViewInitial = {
   input: "", recording: false, replyingTo: null,
   showAttach: false, showTemplates: false,
   showMsgSearch: false, msgSearch: "", showPinnedOnly: false,
-  typingMap: {}, pendingTaskRef: null, uploading: false,
+  // `typingMap` stava qui, ed è uscita con M-5 dell'audit del 10 settembre:
+  // vive in useTypingConversazione, che è l'unico posto che la scrive e che
+  // ne teneva comunque una copia in un ref per leggerla in modo sincrono. Due
+  // copie della stessa verità e un effetto per allinearle: quella che è
+  // rimasta è la copia, non l'originale.
+  pendingTaskRef: null, uploading: false,
   // A-5 · vero fra un invio fallito e la prossima modifica/invio: dice al
   // composer di mostrare «non inviato — riprova» invece di far ricomparire il
   // testo perso senza spiegazione, indistinguibile da una bozza qualsiasi.
@@ -32,7 +37,6 @@ export function convViewReducer(s, a) {
     case "SEARCH":         return { ...s, msgSearch: a.v };
     case "CLOSE_SEARCH":   return { ...s, showMsgSearch: false, msgSearch: "" };
     case "TOGGLE_PINNED":  return { ...s, showPinnedOnly: !s.showPinnedOnly };
-    case "SET_TYPING_MAP": return { ...s, typingMap: a.v };
     case "UPLOADING":      return { ...s, uploading: a.v };
     case "PREFILL":        return { ...s, input: a.text, pendingTaskRef: a.taskRef ?? null, invioFallito: false };
     // A-5 · il testo di un messaggio il cui invio è fallito torna nel

@@ -99,10 +99,105 @@
   --card: #ffffff;
   --card2: #F7F6F2;
   --heading: var(--navy);
+  /* ─── M-4 dell'audit del 10 settembre · i due token del focus ───
+     L'anello di focus era scritto in duro nella regola :focus-visible —
+     `outline: var(--navy)` più un alone `#fff` — e quei due valori sono
+     ESATTAMENTE quelli che un tema scuro deve rovesciare: navy su fondo
+     scuro sparisce, e l'alone bianco diventa il bordo più luminoso della
+     pagina. Nominarli qui è ciò che rende il rovesciamento una riga di
+     palette invece di una regola duplicata. Il ragionamento sul PERCHÉ
+     questi due colori (misure di contrasto WCAG comprese) sta accanto alla
+     regola, più sotto: qui c'è solo il valore. */
+  --focus: var(--navy);
+  --focus-alone: #fff;
   /* --safe-top/bottom/left/right (safe area iPhone) sono definiti in
      index.html: servono anche fuori dall'app montata (LoginScreen,
      ErrorBoundary), che non renderizzano questo FontLoader. */
   color-scheme: light;
+}
+
+/* ═══ TEMA SCURO (M-4 dell'audit del 10 settembre) ═══════════════════════════
+   PERCHÉ ESISTE. L'app si usa in furgone e di sera — i due driver in mobilità
+   sono la stessa popolazione per cui esiste la coda offline di M-2 — e finora
+   aveva una sola faccia, chiara, su un telefono che a quell'ora è l'unica
+   fonte di luce in cabina. Non è una preferenza estetica: è leggibilità.
+
+   COME. Nessuna regola duplicata, nessuna classe `.dark` sui componenti: si
+   ridefiniscono i TOKEN, e tutto ciò che li usa segue. È la prova del lavoro
+   dei mesi scorsi — `styles/tokens.js`, `styles/common.js` e i 1.153 stili
+   inline sollevati a costanti (M-1 del 12 agosto) — perché è quella disciplina
+   a rendere il tema scuro una palette e non un rifacimento.
+
+   LE TRE CONDIZIONI, in quest'ordine di precedenza:
+     1. `:root` qui sopra — chiaro, sempre definito, è la base;
+     2. `@media (prefers-color-scheme: dark)` ristretto a
+        `:root:not([data-tema="chiaro"])` — segue il sistema, a meno che
+        l'utente non abbia scelto ESPLICITAMENTE il chiaro;
+     3. `:root[data-tema="scuro"]` — la scelta esplicita, che vince su tutto.
+   L'attributo lo scrive `lib/tema.js`. La duplicazione del blocco fra 2 e 3 è
+   voluta e non evitabile: il CSS non sa dare un nome a un gruppo di
+   dichiarazioni, e le alternative (una classe applicata da JS anche nel caso
+   "sistema", o `@media` dentro `@supports`) spostano il problema senza
+   toglierlo. Sono gli stessi valori, uno accanto all'altro, dove chi ne cambia
+   uno vede l'altro.
+
+   ⚠️ `--navy` resta una SUPERFICIE anche al buio (testate, bottoni primari),
+   non diventa un colore di testo: i 33 punti che lo usavano come `color:` sono
+   passati a `--heading` con questo stesso intervento, che in chiaro è
+   `var(--navy)` — cioè zero differenze visibili — e al buio è inchiostro
+   chiaro. Senza quel passaggio, metà dell'app sarebbe navy su navy. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="chiaro"]) {
+    --navy: #213154;
+    --navy-light: #2C3F69;
+    --navy-dark: #16233C;
+    --sky: #182643;
+    --gold: #D9B05C;
+    --gold-light: #EBCB86;
+    --gold-dark: #B8902E;
+    --surface: #0E1524;
+    --surface2: #16203A;
+    --surface3: #1F2A46;
+    --success: #4FB07A;
+    --warning: #E0A542;
+    --danger: #E2685C;
+    --text: #E9ECF4;
+    --text-muted: #A6AFC4;
+    --text-light: #7C869E;
+    --border: #26314C;
+    --card: #131C2F;
+    --card2: #1A2440;
+    --heading: #EDF0F7;
+    --focus: var(--gold-light);
+    --focus-alone: #0E1524;
+    color-scheme: dark;
+  }
+}
+
+:root[data-tema="scuro"] {
+  --navy: #213154;
+  --navy-light: #2C3F69;
+  --navy-dark: #16233C;
+  --sky: #182643;
+  --gold: #D9B05C;
+  --gold-light: #EBCB86;
+  --gold-dark: #B8902E;
+  --surface: #0E1524;
+  --surface2: #16203A;
+  --surface3: #1F2A46;
+  --success: #4FB07A;
+  --warning: #E0A542;
+  --danger: #E2685C;
+  --text: #E9ECF4;
+  --text-muted: #A6AFC4;
+  --text-light: #7C869E;
+  --border: #26314C;
+  --card: #131C2F;
+  --card2: #1A2440;
+  --heading: #EDF0F7;
+  --focus: var(--gold-light);
+  --focus-alone: #0E1524;
+  color-scheme: dark;
 }
 body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: var(--text); transition: background 0.2s ease, color 0.2s ease; }
 .playfair { font-family: 'Playfair Display', serif; }
@@ -195,9 +290,9 @@ body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: va
    diventa l'indicatore visibile su fondo navy — nessun elenco di eccezioni da
    mantenere, perché la doppia tinta copre entrambi i casi da sé. */
 :where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
-  outline: 2px solid var(--navy) !important;
+  outline: 2px solid var(--focus) !important;
   outline-offset: 2px !important;
-  box-shadow: 0 0 0 4px #fff !important;
+  box-shadow: 0 0 0 4px var(--focus-alone) !important;
 }
 
 /* ─── RESPONSIVE ─── */

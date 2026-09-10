@@ -44,10 +44,17 @@ describe("OfflineBanner", () => {
     emetti("offline");
     const banner = screen.getByText(/Sei offline/);
     expect(banner).toBeTruthy();
-    // Il messaggio deve dire ENTRAMBE le conseguenze: i dati sono fermi E le
-    // scritture non passano. Metà del messaggio lascia l'utente a chiedersi
+    // Il messaggio deve dire ENTRAMBE le conseguenze: i dati sono fermi E che
+    // fine fanno le scritture. Metà del messaggio lascia l'utente a chiedersi
     // perché il salvataggio non funzioni.
-    expect(screen.getByText(/non verranno salvate/)).toBeTruthy();
+    //
+    // Da M-2 dell'audit del 10 settembre la seconda metà è cambiata insieme
+    // al comportamento: le modifiche alle task NON si perdono più (finiscono
+    // nella coda persistente), le altre sì. Un messaggio che continuasse a
+    // dire «non verranno salvate» di tutte spingerebbe l'utente a rifare a
+    // mano un lavoro che è già al sicuro.
+    expect(screen.getByText(/restano in coda/)).toBeTruthy();
+    expect(screen.getByText(/le altre non verranno salvate/)).toBeTruthy();
 
     setOnLine(true);
     emetti("online");
@@ -87,5 +94,39 @@ describe("OfflineBanner", () => {
     const rimossi = off.mock.calls.map(([nome]) => nome);
     expect(rimossi).toContain("online");
     expect(rimossi).toContain("offline");
+  });
+});
+
+describe("OfflineBanner — la coda delle scritture (M-2, 10 settembre)", () => {
+  it("con la rete tornata ma la coda piena, resta a schermo e dice quante", () => {
+    setOnLine(true);
+    render(<OfflineBanner inAttesa={3} />);
+    expect(screen.getByText(/3 modifiche sono in attesa/)).toBeTruthy();
+    // `polite` e non `assertive`: non si sta perdendo niente, si sta
+    // aspettando — non c'è nulla da interrompere.
+    expect(screen.getByRole("status").getAttribute("aria-live")).toBe("polite");
+  });
+
+  it("dice all'utente che può chiudere l'app", () => {
+    // È l'informazione che distingue questa coda da un tentativo in corso: se
+    // l'utente crede di dover tenere l'app aperta, la tiene aperta.
+    setOnLine(true);
+    render(<OfflineBanner inAttesa={1} />);
+    expect(screen.getByText(/puoi chiudere l/)).toBeTruthy();
+  });
+
+  it("da offline la conta è dentro la striscia rossa, non in una seconda", () => {
+    // Due strisce sovrapposte direbbero due volte la stessa condizione: la
+    // regola di priorità del file è che ne compaia una sola.
+    setOnLine(false);
+    const { container } = render(<OfflineBanner inAttesa={2} />);
+    expect(container.querySelectorAll("[role=status]").length).toBe(1);
+    expect(screen.getByText(/2 modifiche sono in attesa/)).toBeTruthy();
+  });
+
+  it("a coda vuota non aggiunge nulla a ciò che diceva prima", () => {
+    setOnLine(true);
+    const { container } = render(<OfflineBanner inAttesa={0} />);
+    expect(container.firstChild).toBeNull();
   });
 });

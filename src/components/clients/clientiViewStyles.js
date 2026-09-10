@@ -9,7 +9,7 @@ export const maxW1100 = { maxWidth: 1100, margin: "0 auto" };
 export const rowCenterBetween = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 };
 export const rowCenterGap6 = {
   padding: "10px 16px", borderRadius: 9, border: "1px solid var(--border)",
-  background: "var(--card)", color: "var(--navy)", cursor: "pointer",
+  background: "var(--card)", color: "var(--heading)", cursor: "pointer",
   fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 6,
 };
 export const rowCenterGap62 = {

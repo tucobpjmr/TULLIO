@@ -42,7 +42,35 @@
     ],
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "strict": false,
+    // ─── M-3 dell'audit del 10 settembre · `strict` acceso, meno un flag ──────
+    //
+    // `strict: false` era rimasto l'ultimo interruttore spento quando `checkJs`
+    // ha finito la corsa su tutto `src/`: il perimetro era completo, il rigore
+    // no. Acceso: `strictNullChecks`, `strictFunctionTypes`,
+    // `strictBindCallApply`, `strictPropertyInitialization`, `noImplicitThis`,
+    // `alwaysStrict` e `useUnknownInCatchVariables` valgono ora su tutti i file
+    // inclusi. I 72 errori che ha trovato all'accensione sono stati CORRETTI —
+    // 63 di `strictNullChecks` e 9 di `useUnknownInCatchVariables` — non
+    // silenziati: la regola di questo file è la stessa dal 15 agosto, si
+    // allarga quando il perimetro nuovo è a zero.
+    //
+    // ⚠️ `noImplicitAny` resta l'unica eccezione, ed è una scelta MISURATA e
+    // non una resa: 7.412 errori, di cui 4.424 sono un solo difetto ripetuto —
+    // «JSX element implicitly has type 'any' because no interface
+    // 'JSX.IntrinsicElements' exists», cioè `@types/react` che non è
+    // installato. Non è debito di questo codice: è una dipendenza di soli tipi
+    // che il progetto non ha mai avuto (nessuna delle 2.128 righe di test la
+    // richiede, `vite` non la legge). Dei restanti ~2.900, quasi tutti sono
+    // parametri di funzione senza JSDoc in `src/components/`.
+    //
+    // Il passo successivo, quando lo si vorrà fare, è quindi in DUE tempi e in
+    // quest'ordine: prima `npm i -D @types/react @types/react-dom` (che da solo
+    // toglie ~4.700 errori e in più tipizza davvero le props), poi il JSDoc sui
+    // parametri, una cartella alla volta come si è fatto per `include`. Aprire
+    // `noImplicitAny` prima di `@types/react` significherebbe leggere 7.412
+    // errori per trovarne 2.900 veri.
+    "strict": true,
+    "noImplicitAny": false,
     "jsx": "react-jsx",
     "skipLibCheck": true,
     "maxNodeModuleJsDepth": 0,

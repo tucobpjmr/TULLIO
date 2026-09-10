@@ -115,7 +115,7 @@ export const ListeAPI = {
   listByClient: async (clientId) => {
     const { ids, error } = await listaIdsDiCliente(clientId);
     if (error) return { data: null, error };
-    if (!ids.length) return { data: [], error: null };
+    if (!ids?.length) return { data: [], error: null };
     const supabase = await getSupabase();
     return supabase.from('liste_viaggio').select(LISTA_SELECT)
       .in('id', ids)
@@ -147,7 +147,7 @@ export const ListeAPI = {
   saldiByClient: async (clientId) => {
     const { ids, error } = await listaIdsDiCliente(clientId);
     if (error) return { data: null, error };
-    if (!ids.length) return { data: [], error: null };
+    if (!ids?.length) return { data: [], error: null };
     const supabase = await getSupabase();
     return supabase.from('liste_saldi').select('*').in('lista_id', ids);
   },
@@ -348,7 +348,7 @@ export const ListeAPI = {
   //
   // `onProgress({ done, total })` è opzionale: serve alla UI per non restare
   // muta durante un ripristino lungo.
-  importaBackup: async (payload, onProgress = null) => {
+  importaBackup: async (payload, onProgress = /** @type {((p: {done: number, total: number}) => void)|null} */ (null)) => {
     const supabase = await getSupabase();
     // L'ordine è obbligato dai controlli di integrità dentro la RPC: scarta le
     // liste il cui client_id non esiste ancora, i cointestatari la cui lista

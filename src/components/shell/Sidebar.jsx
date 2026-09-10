@@ -15,8 +15,8 @@ import { conTastiera } from "../../lib/a11y.js";
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
 const whiteSpace2 = { whiteSpace: "nowrap", overflow: "hidden" };
-const marginTop2 = { marginTop: "auto", padding: "16px 12px", borderTop: "1px solid rgba(15,32,68,0.12)" };
-const txtF10Mb8 = { fontSize: 10, color: "rgba(15,32,68,0.65)", letterSpacing: 1, marginBottom: 8 };
+const marginTop2 = { marginTop: "auto", padding: "16px 12px", borderTop: "1px solid var(--border)" };
+const txtF10Mb8 = { fontSize: 10, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 };
 const rowGap4 = { display: "flex", flexWrap: "wrap", gap: 4 };
 const boxAbsoluteW7 = { position: "absolute", bottom: 0, right: 0, width: 7, height: 7, borderRadius: "50%", background: "#2D7A4F", border: "1px solid var(--sky)" };
 
@@ -60,7 +60,7 @@ export const Sidebar = memo(function Sidebar({ activeView, onOpenBulk, onOpenCha
   const badges = getNavBadges(team);
   return (
     <div style={{
-      width: col ? 60 : 210, background: "var(--sky)", color: "var(--navy)",
+      width: col ? 60 : 210, background: "var(--sky)", color: "var(--heading)",
       display: "flex", flexDirection: "column",
       transition: "width 0.25s ease", flexShrink: 0,
       borderRight: "1px solid rgba(212,168,67,0.3)", position: "relative",
@@ -68,8 +68,8 @@ export const Sidebar = memo(function Sidebar({ activeView, onOpenBulk, onOpenCha
       <button onClick={() => setCollapsed(c => !c)} style={{
         position: "absolute", top: 12, right: col ? "50%" : 8,
         transform: col ? "translateX(50%)" : "none",
-        background: "rgba(15,32,68,0.09)", border: "1px solid rgba(15,32,68,0.18)",
-        borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: "rgba(15,32,68,0.7)",
+        background: "var(--surface2)", border: "1px solid var(--border)",
+        borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: "var(--text-muted)",
         fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center",
         transition: "all 0.2s",
       }}>{col ? "→" : "←"}</button>
@@ -89,7 +89,7 @@ export const Sidebar = memo(function Sidebar({ activeView, onOpenBulk, onOpenCha
               padding: col ? "10px 8px" : "10px 12px",
               borderRadius: 8, cursor: "pointer", border: "none",
               background: active ? "rgba(212,168,67,0.18)" : "transparent",
-              color: active ? "var(--navy)" : "rgba(15,32,68,0.8)",
+              color: active ? "var(--heading)" : "var(--text-muted)",
               fontSize: 14, fontWeight: active ? 600 : 400,
               transition: "all 0.2s", textAlign: "left",
               borderLeft: active ? "2px solid var(--gold)" : "2px solid transparent",
@@ -111,7 +111,7 @@ export const Sidebar = memo(function Sidebar({ activeView, onOpenBulk, onOpenCha
             display: "flex", alignItems: "center", gap: 10,
             padding: col ? "10px 8px" : "10px 12px",
             borderRadius: 8, cursor: "pointer", border: "none",
-            background: "transparent", color: "rgba(15,32,68,0.8)",
+            background: "transparent", color: "var(--text-muted)",
             fontSize: 14, fontWeight: 400, transition: "all 0.2s", textAlign: "left",
             borderLeft: "2px solid transparent", position: "relative",
             justifyContent: col ? "center" : "flex-start",

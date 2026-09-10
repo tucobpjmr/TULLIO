@@ -246,7 +246,7 @@ const applicaRiga = ({ action, mapper, dispatch, quandoIgnorare }) => (_tbl, pay
   return true;
 };
 
-export function useAppHydration({ enabled, currentUserId, dispatch, onError, teamIniziale = null }) {
+export function useAppHydration({ enabled, currentUserId, dispatch, onError, teamIniziale = /** @type {any[]|null} */ (null) }) {
   // M-1 (passo 2): `clients` parte da `false` e non da `enabled`, perché
   // all'avvio l'anagrafica NON si sta caricando — nessuno l'ha chiesta. Il
   // flag si alza quando una vista la chiede (`caricaClienti`), che è il solo
@@ -622,7 +622,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     const categories = {};
     for (const row of data || []) {
       const c = fromDbCategory(row);
-      categories[c.key] = { label: c.label, icon: c.icon, color: c.color, bg: c.bg };
+      if (c) categories[c.key] = { label: c.label, icon: c.icon, color: c.color, bg: c.bg };
     }
     if (!stessaMappa(ultimeCategorie.current, categories)) {
       ultimeCategorie.current = categories;

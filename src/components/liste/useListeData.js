@@ -65,7 +65,10 @@ export function useListeData({ enabled = true } = {}) {
   // recente (il classico last-write-wins fra due fetch concorrenti). La
   // generazione qui sopra copre ANCHE il caso in cui isCurrent resti il
   // default: le due condizioni si compongono in AND, non si sostituiscono.
-  const reload = useCallback(async (isCurrent = () => true, tabelle = null) => {
+  // `tabelle` è l'insieme delle tabelle toccate dall'evento realtime, `null`
+  // all'idratazione iniziale. Il tipo sta sul ripiego perché il ripiego da solo
+  // lo dichiarerebbe `null` e basta (M-3 dell'audit del 10 settembre).
+  const reload = useCallback(async (isCurrent = () => true, tabelle = /** @type {Set<string>|null} */ (null)) => {
     // Chiuso sui soli setter di React (identità stabile per contratto), così
     // `reload` può restare con deps vuote: la sua identità è passata a
     // useDebouncedTableSubscription, dove cambiarla a ogni render

@@ -536,4 +536,40 @@ suite("RLS: la matrice di autorizzazione è applicata dal database, non solo dal
       expect(error.code).toBe("42501");
     });
   });
+
+  // ─── M-1 dell'audit del 10 settembre ────────────────────────────────────
+  // `sonda_audit_clients_update()` è SECURITY DEFINER e scrive su `clients`
+  // scavalcando la RLS: fino a oggi bastava un login qualunque per chiamarla.
+  // Il gate nuovo è `private.can_clienti_scrittura()`, cioè lo stesso
+  // predicato delle policy di `clients` — e il driver è il caso che lo prova,
+  // perché è autenticato e attivo e resta comunque fuori.
+  describe("sonda_audit_clients_update — definer aperta al ruolo che potrebbe scrivere clients, non a chiunque", () => {
+    let driver, junior;
+    beforeAll(async () => {
+      driver = await accedi(
+        process.env.RLS_TEST_DRIVER_EMAIL, process.env.RLS_TEST_DRIVER_PASSWORD);
+      junior = await accedi(
+        process.env.RLS_TEST_JUNIOR_EMAIL, process.env.RLS_TEST_JUNIOR_PASSWORD);
+    });
+
+    it("il driver — autenticato e attivo — non la esegue", async () => {
+      const { error } = await driver.client.rpc("sonda_audit_clients_update");
+      expect(error).toBeTruthy();
+      // Il messaggio, non solo il fallimento: un errore qualunque (funzione
+      // assente, grant mancante) farebbe passare il test per il motivo
+      // sbagliato — è la stessa ragione per cui i casi RLS qui sopra
+      // asseriscono `42501` invece della sola presenza di `error`.
+      expect(error.message).toMatch(/permesso negato/i);
+    });
+
+    it("l'agent la esegue, e il trigger di audit risponde", async () => {
+      const { data, error } = await junior.client.rpc("sonda_audit_clients_update");
+      expect(error).toBeNull();
+      // 1 = il trigger ha registrato la modifica di prova. È la stessa
+      // asserzione di scripts/verifica-audit-vivo/index.js: qui vale come
+      // controprova che il gate nuovo non ha chiuso fuori il chiamante che
+      // la CI usa davvero.
+      expect(data).toBe(1);
+    });
+  });
 });

@@ -12,7 +12,11 @@ const rowCenterGap10 = {
   borderRadius: 7, textDecoration: "none", color: "var(--text)", fontSize: 13,
   fontFamily: "inherit", whiteSpace: "nowrap",
 };
-export const ContactMenuItem = ({ href, onClick, icon, label, target = undefined, rel = undefined }) => (
+// `target`/`rel` valgono solo per la voce WhatsApp, che apre una scheda nuova:
+// per le altre restano assenti. `= undefined` da solo dichiarava però alla prop
+// il tipo `undefined`, a cui nemmeno "_blank" era assegnabile (M-3 dell'audit
+// del 10 settembre).
+export const ContactMenuItem = ({ href, onClick, icon, label, target = /** @type {string|undefined} */ (undefined), rel = /** @type {string|undefined} */ (undefined) }) => (
   <a
     href={href}
     target={target}

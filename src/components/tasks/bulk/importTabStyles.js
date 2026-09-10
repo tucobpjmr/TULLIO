@@ -15,7 +15,7 @@ export const txtF14Bold = { fontSize: 14, fontWeight: 600, marginBottom: 4 };
 export const boxF12Bold = {
   marginTop: 14, background: "transparent", border: "1px solid var(--border)",
   borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600,
-  color: "var(--navy)", fontFamily: "inherit",
+  color: "var(--heading)", fontFamily: "inherit",
 };
 export const boxF13Danger = { background: "#FEE2E2", border: "1px solid rgba(192,57,43,0.3)", color: "var(--danger)", padding: "12px 14px", borderRadius: 10, fontSize: 13 };
 export const boxF12Warning = { background: "#FEF3C7", border: "1px solid rgba(200,131,42,0.35)", color: "var(--warning)", padding: "12px 14px", borderRadius: 10, fontSize: 12, lineHeight: 1.6 };

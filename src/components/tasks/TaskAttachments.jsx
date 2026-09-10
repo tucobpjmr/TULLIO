@@ -30,7 +30,7 @@ const txtF13Bold = {
 };
 const rowGap6F11 = { fontSize: 11, color: "var(--text-muted)", display: "flex", gap: 6, flexWrap: "wrap" };
 const boxF15Navy = {
-  background: "none", border: "none", cursor: "pointer", fontSize: 15, padding: 4, color: "var(--navy)",
+  background: "none", border: "none", cursor: "pointer", fontSize: 15, padding: 4, color: "var(--heading)",
 };
 const boxF13Muted = {
   background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: 4, color: "var(--text-muted)",

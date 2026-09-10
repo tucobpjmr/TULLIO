@@ -21,6 +21,10 @@
 //                                    "niente da fare".
 //   rollback(state, action)        → action da dispatchare se persist fallisce.
 //   mapError(err)                  → testo utente al posto del messaggio grezzo.
+//   offline: true                  → la scrittura può essere RIGIOCATA più tardi:
+//                                    quando fallisce per assenza di rete finisce
+//                                    nella coda persistente invece di essere
+//                                    annullata. Criterio più sotto.
 //   entityId(action, state, uid)   → id (o array di id) delle righe che questa
 //                                    azione sta scrivendo. Serve a marcarle come
 //                                    "scrittura in volo" finché persist non si è
@@ -94,6 +98,39 @@ const findNotice = (state, id) => (state.notices || []).find(n => n.id === id);
 const daPurgare = (s, uid) =>
   (s.tasks || []).filter(t => t.deletedAt && canEditTask(s.team, t, uid));
 
+// ─── M-2 dell'audit del 10 settembre · QUALI SCRITTURE SI POSSONO RIGIOCARE ─
+//
+// `offline: true` non è «questa azione è importante»: è una promessa di
+// IDEMPOTENZA. La coda (state/codaScritture.js) rigioca l'azione tale e quale
+// anche ore dopo, e su una rete che è caduta a metà richiesta non sa dire se
+// il primo tentativo fosse arrivato al server. Tre condizioni, tutte e tre
+// necessarie:
+//
+//   1. L'IDENTITÀ DELLA RIGA LA GENERA IL CLIENT. È la condizione che rende la
+//      rigiocata sicura: se il primo tentativo era arrivato, il secondo trova
+//      la chiave già presente e il database risponde `23505` — che la coda
+//      legge come «l'avevo già scritta io» invece che come un errore. È anche
+//      la ragione per cui `ADD_COMMENT` NON è qui: `CommentsAPI.create`
+//      costruisce la riga da task_id/user_id/text e lascia l'id al server,
+//      quindi una rigiocata dopo una risposta persa creerebbe un DOPPIONE
+//      silenzioso. Renderlo accodabile significa prima mandare l'id del client
+//      al database — una modifica che tocca lo schema, non questo file.
+//   2. `persist` NON LEGGE `state`. Legge l'azione, che `normalize` ha già
+//      materializzato. `UNDO_LAST_ACTION`, `EMPTY_TRASH` e `TOGGLE_PIN_NOTICE`
+//      calcolano dallo stato del MOMENTO: rigiocate su uno stato diverso
+//      farebbero una cosa diversa da quella che l'utente ha visto.
+//   3. IL SIGNIFICATO NON SCADE. «Sposta questa task in "fatto"» vale anche
+//      fra un'ora. «Svuota il cestino» no: il cestino di adesso non è quello
+//      di allora.
+//
+// Restano fuori, oltre ai casi già nominati, l'anagrafica, la bacheca, le
+// categorie e tutto il pannello Admin: non perché siano meno importanti, ma
+// perché nessuno li usa da un furgone in galleria — ed estendere la coda a
+// un'entry che soddisfa le tre condizioni è una parola sola, il giorno in cui
+// servirà. Il bulk (`ADD_TASKS_BULK`) resta fuori per una ragione sua: la
+// createMany scrive a BLOCCHI, quindi una caduta a metà lascia alcuni blocchi
+// scritti, e la rigiocata li troverebbe con `23505` — che qui non significa
+// «già fatta tutta», ma «già fatta in parte».
 export const PERSISTENCE = {
   // ─── TASKS ─────────────────────────────────────────────────────────────────
   // A-1 dell'audit del 1 settembre: dei task avevano rollback su UNA sola
@@ -106,6 +143,7 @@ export const PERSISTENCE = {
   // patch, per la stessa ragione di UPDATE_CLIENT/UPDATE_NOTICE) o riusa
   // l'azione inversa già esistente nel reducer.
   ADD_TASK: {
+    offline: true,
     guard: (s, a, uid) => canCreateTaskCategory(s.team, a.payload?.category, uid),
     normalize: (a) => ({
       ...a,
@@ -139,6 +177,7 @@ export const PERSISTENCE = {
   },
 
   UPDATE_TASK: {
+    offline: true,
     guard: (s, a, uid) => {
       const prev = findTask(s, a.payload.id);
       return !!prev && canEditTask(s.team, prev, uid);
@@ -153,6 +192,7 @@ export const PERSISTENCE = {
   },
 
   MOVE_TASK: {
+    offline: true,
     guard: (s, a, uid) => {
       const prev = findTask(s, a.payload.taskId);
       return !!prev && canEditTask(s.team, prev, uid);
@@ -170,6 +210,7 @@ export const PERSISTENCE = {
   },
 
   DELETE_TASK: {
+    offline: true,
     guard: (s, a, uid) => {
       const prev = findTask(s, a.payload);
       return !!prev && canEditTask(s.team, prev, uid);
@@ -183,6 +224,7 @@ export const PERSISTENCE = {
   },
 
   RESTORE_TASK: {
+    offline: true,
     guard: (s, a, uid) => {
       const prev = findTask(s, a.payload);
       return !!prev && canEditTask(s.team, prev, uid);

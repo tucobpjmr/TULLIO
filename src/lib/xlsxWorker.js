@@ -43,6 +43,7 @@
 // `VIETATO_XLSX_FUORI_DAL_WORKER` in eslint.config.js.
 import { read, utils, write } from "xlsx";
 import { righeDaGriglia } from "./xlsxHeader.js";
+import { testoEccezione } from "./errori.js";
 
 // `self` in un module worker è un DedicatedWorkerGlobalScope, ma jsconfig.json
 // carica la lib DOM (giusto per il resto di src/, che è un'app React) e lì
@@ -98,6 +99,6 @@ ambito.onmessage = ({ data }) => {
   } catch (e) {
     // Il messaggio dell'errore, non l'oggetto: un Error non sempre attraversa
     // structured clone con lo stack intatto, e qui serve solo il testo.
-    ambito.postMessage({ ok: false, error: e?.message ?? "lettura del file non riuscita" });
+    ambito.postMessage({ ok: false, error: testoEccezione(e, "lettura del file non riuscita") });
   }
 };

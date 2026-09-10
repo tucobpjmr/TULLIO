@@ -112,7 +112,24 @@ const SOGLIA_FIRST_LOAD_KB = 86;
 // più il rischio che era: rese lazy entrambe, il chunk dell'app scende da
 // 63,22 a 44,87 kB gzip e il totale autenticato da 176,26 a 124,86 kB — il
 // margine sul chunk app torna da 3,78 a oltre 20 kB. Stesso margine +6 kB.
-const SOGLIA_APP_KB = 51;
+// ─── RIMISURATA DOPO M-2 e M-4 (audit del 10 settembre) ────────────────────
+// Il chunk dell'app passa da 49,25 a 51,42 kB gzip: +2,17 kB, e non è un chunk
+// lazy rientrato in eager — la causa che questo script esiste per intercettare.
+// Sono tre moduli nuovi che DEVONO stare nel percorso caldo:
+//
+//   · la coda delle scritture offline (M-2: state/codaScritture.js,
+//     lib/depositoIdb.js, hooks/useCodaScritture.js). Non è rinviabile a un
+//     `lazy()`: serve nell'istante in cui una scrittura fallisce, che è
+//     imprevedibile per definizione, e serve al montaggio per rigiocare ciò
+//     che era rimasto in coda ieri;
+//   · lib/errori.js (M-3), il testo di un'eccezione, usato da nove punti sparsi
+//     fra guscio e moduli;
+//   · il selettore del tema in UserSwitcher (M-4), che sta nel menù utente —
+//     cioè nella Topbar, che è eager per costruzione.
+//
+// Verificato misurando il build PRIMA e DOPO l'intervento sullo stesso albero,
+// non stimato. Stesso margine +6 kB delle altre soglie di questo file.
+const SOGLIA_APP_KB = 57;
 // ─── RIMISURATA DOPO M-2 (audit del 4 settembre) ───────────────────────────
 // `conTastiera()` (lib/a11y.js) e il suo uso in una ventina di componenti del
 // percorso caldo — TaskCard/TaskRow, la Sidebar, il FAB, UserSwitcher,

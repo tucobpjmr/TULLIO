@@ -129,7 +129,7 @@ export const NotificationsPanel = ({ onClose, notifications, isReal, onMarkRead,
       width: isMobile ? "auto" : "min(360px, calc(100vw - 24px))",
       maxHeight: isMobile ? "calc(100dvh - 76px - var(--safe-top) - var(--safe-bottom))" : undefined,
       display: "flex", flexDirection: "column",
-      background: "#fff", borderRadius: 12, boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
+      background: "var(--card)", borderRadius: 12, boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
       border: "1px solid var(--border)", overflow: "hidden", zIndex: Z.panel,
     }}>
       <div style={rowCenterBetween}>

@@ -1,5 +1,63 @@
 # CHANGELOG — VoyageDesk
 
+## 10 settembre (ii) — i tre rilievi di priorità bassa
+
+> La coda **bassa** rimasta dopo i cinque di priorità media. Sono tre cose che
+> nessun utente ha mai visto succedere, ed è precisamente la loro categoria:
+> una perdita di memoria che si presenta come una scheda lenta dopo tre
+> giorni, una somma giusta per fortuna, e duemila test di cui nessuno sapeva
+> cosa lasciassero scoperto.
+
+**B-1 · Le cache di signed URL non crescono più per sempre.** Erano due `Map`
+nude. Una scadenza in realtà l'avevano — ogni voce portava il suo `expiresAt`,
+e il getter lo leggeva — ma serviva solo a SALTARE la voce, mai a toglierla; e
+nulla poneva un tetto al numero di chiavi. Sugli avatar non si vede (le chiavi
+sono al più le persone in squadra); sugli allegati sì, perché la chiave è il
+path di un file e in una PWA che resta aperta per giorni — i due driver la
+tengono aperta per mestiere — l'insieme dei file aperti in sessione non ha un
+limite naturale. Ora `src/lib/cacheScadenza.js` tiene **due regole separate di
+proposito**: la scadenza rende il contenuto corretto (la voce scaduta non
+viene restituita e viene tolta appena la si guarda), il tetto rende il consumo
+limitato (oltre 200 voci escono prima le scadute, poi la meno usata di
+recente). ⚠️ La potatura è pigra ed è una scelta: spazzare l'intera Map a ogni
+lettura costerebbe O(n) su ogni `<Avatar>` montato, cioè pagare a ogni render
+per un problema che è di fine giornata. Il tetto si osserva **dal di fuori**
+nei test — `signedUrlCache` è privata di `lib/api/` — cioè nell'unico modo in
+cui un tetto si manifesta davvero: una URL che c'era e va rifirmata.
+
+**B-2 · La somma di denaro ha una controparte esatta.** Il totale delle liste
+di un cliente (`ClienteListePanel`) era l'unica cifra di denaro dell'app senza
+un numero con cui confrontarsi: ogni altro saldo arriva dalla vista
+`liste_saldi`, cioè da un `sum(numeric)` di Postgres, e il ricalcolo locale è
+soltanto il ripiego per quando quella riga non è ancora arrivata. Ora
+`sommaImporti` (`src/lib/importi.js`, accanto a `parseImporto` e per la stessa
+ragione) somma in **centesimi interi**, che è per costruzione la risposta di
+quel `sum`; i quattro ripieghi e il totale delle righe in bozza di
+`BulkMovimentiModal` passano di lì, così la regola è una sola.
+⚠️ **Onestà su cosa non ripara:** non si conosce nessun caso in cui a schermo
+si sia visto un centesimo sbagliato, e non se ne conoscerà — lo scarto di un
+`+` in virgola mobile su qualche decina di addendi è ~1e-13, sotto `EPS`
+(mezzo centesimo) e sotto la cifra che `toLocaleString` arrotonda. Il difetto
+era che questo fosse vero **per fortuna**, cioè in funzione di quanti addendi
+ci sono: mille addendi da un centesimo, in float, fanno 9,999999999999831, e
+c'è un test che lo dice.
+
+**B-3 · La copertura dei test è un numero, e in CI è un gate.** Duemila test
+sono una quantità, non una misura: non dicono quale parte del prodotto nessuno
+esercita. `npm run verifica:copertura` (provider v8) misura **righe 74,02% ·
+istruzioni 70,71% · funzioni 62,72% · rami 60,40%** su 2.248 test, e in CI ha
+preso il posto di `npm test` — è la stessa suite con la misura addosso, non un
+secondo giro. Le soglie in `vite.config.js` stanno **un punto sotto** la
+misura, e il punto non è prudenza generica: la stessa suite, rimisurata pochi
+minuti dopo sullo stesso albero, ha dato 73,99 · 70,68 · 62,66 · 60,32. Una
+soglia al valore arrotondato per difetto (74) sarebbe passata alla prima
+esecuzione e fallita alla seconda senza che nessuno avesse toccato una riga —
+e un gate che lampeggia smette di essere un gate. È
+lo stesso argomento che A-3 del 22 agosto ha usato per portare
+`verifica:tipi` in CI, e che `jsconfig.json` usa contro se stesso: un
+controllo che nessuno esegue passa perché non ha trovato niente da verificare.
+
+
 ## 10 settembre — i cinque rilievi di priorità media, chiusi in un intervento
 
 > Non un audit nuovo: la coda di rilievi **media** rimasta aperta dopo il 5

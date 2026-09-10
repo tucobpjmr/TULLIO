@@ -3,7 +3,7 @@
 // movimenti e storico delle modifiche. Porting di `listaView()` della SPA
 // vanilla, con lo stato dei campi in useState invece che in variabili globali.
 import { useEffect, useMemo, useState } from "react";
-import { actionLabel, eur, fmtDate, saldoClass } from "./listeFormato.js";
+import { actionLabel, eur, fmtDate, saldoClass, sommaImporti } from "./listeFormato.js";
 import { docHtml, downloadBlob } from "./listeDocumenti.js";
 import { useListeWrite } from "./listePersistence.js";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
@@ -89,7 +89,7 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
   const saldo = useMemo(
     () => (saldi[lista.id]?.saldo !== undefined
       ? Number(saldi[lista.id].saldo)
-      : movimenti.reduce((s, m) => s + Number(m.importo), 0)),
+      : sommaImporti(movimenti.map((m) => m.importo))),
     [saldi, lista.id, movimenti],
   );
   const attiva = lista.stato === "attiva";

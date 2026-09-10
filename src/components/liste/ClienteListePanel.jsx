@@ -8,7 +8,7 @@
 // cliente non è il contesto in cui si registra un movimento.
 import { useMemo, useState } from "react";
 import { ListeAPI } from "./listeApi.js";
-import { eur, fmtDate, intestazioneLista, saldoClass } from "./listeFormato.js";
+import { eur, fmtDate, intestazioneLista, saldoClass, sommaImporti } from "./listeFormato.js";
 import { useListeWrite } from "./listePersistence.js";
 import { useCaricamento } from "../../hooks/useCaricamento.js";
 import "./liste.css";
@@ -83,8 +83,17 @@ export function ClienteListePanel({ cliente }) {
   );
   const { liste, saldi } = dato || VUOTO;
 
+  // B-2 (audit del 10 settembre) · l'unica cifra di denaro senza controparte
+  // esatta. Ogni altro saldo dell'app arriva da `liste_saldi`, cioè da un
+  // `sum(numeric)` di Postgres, e il ricalcolo locale è solo il ripiego per
+  // quando quella riga non è ancora arrivata (vedi ListaDetail,
+  // RiepilogoClienteModal, listeDocumenti). QUESTO totale non esiste da
+  // nessun'altra parte: non c'è nessun numero con cui confrontarlo. Sommarlo
+  // in centesimi interi gli dà per costruzione la stessa risposta che darebbe
+  // quel `sum` — che è l'unico modo di avere una controparte esatta per una
+  // cifra che nessuno calcola altrove.
   const totale = useMemo(
-    () => liste.reduce((s, l) => s + Number(saldi[l.id]?.saldo || 0), 0),
+    () => sommaImporti(liste.map((l) => saldi[l.id]?.saldo)),
     [liste, saldi],
   );
 

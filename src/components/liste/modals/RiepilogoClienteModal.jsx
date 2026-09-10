@@ -1,4 +1,4 @@
-import { eur, fmtDate, intestazioneLista, saldoClass } from "../listeFormato.js";
+import { eur, fmtDate, intestazioneLista, saldoClass, sommaImporti } from "../listeFormato.js";
 import { riepilogoTesto } from "../listeDocumenti.js";
 import { LvOverlay } from "./LvOverlay.jsx";
 import { dataNumerica } from "../../../lib/dates.js";
@@ -20,7 +20,7 @@ const txtRight = { textAlign: "right" };
 // se è già disponibile. Il ricalcolo locale resta come fallback.
 export function RiepilogoClienteModal({ lista, movimenti, saldo: saldoEsatto, onClose }) {
   const dispatch = useDispatch();
-  const saldo = saldoEsatto !== undefined ? saldoEsatto : movimenti.reduce((s, m) => s + Number(m.importo), 0);
+  const saldo = saldoEsatto !== undefined ? saldoEsatto : sommaImporti(movimenti.map((m) => m.importo));
   const cls = saldoClass(saldo);
 
   const invia = async () => {

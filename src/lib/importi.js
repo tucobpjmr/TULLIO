@@ -140,3 +140,54 @@ export function parseImporto(raw, segno = 1) {
   if (arrotondato === 0) return null;
   return arrotondato * (segno < 0 ? -1 : 1);
 }
+
+/**
+ * LA SOMMA DI PIÙ IMPORTI, fatta in centesimi interi.
+ *
+ * B-2 dell'audit del 10 settembre: il totale delle liste di un cliente
+ * (`ClienteListePanel`) era l'unica cifra di denaro dell'app **senza una
+ * controparte esatta**. Ogni altro saldo che si vede a schermo o in un
+ * documento arriva dalla vista `liste_saldi`, cioè da un `sum(numeric)` di
+ * Postgres, e il ricalcolo locale è solo il ripiego per quando quella riga
+ * non è ancora arrivata; quel totale, invece, non esiste da nessuna parte
+ * tranne che in quel `reduce` — non c'è nessun numero con cui confrontarlo.
+ *
+ * ⚠️ ONESTÀ SU COSA QUESTO **NON** RIPARA: non si conosce nessun caso in cui
+ * a schermo si sia visto un centesimo sbagliato, e non se ne conoscerà. Gli
+ * addendi sono `numeric(12,2)`, quindi la somma vera ha due decimali, e lo
+ * scarto di un `+` in virgola mobile su qualche decina di addendi è
+ * dell'ordine di 1e-13 — sotto `EPS` (mezzo centesimo, `listeFormato.js`) e
+ * sotto la terza cifra che `toLocaleString` arrotonda. Il difetto è che
+ * questo è VERO PER FORTUNA: dipende da quanti addendi ci sono, non da una
+ * regola che qualcuno ha scritto. Sommare in centesimi la rende una regola —
+ * lo stesso motivo per cui `parseImporto` sta in questo file e non accanto a
+ * un form.
+ *
+ * ─── PERCHÉ I CENTESIMI SONO ESATTI, E DOVE SMETTEREBBERO DI ESSERLO ───────
+ *
+ * `Math.round(n * 100)` è esatto perché `n` **ha già** due decimali: viene da
+ * `numeric(12,2)` o da `parseImporto`, che arrotonda. Su un numero con più
+ * decimali questa funzione ARROTONDA al centesimo, che per una cifra di
+ * denaro di questa app è la risposta giusta (è ciò che farebbe la colonna),
+ * ma non è una somma "in alta precisione": non usarla per altro.
+ *
+ * La somma in interi resta esatta fino a `Number.MAX_SAFE_INTEGER`
+ * centesimi, cioè novanta miliardi di euro — quattro ordini di grandezza
+ * oltre il massimo di una singola colonna `numeric(12,2)` moltiplicato per
+ * tutte le liste che esisteranno mai.
+ *
+ * @param {Iterable<unknown>} valori  gli importi, in qualunque forma li dia
+ *   PostgREST (numero o stringa); ciò che non è un numero finito — `undefined`
+ *   di una riga di saldo non ancora arrivata — non è uno zero da sommare, è
+ *   un addendo che non c'è, e viene saltato
+ * @returns {number} la somma, con due decimali
+ */
+export function sommaImporti(valori) {
+  let centesimi = 0;
+  for (const v of valori) {
+    const n = typeof v === 'number' ? v : Number(v);
+    if (!Number.isFinite(n)) continue;
+    centesimi += Math.round(n * 100);
+  }
+  return centesimi / 100;
+}

@@ -59,7 +59,7 @@ export const Users = {
     // valore salvato è un path, non una URL. Al suo posto si invalida qui la
     // cache in memoria — il path è fisso (upsert), quindi senza questa riga il
     // vecchio avatar resterebbe visibile fino alla scadenza della signed URL.
-    avatarUrlCache.delete(path);
+    avatarUrlCache.dimentica(path);
     return { url: path, error: null };
   },
   // Signed URL per un avatar (1h, con cache in memoria — vedi

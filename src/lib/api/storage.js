@@ -10,16 +10,28 @@
 // diretto qui lo aggirerebbe senza che nulla lo segnali.
 
 import { getSupabase } from '../supabase';
+import { creaCacheScadenza } from '../cacheScadenza.js';
+
+// Quante signed URL si tengono in memoria, per cache (B-1 dell'audit del 10
+// settembre). Il tetto è portante per UNA sola delle due: sugli allegati la
+// chiave è il path di un file e l'insieme dei file aperti in sessione non ha
+// un limite naturale, mentre le chiavi degli avatar sono già limitate dalla
+// squadra. Un numero solo per entrambe, allora, e scelto sul caso che morde:
+// 200 allegati aperti senza mai chiudere la scheda sono ben oltre una
+// giornata di lavoro, e 200 token in memoria sono decine di kB — cioè il
+// tetto non si fa sentire da chi lavora, che è la condizione perché sia il
+// tetto giusto. Il ragionamento su come si libera sta in `lib/cacheScadenza.js`.
+const TETTO_VOCI = 200;
 
 // Cache delle signed URL degli avatar. Separata da quella degli allegati
 // (signedUrlCache, subito sotto) perché ha una frequenza d'uso diversa: un
 // avatar è richiesto da decine di componenti nello stesso render, quindi
 // senza cache si genererebbe una richiesta per ogni <Avatar> montato.
-export const avatarUrlCache = new Map();
+export const avatarUrlCache = creaCacheScadenza({ tetto: TETTO_VOCI });
 // Cache condivisa dagli allegati di chat e di task (Messages.getFileUrl,
 // TaskFiles.getFileUrl): stessa pressione d'uso — un click alla volta —
 // quindi le due si accontentano di una Map sola, a differenza degli avatar.
-export const signedUrlCache = new Map();
+export const signedUrlCache = creaCacheScadenza({ tetto: TETTO_VOCI });
 
 // Signed URL con cache in memoria, per i tre bucket privati (M-3 dell'audit
 // del 14 agosto). Prima era lo stesso corpo scritto tre volte — qui, in
@@ -34,17 +46,26 @@ export const signedUrlCache = new Map();
 // Finché la coppia era scritta a mano in tre punti (`60 * 60` e
 // `55 * 60 * 1000`), il margine non era una regola: era una coincidenza fra
 // sei numeri che nessuno dei tre call site dichiarava di voler mantenere.
+//
+// Il margine si CALCOLA qui — è una proprietà di come si firma — mentre
+// FARLO RISPETTARE è della cache, che da B-1 toglie la voce invece di
+// limitarsi a saltarla. Le due cose stavano nella stessa riga e sembravano
+// una cosa sola; erano due, e solo la prima era implementata.
 const TTL_SIGNED_URL_S = 60 * 60;
 const MARGINE_SCADENZA_MS = 5 * 60 * 1000;
 
+/**
+ * @param {string} bucket
+ * @param {import('../cacheScadenza.js').CacheScadenza} cache
+ */
 export const creaSignedUrlGetter = (bucket, cache) => async (path) => {
   if (!path) return { url: null, error: null };
-  const cached = cache.get(path);
-  if (cached && cached.expiresAt > Date.now()) return { url: cached.url, error: null };
+  const inCache = cache.leggi(path);
+  if (inCache) return { url: inCache, error: null };
   const supabase = await getSupabase();
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, TTL_SIGNED_URL_S);
   const url = data?.signedUrl ?? null;
-  if (url) cache.set(path, { url, expiresAt: Date.now() + TTL_SIGNED_URL_S * 1000 - MARGINE_SCADENZA_MS });
+  if (url) cache.scrivi(path, url, Date.now() + TTL_SIGNED_URL_S * 1000 - MARGINE_SCADENZA_MS);
   return { url, error };
 };
 
@@ -75,4 +96,4 @@ export const baseMimeType = (tipo) => (tipo || '').split(';')[0].trim() || 'appl
  * che la RLS ha lasciato passare — ma un privilegio non sfruttabile resta un
  * privilegio da non concedere.
  */
-export const svuotaCacheUrl = () => { avatarUrlCache.clear(); signedUrlCache.clear(); };
+export const svuotaCacheUrl = () => { avatarUrlCache.svuota(); signedUrlCache.svuota(); };

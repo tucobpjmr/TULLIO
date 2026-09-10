@@ -16,7 +16,7 @@
 // non valido» ma **ogni forma in cui la stessa cifra può essere scritta**. Le
 // tabelle qui sotto sono organizzate così — per FORMA, non per esito.
 import { describe, it, expect } from "vitest";
-import { aNumero, parseImporto } from "../../lib/importi.js";
+import { aNumero, parseImporto, sommaImporti } from "../../lib/importi.js";
 
 describe("aNumero — il punto come separatore delle migliaia", () => {
   // ⚠️ Questa è la tabella che C-1 avrebbe fatto fallire: prima della
@@ -124,5 +124,58 @@ describe("parseImporto — la cifra che il messaggio di errore suggerisce", () =
     // validazione e diventava 1,25. Questo test è quel messaggio, verificato.
     expect(parseImporto("1.250,00")).toBe(1250);
     expect(parseImporto("1.250,00")).not.toBe(1.25);
+  });
+});
+
+// ─── B-2 dell'audit del 10 settembre · LA SOMMA ────────────────────────────
+//
+// Lo stesso criterio del resto del file, applicato a una funzione che non
+// interpreta testo ma lo somma: il caso da coprire non è «due addendi» ma
+// ogni forma in cui la somma può NON tornare — l'addendo che non c'è, quello
+// che arriva come stringa da PostgREST, e soprattutto il numero di addendi,
+// che è la variabile da cui dipendeva la correttezza per fortuna.
+describe("sommaImporti — la somma è in centesimi, non in virgola mobile", () => {
+  it("0,10 + 0,20 fa esattamente 0,30 — non 0,30000000000000004", () => {
+    expect(sommaImporti([0.1, 0.2])).toBe(0.3);
+  });
+
+  it("mille addendi da un centesimo fanno esattamente 10,00", () => {
+    // In virgola mobile la stessa somma vale 9,999999999999831: uno scarto
+    // sotto EPS, invisibile a schermo, e che cresce col numero di addendi.
+    // È il «vero per fortuna» che questa funzione trasforma in una regola.
+    const centesimi = Array.from({ length: 1000 }, () => 0.01);
+    expect(sommaImporti(centesimi)).toBe(10);
+    expect(centesimi.reduce((s, v) => s + v, 0)).not.toBe(10);
+  });
+
+  it("una somma che si annulla dà zero pulito, non un residuo negativo", () => {
+    // Il residuo negativo è ciò che farebbe comparire "-0,00 €" in rosso —
+    // il caso che EPS in listeFormato.js esiste per mascherare.
+    expect(sommaImporti([1234.56, -1000.11, 0.1, 0.2, -0.3, -234.45])).toBe(0);
+    expect(Object.is(sommaImporti([12.34, -12.34]), 0)).toBe(true);
+  });
+
+  it("somma vuota: zero, non NaN", () => {
+    expect(sommaImporti([])).toBe(0);
+  });
+});
+
+describe("sommaImporti — cosa conta come addendo", () => {
+  it("legge le stringhe come le manda PostgREST per un numeric", () => {
+    expect(sommaImporti(["1234.56", "-34.56"])).toBe(1200);
+  });
+
+  it("un addendo che non c'è viene saltato, non contato come zero sbagliato", () => {
+    // `saldi[l.id]?.saldo` è `undefined` per una lista la cui riga di saldo
+    // non è ancora arrivata: saltarla e sommare zero danno lo stesso numero,
+    // ma solo il primo è una decisione.
+    expect(sommaImporti([10, undefined, 5, null, NaN, 0.5])).toBe(15.5);
+  });
+
+  it("arrotonda al centesimo un addendo che ne ha di più", () => {
+    // Non è una somma in alta precisione: è denaro, e la colonna è
+    // numeric(12,2). Arrotondare qui è dare la stessa risposta del database.
+    expect(sommaImporti([0.005, 0.005])).toBe(0.02);
+    expect(sommaImporti([1.234, 1.234])).toBe(2.46);
   });
 });

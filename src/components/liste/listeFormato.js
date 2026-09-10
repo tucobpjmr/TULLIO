@@ -101,4 +101,8 @@ export const actionLabel = (a) => ACTION_LABELS[a] || a;
 //
 // ⛔ Non riscriverla in linea in un componente: vedi il preambolo di
 // `lib/importi.js`.
-export { parseImporto } from "../../lib/importi.js";
+// `sommaImporti` viaggia con lei per la stessa ragione, da B-2 dell'audit del
+// 10 settembre: sommare denaro è una regola di dominio quanto interpretarlo, e
+// il modulo Liste è il posto dove si sommano gli euro di questa app. Il
+// ragionamento — perché in centesimi interi, e cosa NON ripara — sta là.
+export { parseImporto, sommaImporti } from "../../lib/importi.js";

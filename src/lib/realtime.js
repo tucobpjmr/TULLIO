@@ -219,8 +219,14 @@ export function subscribeToPresence({ key, payload, onSync }) {
     // un requisito — si resta senza pallini invece di sollevare dentro un
     // useEffect e mostrare una pagina bianca.
     if (typeof supabase?.channel !== 'function') return;
+    // `private: true` è ciò che manda Realtime a valutare le policy su
+    // `realtime.messages` (migrazione 20260908120000). Senza, il canale è
+    // PUBBLICO: Realtime non consulta alcuna autorizzazione — non la
+    // fallisce, la salta — e chiunque abbia un token valido può entrare,
+    // compresi i ruoli che ogni policy del progetto esclude dal resto.
+    // A-1 dell'audit dell'8 settembre.
     const channel = supabase.channel(CANALE_PRESENZA, {
-      config: { presence: { key } },
+      config: { presence: { key }, private: true },
     });
     channel
       .on('presence', { event: 'sync' }, () => onSync(channel.presenceState()))
@@ -259,7 +265,13 @@ export function subscribeToTyping(conversationId, onEvent) {
   getSupabase().then((supabase) => {
     if (smontato) return;
     const channel = supabase
-      .channel(`typing:${conversationId}`, { config: { broadcast: { self: false } } })
+      // `private: true`: vedi la nota in subscribeToPresence e la migrazione
+      // 20260908120000. Qui la posta è più alta che sulla presenza — il topic
+      // porta l'id di una conversazione, e senza gate lo apriva a chi la RLS
+      // tiene fuori dalla chat, ex-partecipanti compresi.
+      .channel(`typing:${conversationId}`, {
+        config: { broadcast: { self: false }, private: true },
+      })
       .on('broadcast', { event: 'typing' }, ({ payload }) => onEvent(payload))
       .subscribe();
     canale = channel;

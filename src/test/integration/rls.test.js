@@ -229,11 +229,31 @@ suite("RLS: la matrice di autorizzazione è applicata dal database, non solo dal
     // MIME, dimensione e path sono tutti ammessi, quindi l'unica ragione per
     // cui questo upload può fallire è la RLS. È ciò che rende l'asserzione
     // una prova e non una coincidenza.
+    //
+    // ⚠️ I BYTE VANNO PASSATI COME `Uint8Array`, NON COME `Blob`, e non è una
+    // preferenza di stile: è la differenza fra provare qualcosa e non provare
+    // niente. Con un Blob, `uploadOrUpdate` di @supabase/storage-js costruisce
+    // una FormData e IGNORA l'opzione `contentType` — il MIME il server lo
+    // legge dalla parte multipart. Sotto jsdom, che è l'environment di default
+    // di questa suite (vite.config.js), quel Blob e quella FormData sono di
+    // jsdom mentre `fetch` è quello di undici, che non li riconosce e
+    // serializza il corpo come stringa: la richiesta arriva al server come
+    // `text/plain;charset=UTF-8` e il bucket la respinge con 415 dalla propria
+    // allow-list PRIMA che la RLS venga interrogata. L'upload fallisce, ma per
+    // il motivo sbagliato — cioè esattamente la coincidenza da cui la nota qui
+    // sotto dice di guardarsi, e un test così resterebbe verde anche a policy
+    // spenta. È successo davvero: prima run di rls.yml su main dopo il merge
+    // di #236.
+    //
+    // Con un Uint8Array storage-js prende l'altro ramo — corpo binario grezzo
+    // e header `content-type` esplicito — quindi il MIME che il server valuta
+    // è quello che si è scritto, in qualunque environment, e a rifiutare torna
+    // a essere la sola policy.
     it("un pending non carica nemmeno il PROPRIO avatar", async () => {
       const path = `${userId}/avatar.jpg`;
-      const blob = new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], { type: "image/jpeg" });
+      const jpegMinimo = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
       const { error } = await client.storage.from("avatars")
-        .upload(path, blob, { contentType: "image/jpeg", upsert: true });
+        .upload(path, jpegMinimo, { contentType: "image/jpeg", upsert: true });
 
       expect(error).toBeTruthy();
       // Storage non parla PostgREST: niente `code: '42501'` qui, la RLS

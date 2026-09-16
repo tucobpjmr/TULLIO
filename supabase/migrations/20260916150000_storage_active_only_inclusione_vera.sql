@@ -107,10 +107,26 @@ create policy "storage_active_only" on storage.objects
   using ((select private.is_active_user()))
   with check ((select private.is_active_user()));
 
-comment on policy "storage_active_only" on storage.objects is
-  'Gate RESTRICTIVE «utente attivo» su TUTTO storage.objects: nessun elenco di '
-  'bucket, così un bucket nuovo nasce protetto invece che scoperto. Un bucket '
-  'esente va aggiunto come disgiunzione esplicita — vedi il preambolo di '
-  'supabase/migrations/20260916150000_storage_active_only_inclusione_vera.sql. '
-  'Un elenco di bucket qui dentro è una regressione: lo fa fallire '
-  '`npm run verifica:convenzioni`.';
+-- ─── IL COMMENTO È BEST-EFFORT, E IL BLOCCO ATTORNO NON È PRUDENZA GENERICA ──
+-- `COMMENT ON POLICY` richiede di essere PROPRIETARI della tabella, e
+-- `storage.objects` appartiene a `supabase_storage_admin`, non a `postgres`.
+-- `CREATE POLICY` su quella tabella dall'SQL Editor funziona — è così che sono
+-- state applicate tutte le policy di Storage di questo progetto — ma il
+-- COMMENT no, a meno che `postgres` non sia membro di quel ruolo, cosa che
+-- dipende da quando il progetto è stato creato.
+--
+-- Senza questo blocco il rischio è concreto e asimmetrico: l'SQL Editor esegue
+-- uno script incollato in UNA transazione, quindi un `42501` su una riga di
+-- sola documentazione farebbe rotolare indietro anche la `create policy` che
+-- la precede — cioè la migrazione fallirebbe per il commento, non per la
+-- policy. Qui l'eccezione viene inghiottita e annunciata: il commento è un
+-- di più, la policy no.
+do $$
+begin
+  execute $c$
+    comment on policy "storage_active_only" on storage.objects is
+      'Gate RESTRICTIVE «utente attivo» su TUTTO storage.objects: nessun elenco di bucket, così un bucket nuovo nasce protetto invece che scoperto. Un bucket esente va aggiunto come disgiunzione esplicita — vedi il preambolo di supabase/migrations/20260916150000_storage_active_only_inclusione_vera.sql. Un elenco di bucket qui dentro è una regressione: lo fa fallire `npm run verifica:convenzioni`.'
+  $c$;
+exception when insufficient_privilege then
+  raise notice 'COMMENT ON POLICY saltato (storage.objects non è di proprietà del ruolo corrente): la policy è stata applicata comunque.';
+end $$;

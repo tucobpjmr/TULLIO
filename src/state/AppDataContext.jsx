@@ -104,6 +104,13 @@ export function AppDataProvider({ team, categories, currentUserId, children }) {
       // delete — vedi lib/permissions.js.
       modificaCliente:      () => P.canEditClient(t, uid),
       eliminaCliente:       () => P.canDeleteClient(t, uid),
+      // Archivio documenti di identità. Due funzioni per la stessa ragione
+      // dei clienti: il database ha due policy distinte — scrittura ad
+      // admin/manager/agent, eliminazione a chi ha caricato o a
+      // manager/admin. `eliminaDocumento` prende la riga perché il verdetto
+      // dipende da CHI l'ha caricata, non dal solo ruolo.
+      accedeDocumenti:      () => P.canAccessDocumenti(t, uid),
+      eliminaDocumento:     (documento) => P.canDeleteDocumento(t, documento, uid),
       categorieDisponibili: () => P.getAvailableCategories(c, t, uid),
       // Rubrica interna (M-7 dell'audit del 4 settembre): un driver vede solo
       // il proprio contatto — vedi lib/permissions.js.

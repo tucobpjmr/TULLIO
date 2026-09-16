@@ -21,9 +21,12 @@
 import { STATUS_LABELS, toDbRole, toSeniority, roleLabel } from "../lib/taskConstants.js";
 import {
   getMember, isAdmin,
-  canAccessAdmin, canAccessListe, canViewTask, canEditTask, canCreateTaskCategory,
+  canViewTask, canEditTask, canCreateTaskCategory,
   canEditClient, canDeleteClient,
 } from "../lib/permissions.js";
+// I guard per vista (quali ruoli aprono Admin, Liste, Documenti) vivono in una
+// tabella, non in tre `if` copiati l'uno dall'altro.
+import { dinegoVista } from "./visteRiservate.js";
 // Le voci del log attività (quali azioni ci finiscono e come si leggono) hanno
 // un file loro: non sono transizioni di stato, sono il dizionario che le
 // racconta. Vedi state/activityLog.js per il perché della separazione.
@@ -82,19 +85,11 @@ function baseReducer(state, action) {
 
   switch (action.type) {
     case "SET_VIEW": {
-      // Solo admin può aprire la vista Admin
-      if (action.payload === "admin" && !canAccessAdmin(state.team, uid)) {
-        return _denied("Non hai i permessi per accedere all'Admin");
-      }
-      // Il modulo Liste viaggio è riservato ad admin/manager/agent attivi: la
-      // RLS lo blocca comunque lato DB (migrazione 20260728190100), qui
-      // evitiamo di aprire una vista che mostrerebbe solo errori. Il verdetto
-      // arriva da canAccessListe, che rispecchia can_liste() del database: era
-      // scritto qui come `isDriver(...)`, cioè una seconda definizione della
-      // stessa regola che coincideva con la prima solo per i casi ordinari.
-      if (action.payload === "liste" && !canAccessListe(state.team, uid)) {
-        return _denied("Il modulo Liste viaggio non è disponibile per il tuo ruolo");
-      }
+      // Quali viste richiedono un ruolo è una TABELLA, in state/visteRiservate.js:
+      // erano tre `if` consecutivi identici nella forma, e il quarto si sarebbe
+      // scritto copiando il vicino.
+      const diniego = dinegoVista(action.payload, state.team, uid);
+      if (diniego) return _denied(diniego);
       const next = { ...state, activeView: action.payload };
       // action.lista: apertura mirata di una lista dal tab nella scheda
       // cliente. Il seq incrementale fa scattare l'apertura anche quando si
@@ -149,12 +144,14 @@ function baseReducer(state, action) {
       const m = getMember(state.team, newId);
       if (!m) return state;
       // Se l'utente non può più accedere alla view corrente, riporta a dashboard.
-      // "liste" ha bisogno dello stesso guard di "admin" e per un motivo in più:
-      // nessuna voce di sidebar/bottom-nav punta al modulo, quindi senza questo
-      // un Driver resterebbe bloccato su una vista che non può né usare né
-      // abbandonare da un elemento di navigazione evidenziato.
-      const viewLocked = (state.activeView === "admin" && !canAccessAdmin(state.team, newId))
-        || (state.activeView === "liste" && !canAccessListe(state.team, newId));
+      // Dalla STESSA tabella di SET_VIEW: erano due condizioni scritte a mano
+      // ("admin" e "liste"), cioè un secondo elenco di viste riservate da
+      // tenere allineato al primo — e già disallineato, perché l'archivio
+      // documenti non c'era. "liste" ha bisogno del guard per un motivo in
+      // più: nessuna voce di sidebar/bottom-nav punta al modulo, quindi senza
+      // questo un Driver resterebbe bloccato su una vista che non può né usare
+      // né abbandonare da un elemento di navigazione evidenziato.
+      const viewLocked = dinegoVista(state.activeView, state.team, newId) !== null;
       const activeView = viewLocked ? "dashboard" : state.activeView;
       // Sicurezza operativa (v2.8): warning visibile quando si passa a un ruolo
       // privilegiato (admin), per evitare di lasciare la sessione aperta come

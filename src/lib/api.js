@@ -34,6 +34,10 @@ export { Tasks, TaskThreads, Comments } from './api/task.js';
 export { Notices } from './api/avvisi.js';
 export { Conversations, Messages } from './api/chat.js';
 export { TaskFiles } from './api/allegati.js';
+// `DocumentiIdentita` sta accanto a TaskFiles e non fra le entità dello
+// stato: è un'entità di Storage, e la deroga è la stessa già motivata per
+// TaskFiles/Messages in VIETATE_ENTITA_DELLO_STATE (eslint.config.js).
+export { DocumentiIdentita } from './api/documenti.js';
 export { Notifications, Push } from './api/notifiche.js';
 export { Clients } from './api/clienti.js';
 export { Categories, MessageTemplates, AuditLog, ErrorReports } from './api/configurazione.js';

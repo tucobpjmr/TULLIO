@@ -12,6 +12,7 @@
 export const NAV_ITEMS = [
   { id: "calendar",   icon: "calendario", label: "Calendario", roles: ["admin", "manager", "agent", "driver"] },
   { id: "clienti",    icon: "clienti",    label: "Clienti",    roles: ["admin", "manager", "agent"] },
+  { id: "documenti",  icon: "documenti",  label: "Documenti",  roles: ["admin", "manager", "agent"] },
   { id: "archivio",   icon: "archivio",   label: "Archivio",   roles: ["admin", "manager", "agent", "driver"] },
   { id: "trash",      icon: "cestino",    label: "Cestino",    roles: ["admin", "manager", "agent", "driver"] },
   { id: "admin",      icon: "admin",      label: "Admin",      roles: ["admin"] },

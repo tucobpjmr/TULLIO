@@ -83,6 +83,24 @@ export const SOGLIE = [
       'Se superata, il backup del modulo Liste diventa una richiesta lunga: valuta un ' +
       'export incrementale in ListeAPI.backupData (src/components/liste/listeApi.js).',
   },
+  {
+    tabella: 'documenti_identita',
+    max: 3000,
+    perche:
+      "L'unica soglia di questo elenco che non misura il database: misura il BUCKET. " +
+      'Ogni riga corrisponde a un file compresso a ~300 kB (lib/comprimiImmagine.js), ' +
+      'quindi 3.000 documenti sono ~900 MB — cioè il tetto di 1 GB dello Storage sul ' +
+      'piano Free, condiviso con task-files, chat-files e avatars. Superarla non ' +
+      'rallenta una query: fa fallire il prossimo upload, e il messaggio che ' +
+      "l'utente vede non dirà «spazio esaurito». " +
+      "In secondo luogo vale anche il motivo di `clients`: DocumentiView scarica " +
+      "l'archivio intero e filtra in memoria.",
+    rimedio:
+      'Due leve, in questo ordine. (1) Spazio: passa il progetto Supabase al piano Pro ' +
+      '(100 GB) oppure abbassa LATO_MASSIMO/QUALITA_JPEG in src/lib/comprimiImmagine.js ' +
+      "e valuta una politica di cancellazione dei documenti scaduti da anni. (2) Lettura: " +
+      'porta la ricerca lato server come per l\'anagrafica (A-1, audit del 30 agosto).',
+  },
 ];
 
 /**

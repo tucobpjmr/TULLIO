@@ -147,17 +147,23 @@ di quello che sa.
 
 ## 7. Applicare la migrazione
 
-La migrazione è `supabase/migrations/20260916120000_documenti_identita.sql`.
-Committarla **non** significa averla applicata: su questo progetto le due cose
+Le migrazioni sono **due**, e vanno applicate in quest'ordine:
+
+1. `supabase/migrations/20260916120000_documenti_identita.sql`
+2. `supabase/migrations/20260916150000_storage_active_only_inclusione_vera.sql`
+
+Committarle **non** significa averle applicate: su questo progetto le due cose
 sono separate. Segui `MIGRAZIONI_SUPABASE.md`, in sintesi:
 
 1. ⛔ **Non** `supabase db push`: rigiocherebbe 56 migrazioni già applicate.
-2. Incolla il file nell'SQL Editor della dashboard (o applicalo via MCP).
-3. Registra la versione:
+2. Incolla i due file nell'SQL Editor della dashboard, in ordine (o applicali
+   via MCP).
+3. Registra le versioni:
 
 ```sql
 insert into supabase_migrations.schema_migrations (version, name)
-values ('20260916120000', 'documenti_identita')
+values ('20260916120000', 'documenti_identita'),
+       ('20260916150000', 'storage_active_only_inclusione_vera')
 on conflict (version) do nothing;
 ```
 
@@ -168,19 +174,36 @@ select id, public, file_size_limit, allowed_mime_types
 from storage.buckets where id = 'documenti-identita';
 ```
 
+5. Verifica che il gate dello Storage non abbia più un elenco di bucket — la
+   `qual` che torna dev'essere `(SELECT private.is_active_user())`, senza
+   `bucket_id`:
+
+```sql
+select qual, with_check from pg_policies
+where schemaname = 'storage' and tablename = 'objects'
+  and policyname = 'storage_active_only';
+```
+
 Finché la migrazione non è applicata la sezione Documenti si apre e mostra un
 errore di caricamento: il codice c'è, la tabella no.
 
-### Una cosa che la migrazione cambia fuori dal proprio perimetro
+### Due migrazioni, non una
 
-`storage_active_only` (la policy RESTRICTIVE «solo utenti attivi» su
-`storage.objects`) è scritta come **elenco di bucket nominati**: per un bucket
-assente la prima disgiunzione è vera e la policy non vincola nulla. La
-migrazione aggiunge quindi `documenti-identita` a quell'elenco.
+Oltre a `20260916120000_documenti_identita.sql` va applicata anche
+**`20260916150000_storage_active_only_inclusione_vera.sql`**, nello stesso
+ordine. La seconda non riguarda i documenti: corregge la forma del gate
+«utente attivo» su tutto lo Storage.
 
-⚠️ Il commento di `20260827075128` dichiara che «un quarto bucket creato domani
-nasce sotto il gate finché qualcuno non lo esclude esplicitamente». **Con l'SQL
-scritto lì, non è così**: la forma è rimasta quella a esclusioni, e un bucket
-non nominato resta fuori dal gate. Qui il bucket è nominato esplicitamente e il
-problema non si pone, ma la frase e il codice continuano a dire due cose
-diverse — vale la pena chiuderla a parte.
+`storage_active_only` era scritta come **elenco di bucket nominati**, forma in
+cui un bucket ASSENTE dall'elenco resta fuori dal gate. Il commento di
+`20260827075128` dichiarava l'opposto — «un quarto bucket creato domani nasce
+sotto il gate finché qualcuno non lo esclude esplicitamente» — e l'SQL non lo
+faceva: la prova è questo stesso modulo, che ha dovuto nominare
+`documenti-identita` a mano.
+
+La seconda migrazione toglie l'elenco: `using ((select
+private.is_active_user()))`, valido per `storage.objects` intera. Nessun
+cambiamento di comportamento oggi — i quattro bucket erano tutti nominati — ma
+il prossimo bucket nasce protetto invece che scoperto. Il dettaglio sta in
+`SICUREZZA.md` § 2, e una regressione la ferma ora
+`npm run verifica:convenzioni`.

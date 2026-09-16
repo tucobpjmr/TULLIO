@@ -52,6 +52,10 @@ import {
   testSciolti,
 } from './convenzioni.js';
 import { coloriInDuro } from './colori.js';
+// Il gate «utente attivo» su Storage: la sua FORMA, non il suo elenco.
+// File a sé come colori.js e ancore.js — convenzioni.js è al tetto di
+// max-lines, e la regola vale anche per gli script che verificano le regole.
+import { gateStorageSenzaElenco } from './storage.js';
 // M-3 (2 settembre): un rilievo ancorato a una condizione verificabile sul
 // sorgente, non solo a una riga di tabella — vedi ANCORE più sotto. File a sé
 // (ancore.js) perché convenzioni.js aveva superato la soglia di max-lines.
@@ -523,6 +527,29 @@ async function main() {
     nome: 'colori scritti in duro fuori da src/styles/', dove: 'scripts/verifica-convenzioni/convenzioni.js',
     dichiarato: COLORI_IN_DURO, misurato: coloriInDuro(sorgenti),
     rimedio: 'Se è sceso, abbassa la soglia qui accanto. Se è salito, il colore nuovo va preso da un token di styles/global.css — o motivato in un commento come le due eccezioni già presenti (la piastrella del logo, la pallina dell\'interruttore push).',
+  });
+
+  // 5-quater-ter · La FORMA del gate «utente attivo» su storage.objects.
+  //    M-1 dell'audit sicurezza del 26 agosto dichiarava di aver reso quella
+  //    policy una lista di INCLUSIONI — «un quarto bucket creato domani nasce
+  //    sotto il gate» — e aveva invece aggiunto una voce a una lista di
+  //    ESCLUSIONI, lasciando la forma identica. Nessuno misurava la forma,
+  //    quindi la frase e il codice hanno detto due cose opposte per tre
+  //    settimane, finché aggiungere il bucket `documenti-identita` non ha
+  //    costretto a nominarlo — cosa che con la forma promessa non sarebbe
+  //    servita. Da qui in poi la forma è misurata.
+  const gate = await gateStorageSenzaElenco();
+  controlli.push({
+    nome: 'gate storage scritto come elenco di bucket ESCLUSI',
+    dove: 'scripts/verifica-convenzioni/storage.js',
+    dichiarato: 0,
+    // `file: null` = la policy non è definita da nessuna migrazione: è
+    // inconcludenza, e un controllo che ha perso il proprio oggetto non deve
+    // passare in silenzio. Si conta come una divergenza.
+    misurato: gate.file === null ? 1 : gate.negazioni.length,
+    rimedio: gate.file === null
+      ? `Nessuna migrazione in supabase/migrations/ definisce la policy storage_active_only: o è stata rinominata, o il controllo non guarda più il posto giusto.`
+      : `${gate.file} scrive il gate come «tutti i bucket TRANNE questi», forma in cui un bucket nuovo nasce SCOPERTO. Il gate non deve avere elenchi: using ((select private.is_active_user())). Un bucket da esentare si scrive come disgiunzione affermativa — vedi il preambolo di 20260916150000_storage_active_only_inclusione_vera.sql.`,
   });
 
   // 5-quinquies e 5-sexies · le forme di stile duplicate (A-5). Stessa

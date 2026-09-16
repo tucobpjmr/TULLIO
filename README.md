@@ -42,7 +42,7 @@ realtime, notifiche Web Push e cinque Edge Function.
 | Backend | Supabase — PostgreSQL, RLS, Realtime, Storage, Auth, Edge Functions |
 | Stile | CSS-in-JS + variabili di tema; token condivisi in `src/styles/tokens.js` |
 | Import/export | SheetJS (`xlsx`), caricato on-demand |
-| Test | Vitest + Testing Library — 2290 test |
+| Test | Vitest + Testing Library — 2296 test |
 | Qualità | ESLint 9 (flat config) con `max-lines`, `no-restricted-imports` |
 | Font | Playfair Display + DM Sans + Inter |
 | Lingua UI | italiano |
@@ -81,10 +81,10 @@ src/
 │   ├── documenti/        archivio documenti di identità (vista, import massivo,
 │   │                     deduzione del nome dal file, stato di scadenza)
 │   ├── ui/               ciò che è davvero trasversale (Modal, Avatar, Toast, Viewport…)
-└── test/                 2290 test (Vitest)
+└── test/                 2296 test (Vitest)
 
 supabase/
-├── migrations/           140 migrazioni SQL (schema, RLS, RPC, trigger)
+├── migrations/           141 migrazioni SQL (schema, RLS, RPC, trigger)
 └── functions/            invite-user, delete-user, delete-account, send-push,
                           set-user-active
 

@@ -210,6 +210,57 @@ suite("RLS: la matrice di autorizzazione è applicata dal database, non solo dal
     });
   });
 
+  describe("storage.objects — il gate «utente attivo» vale su TUTTI i bucket", () => {
+    let client, userId;
+    beforeAll(async () => {
+      ({ client, userId } = await accedi(
+        process.env.RLS_TEST_PENDING_EMAIL, process.env.RLS_TEST_PENDING_PASSWORD));
+    });
+
+    // M-1 dell'audit sicurezza del 26 agosto: `avatars_insert_own` guarda solo
+    // che la prima cartella del path sia `auth.uid()`, non se l'utente sia
+    // attivo. Il solo controllo che ferma un pending è la policy RESTRICTIVE
+    // `storage_active_only`. Il buco era reale — un invitato mai approvato,
+    // che l'app ferma su PendingScreen, poteva comunque scrivere la propria
+    // foto chiamando l'API di Storage direttamente — ed è rimasto senza un
+    // test fino a qui: M-1 lo ha chiuso nel database, non nella suite.
+    //
+    // Il file è un JPEG valido nel bucket giusto e nella propria cartella:
+    // MIME, dimensione e path sono tutti ammessi, quindi l'unica ragione per
+    // cui questo upload può fallire è la RLS. È ciò che rende l'asserzione
+    // una prova e non una coincidenza.
+    it("un pending non carica nemmeno il PROPRIO avatar", async () => {
+      const path = `${userId}/avatar.jpg`;
+      const blob = new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], { type: "image/jpeg" });
+      const { error } = await client.storage.from("avatars")
+        .upload(path, blob, { contentType: "image/jpeg", upsert: true });
+
+      expect(error).toBeTruthy();
+      // Storage non parla PostgREST: niente `code: '42501'` qui, la RLS
+      // negata arriva come 403/Unauthorized con il messaggio di Postgres.
+      // Si asserisce il MOTIVO e non il solo fallimento, per la stessa
+      // ragione per cui altrove si asserisce il codice: un test che accetta
+      // qualunque errore passa anche quando il rifiuto arriva da un MIME
+      // sbagliato o da un bucket inesistente.
+      const motivo = `${error.statusCode ?? ""} ${error.message ?? ""}`;
+      expect(motivo).toMatch(/403|unauthorized|row-level security/i);
+
+      // Se la policy fosse rotta l'upload sarebbe riuscito: non lasciare
+      // l'oggetto dietro. `remove` di un file assente non è un errore.
+      await client.storage.from("avatars").remove([path]);
+    });
+
+    // Il contrappeso in lettura, e la forma dell'esito che rende il caso
+    // invisibile a chi cerca solo gli errori: una policy che non seleziona
+    // righe produce un elenco VUOTO, non un 403. È la stessa distinzione già
+    // fissata sopra per `public.users`.
+    it("e non vede il contenuto di un bucket, senza che sia un errore", async () => {
+      const { data, error } = await client.storage.from("avatars").list();
+      expect(error).toBeNull();
+      expect(data).toEqual([]);
+    });
+  });
+
   describe("audit_log — append-only, e leggibile solo dagli admin", () => {
     let client, userId;
     beforeAll(async () => {

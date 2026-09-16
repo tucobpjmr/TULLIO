@@ -116,6 +116,20 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
   separate su questo progetto, e vanno verificate separatamente.
   `npm run verifica:rpc` confronta le RPC chiamate dal codice con quelle
   presenti sul database (gira anche ogni giorno in CI)
+- ⛔ **Non scrivere il gate «utente attivo» dello Storage come elenco di
+  bucket.** `storage_active_only` (RESTRICTIVE su `storage.objects`) è
+  `using ((select private.is_active_user()))`, senza elenchi: così un bucket
+  creato domani nasce DENTRO il gate. La forma a esclusioni
+  (`bucket_id not in (…) or is_active_user()`) fa l'opposto — un bucket non
+  nominato resta scoperto — ed è già costata una volta: M-1 dell'audit
+  sicurezza del 26 agosto dichiarava di averla invertita e aveva solo
+  allungato l'elenco, quindi per tre settimane il commento e il codice hanno
+  detto due cose opposte. Un bucket da ESENTARE si scrive come disgiunzione
+  affermativa (`bucket_id in ('bucket-pubblico') or …`), mai come negazione.
+  `npm run verifica:convenzioni` misura la forma (atteso 0) e il caso
+  comportamentale sta in `src/test/integration/rls.test.js`. Il perché per
+  esteso: `docs/SICUREZZA.md` § 2 e il preambolo di
+  `supabase/migrations/20260916150000_storage_active_only_inclusione_vera.sql`
 
 ## Palette colori
 

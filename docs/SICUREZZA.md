@@ -153,19 +153,53 @@ dove sta il controllo di ruolo. Verificato uno per uno, **rileggendo
 
 **✅ Live:** nessun lint di RLS mancante o disabilitata sull'intero schema `public`.
 
-**📄 Repo:** 21 tabelle con `ENABLE ROW LEVEL SECURITY` esplicito, e ogni
+**📄 Repo:** 22 tabelle con `ENABLE ROW LEVEL SECURITY` esplicito, e ogni
 `CREATE TABLE` presente nelle migrazioni ha la sua `ALTER TABLE … ENABLE RLS`
 (verificato per differenza fra i due insiemi: risultato vuoto).
 
 ```
-categories · clients · comments · conversations · dossier_suppliers · dossiers
-lista_beneficiari · lista_history · liste_viaggio · messages · movimenti_lista
-notices · notifications · push_subscriptions · suppliers · task_files
-task_history · tasks · user_app_preferences · user_contacts · users
+categories · clients · comments · conversations · documenti_identita
+dossier_suppliers · dossiers · lista_beneficiari · lista_history
+liste_viaggio · messages · movimenti_lista · notices · notifications
+push_subscriptions · suppliers · task_files · task_history · tasks
+user_app_preferences · user_contacts · users
 ```
 
 (`dossiers`, `dossier_suppliers`, `suppliers` appartengono a moduli rimossi
 nella sessione 24: le tabelle restano, protette, ma nessun codice le usa.)
+
+### Storage: il gate «utente attivo» non ha un elenco di bucket
+
+`storage.objects` non è una tabella di `public` e non compare nell'elenco qui
+sopra, ma ha la stessa esigenza: sopra le policy per-bucket
+(`avatars_*`, `chat_files_*`, `task_files_storage_*`,
+`documenti_identita_storage_*`) c'è una policy **RESTRICTIVE**,
+`storage_active_only`, che le AND-a tutte con «utente attivo e non pending».
+
+Dal **16 settembre 2026** (`20260916150000`) quella policy è
+`using ((select private.is_active_user()))` — **senza alcun elenco di
+bucket**. La distinzione non è di stile:
+
+| forma | un bucket NON nominato… |
+|---|---|
+| `bucket_id not in (…) or is_active_user()` | resta **fuori** dal gate |
+| `is_active_user()` | è **dentro** il gate |
+
+M-1 dell'audit sicurezza del 26 agosto dichiarava di aver adottato la seconda
+e aveva scritto la prima: per tre settimane il commento e il codice hanno
+detto due cose opposte, e la prova è arrivata quando aggiungere il bucket
+`documenti-identita` ha richiesto di nominarlo — cosa che con la forma
+dichiarata non sarebbe servita.
+
+⚠️ **Un bucket da esentare** si scrive come disgiunzione affermativa
+(`bucket_id in ('bucket-pubblico') or (select private.is_active_user())`),
+mai come negazione. Un elenco di bucket ESCLUSI fa ora fallire
+`npm run verifica:convenzioni` (`scripts/verifica-convenzioni/storage.js`).
+
+Le due Edge Function che toccano Storage — `delete-user` e `delete-account`,
+entrambe per rimuovere `<user_id>/avatar.jpg` — passano dal client
+`SUPABASE_SERVICE_ROLE_KEY` e **bypassano la RLS**: è ciò che permette a chi
+cancella il proprio account di ripulire l'avatar anche da disattivato.
 
 ### Gerarchia degli helper (📄)
 

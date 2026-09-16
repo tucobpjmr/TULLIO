@@ -37,6 +37,10 @@ import { memo } from "react";
 const TRACCIATI = {
   calendario: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></>,
   clienti: <><circle cx="12" cy="8" r="3.6" /><path d="M4.6 20.4c0-3.7 3.3-6.2 7.4-6.2s7.4 2.5 7.4 6.2" /></>,
+  // Tessera con la foto a sinistra e le righe di dati a destra: il documento
+  // di identità come lo si ha in mano, non una cartellina generica — che
+  // sarebbe indistinguibile da `archivio` a 20px.
+  documenti: <><rect x="2.6" y="5" width="18.8" height="14" rx="2" /><circle cx="8.4" cy="11" r="2" /><path d="M5.4 16.2c0-1.6 1.3-2.6 3-2.6s3 1 3 2.6" /><path d="M14.4 10h4.2M14.4 13.4h4.2" /></>,
   archivio: <><path d="M3.2 8.6h17.6V19a2 2 0 0 1-2 2H5.2a2 2 0 0 1-2-2z" /><rect x="2" y="4" width="20" height="4.6" rx="1" /><path d="M10 13h4" /></>,
   cestino: <><path d="M4 7h16M9.5 7V4.8h5V7M6 7l1 13a1.8 1.8 0 0 0 1.8 1.7h6.4A1.8 1.8 0 0 0 17 20L18 7" /><path d="M10.5 11v6.5M13.5 11v6.5" /></>,
   admin: <><circle cx="12" cy="12" r="3.2" /><path d="M19.4 14.4a1.6 1.6 0 0 0 .33 1.77l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.6 1.6 0 0 0-1.77-.33 1.6 1.6 0 0 0-1 1.47V21a2 2 0 1 1-4 0v-.11a1.6 1.6 0 0 0-1.05-1.47 1.6 1.6 0 0 0-1.77.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.6 1.6 0 0 0 .33-1.77 1.6 1.6 0 0 0-1.47-1H3a2 2 0 1 1 0-4h.11a1.6 1.6 0 0 0 1.47-1.05 1.6 1.6 0 0 0-.33-1.77l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.6 1.6 0 0 0 1.77.33H9a1.6 1.6 0 0 0 1-1.47V3a2 2 0 1 1 4 0v.11a1.6 1.6 0 0 0 1 1.47 1.6 1.6 0 0 0 1.77-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.6 1.6 0 0 0-.33 1.77V9a1.6 1.6 0 0 0 1.47 1H21a2 2 0 1 1 0 4h-.11a1.6 1.6 0 0 0-1.47 1z" /></>,

@@ -108,6 +108,12 @@ const Trash = lazy(() =>
 const Archive = lazy(() =>
   import("./components/tasks/Archive.jsx").then(m => ({ default: m.Archive }))
 );
+// L'archivio documenti porta con sé la compressione canvas e le due modali di
+// caricamento: un chunk che la maggioranza delle sessioni non apre mai, e che
+// nel bundle iniziale peserebbe senza servire a nessuna delle viste d'ingresso.
+const DocumentiView = lazy(() =>
+  import("./components/documenti/DocumentiView.jsx").then(m => ({ default: m.DocumentiView }))
+);
 // Suggerimento strategico #3 (docs/AUDIT_PERFORMANCE_2026-08.md): un
 // React.Profiler attorno alla vista attiva, per rispondere "quanto costa un
 // render" con un numero invece che a sensazione — la stessa domanda a cui
@@ -371,6 +377,11 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       case "calendar":   return <CalendarPlanner loading={caricamento.tasks} />;
       case "clienti":    return <ClientiView loading={caricamentoClienti} />;
       case "archivio":   return <Archive loading={caricamento.tasks} />;
+      // La vista non riceve `loading`: il suo caricamento non passa
+      // dall'idratazione globale — `documenti_identita` non è una fetta
+      // dello state — ma da useDocumenti, come il modulo Liste. Per la
+      // stessa ragione "documenti" non compare in ENTITA_PER_VISTA.
+      case "documenti":  return <DocumentiView />;
       case "trash":      return <Trash loading={caricamento.tasks} />;
       // Il guard qui è ridondante per costruzione — il reducer rifiuta
       // SET_VIEW → "admin" per i non-admin (reducer.js:95) e riporta la vista

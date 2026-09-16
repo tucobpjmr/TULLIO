@@ -20,6 +20,7 @@ conclusa mesi prima. Questo indice risponde a quella domanda.
 |---|---|
 | [`ANAGRAFICA_E_LISTE.md`](ANAGRAFICA_E_LISTE.md) | Modello dati di clienti e liste buoni viaggio |
 | [`IMPORT_LISTE_VIAGGIO.md`](IMPORT_LISTE_VIAGGIO.md) | Formato e regole dell'import liste |
+| [`DOCUMENTI_IDENTITA.md`](DOCUMENTI_IDENTITA.md) | Archivio dei documenti dei passeggeri: spazio, permessi, import massivo, applicazione della migrazione |
 
 ## Argomento → dove sta la regola oggi
 
@@ -39,7 +40,8 @@ corretta.
 | Errori | `CLAUDE.md` → «Errori: a schermo il minimo, in console il dettaglio»; canale di segnalazione in `src/lib/errorReporting.js` |
 | Push | Nessun documento dedicato: vive nel codice (`src/lib/push.js`, `supabase/functions/`) e nei resoconti che l'hanno introdotta ([`handoff/HANDOFF_SESSION_2026-07-06_v45_web_push.md`](handoff/HANDOFF_SESSION_2026-07-06_v45_web_push.md), [`handoff/HANDOFF_SESSION_2026-07-31_v47_ios_safe_area_push.md`](handoff/HANDOFF_SESSION_2026-07-31_v47_ios_safe_area_push.md)) |
 | Liste | [`ANAGRAFICA_E_LISTE.md`](ANAGRAFICA_E_LISTE.md) e `CLAUDE.md` → «Modulo Liste viaggio» e i bullet che seguono |
-| Import | [`IMPORT_LISTE_VIAGGIO.md`](IMPORT_LISTE_VIAGGIO.md) |
+| Import | [`IMPORT_LISTE_VIAGGIO.md`](IMPORT_LISTE_VIAGGIO.md); per i documenti di identità [`DOCUMENTI_IDENTITA.md`](DOCUMENTI_IDENTITA.md) § 5 |
+| Documenti di identità | [`DOCUMENTI_IDENTITA.md`](DOCUMENTI_IDENTITA.md) — spazio occupato, ruoli, scadenze; il codice è in `src/components/documenti/` e `src/lib/comprimiImmagine.js` |
 | CI | `.github/workflows/ci.yml` e gli script `verifica:*` in `package.json` — nessun documento markdown, la pipeline stessa è la fonte |
 
 ## Audit

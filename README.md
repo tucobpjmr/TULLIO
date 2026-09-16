@@ -32,6 +32,7 @@ realtime, notifiche Web Push e cinque Edge Function.
 - **Liste buoni viaggio** — modulo con movimenti, saldi, cointestazioni, cestino e storico
 - **Anagrafica clienti** — CRM con import, task e liste collegati
 - **Notifiche** — in-app (campanella) e Web Push su iOS/Android/desktop
+- **Archivio documenti di identità** — passaporti e carte d'identità dei passeggeri: bucket privato, compressione automatica prima dell'upload, import massivo da cartella (`COGNOME_NOME.jpg`), avviso sui documenti da rinnovare
 
 ### Stack
 
@@ -41,7 +42,7 @@ realtime, notifiche Web Push e cinque Edge Function.
 | Backend | Supabase — PostgreSQL, RLS, Realtime, Storage, Auth, Edge Functions |
 | Stile | CSS-in-JS + variabili di tema; token condivisi in `src/styles/tokens.js` |
 | Import/export | SheetJS (`xlsx`), caricato on-demand |
-| Test | Vitest + Testing Library — 1702 test |
+| Test | Vitest + Testing Library — 2290 test |
 | Qualità | ESLint 9 (flat config) con `max-lines`, `no-restricted-imports` |
 | Font | Playfair Display + DM Sans + Inter |
 | Lingua UI | italiano |
@@ -77,11 +78,13 @@ src/
 │   ├── tasks/            TaskCard/Row/SlideOver, QuickAdd, Archivio, Cestino,
 │   │                     bulk/ (creazione in blocco)
 │   ├── clients/ calendar/ admin/ chat/ liste/ search/ notifications/ errors/
+│   ├── documenti/        archivio documenti di identità (vista, import massivo,
+│   │                     deduzione del nome dal file, stato di scadenza)
 │   ├── ui/               ciò che è davvero trasversale (Modal, Avatar, Toast, Viewport…)
-└── test/                 1702 test (Vitest)
+└── test/                 2290 test (Vitest)
 
 supabase/
-├── migrations/           109 migrazioni SQL (schema, RLS, RPC, trigger)
+├── migrations/           140 migrazioni SQL (schema, RLS, RPC, trigger)
 └── functions/            invite-user, delete-user, delete-account, send-push,
                           set-user-active
 

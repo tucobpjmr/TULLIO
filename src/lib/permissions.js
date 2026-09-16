@@ -295,3 +295,41 @@ export const canDeleteClient = (team, userId) =>
 // accordarsi — com'è per resetTotale nello stesso registry
 // (listePersistence.js).
 export const canImportBackup = (team, userId) => isAdmin(team, userId);
+
+// ─── ARCHIVIO DOCUMENTI DI IDENTITÀ ──────────────────────────────────────────
+// Rispecchia `private.can_documenti()` lato database (migrazione
+// 20260916120000): role IN (admin, manager, agent) AND active AND NOT pending.
+// Il driver è fuori, come dall'anagrafica clienti e per la stessa ragione —
+// non ha accesso ai dati delle persone, e un documento di identità è il più
+// sensibile che questo progetto archivi.
+//
+// PERCHÉ NON RIUSA `canAccessListe`, che oggi ha lo stesso elenco di ruoli:
+// sono due domande diverse su due moduli diversi. Restringere i documenti ai
+// soli admin/manager è una decisione plausibile domani, e farla su
+// `canAccessListe` si porterebbe dietro un modulo che non c'entra. È la stessa
+// ragione per cui `canEditClient` esiste separata pur coincidendo oggi.
+const RUOLI_DOCUMENTI = ['admin', 'manager', 'agent'];
+
+export const canAccessDocumenti = (team, userId) => {
+  const m = getMember(team, userId);
+  if (!m || m.active === false || m.pending) return false;
+  const ruolo = toDbRole(m.role);
+  return ruolo !== null && RUOLI_DOCUMENTI.includes(ruolo);
+};
+
+// L'eliminazione è più stretta della scrittura, e rispecchia la policy
+// `documenti_identita_delete`: chi ha caricato il documento — un errore
+// proprio si corregge da soli — oppure manager/admin. Un agent non cancella
+// il documento caricato da un collega.
+//
+// `documento.uploadedBy` è il campo camelCase con cui la vista riceve la riga
+// (`uploaded_by` sul database). Un documento senza `uploadedBy` — possibile se
+// l'utente che l'ha caricato è stato eliminato, visto che la FK è `set null` —
+// resta eliminabile dai soli manager/admin: è il ramo prudente, e coincide con
+// ciò che la policy concede davvero (`null = auth.uid()` è NULL, non true).
+export const canDeleteDocumento = (team, documento, userId) => {
+  if (!canAccessDocumenti(team, userId)) return false;
+  if (documento?.uploadedBy && documento.uploadedBy === userId) return true;
+  const ruolo = getRoleType(team, userId);
+  return ruolo === 'admin' || ruolo === 'manager';
+};

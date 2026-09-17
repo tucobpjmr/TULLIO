@@ -141,15 +141,24 @@ export function AuthProvider({ children }) {
               //
               // ATTENZIONE a cosa NON dice questo: caricarne una sola non è una
               // restrizione di sicurezza, è solo ciò che serve qui. La policy di
-              // SELECT è `using (true)` per ogni utente autenticato — la rubrica
-              // interna è una scelta di prodotto esplicita (migrazione
-              // 20260629222802_user_contacts_select_team, che ha sostituito il
-              // precedente own+admin della 20260613100833). Questo commento
-              // affermava ancora il contrario ("gli altri membri non le hanno,
-              // by-design privacy hardening") molto dopo che la policy era
-              // cambiata: chi lo leggeva credeva di avere una garanzia che il
-              // database non dà. INSERT/UPDATE restano own+admin, quindi
-              // nessuno può modificare i contatti altrui.
+              // SELECT è `user_id = auth.uid() or private.can_liste()`: ognuno
+              // legge il proprio contatto, e la rubrica del team la leggono i
+              // ruoli interni (admin/manager/agent attivi e approvati). Il
+              // driver ne è FUORI — decisione di prodotto del 5 settembre,
+              // migrazione 20260905115909, M-7 dell'audit del 4 settembre, che
+              // ha ristretto la rubrica aperta a ogni autenticato dalla
+              // 20260629222802. INSERT/UPDATE restano own+admin, quindi nessuno
+              // può modificare i contatti altrui.
+              //
+              // Questo commento ha già sbagliato due volte, e in due direzioni
+              // opposte: prima prometteva "solo proprietario+admin, by-design
+              // privacy hardening" dopo che la 20260629222802 aveva aperto la
+              // rubrica a tutti; poi ha dichiarato `using (true)` ed è rimasto
+              // così dopo che M-7 ne aveva escluso il driver. La lezione non è
+              // "scrivere commenti migliori": è che a tenerlo onesto è il caso
+              // in src/test/integration/rls.test.js, che interroga la policy
+              // vera con un driver e con un ruolo interno. Se cambi la policy,
+              // quel test lo dice — questo commento no.
               supabase.from('user_contacts').select('email, phone').eq('user_id', userId).maybeSingle(),
             ]),
             AUTH_TIMEOUT_MS,

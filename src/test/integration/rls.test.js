@@ -377,31 +377,53 @@ suite("RLS: la matrice di autorizzazione è applicata dal database, non solo dal
     });
   });
 
-  describe("user_contacts — la rubrica è del team, non solo del proprietario", () => {
-    let client, userId;
-    beforeAll(async () => {
-      // Il driver: il ruolo con meno privilegi del sistema (niente Liste,
-      // niente coda globale). Se anche lui legge i contatti di altri, la
-      // policy non discrimina per ruolo — è `using (true)` per davvero, non
-      // solo per gli utenti che qualcun altro ha già verificato a mano.
-      ({ client, userId } = await accedi(
-        process.env.RLS_TEST_DRIVER_EMAIL, process.env.RLS_TEST_DRIVER_PASSWORD));
-    });
+  describe("user_contacts — la rubrica è dei ruoli interni, e il driver ne è fuori", () => {
+    // M-4 dell'audit del 15 agosto, corretto da M-7 del 4 settembre.
+    //
+    // Questo blocco è nato per legare alla realtà un commento che descriveva
+    // la policy come `using (true)` — rubrica leggibile da chiunque sia
+    // autenticato. Entrava come DRIVER apposta: era il ruolo con meno
+    // privilegi, quindi se la vedeva lui la policy non discriminava per ruolo.
+    //
+    // Poi la 20260905115909 ha deciso il contrario — «il driver NON deve
+    // vedere la rubrica del team» — e il caso ha continuato a pretendere che
+    // la vedesse. Il guaio non era il rosso: era che tornando VERDE avrebbe
+    // segnalato una regressione di privacy invece di un ritorno alla
+    // normalità. Un test che asserisce il contrario di ciò che il prodotto
+    // vuole è peggio di nessun test, perché il giorno in cui passa nessuno va
+    // a chiedersi perché.
+    //
+    // Restano i due versanti della stessa policy, uno per ruolo:
+    //   user_id = auth.uid()     → il driver, e solo la propria riga
+    //   or private.can_liste()   → admin/manager/agent attivi, tutta la rubrica
+    // Servono due utenti diversi, quindi il login sta dentro ai casi e non in
+    // un `beforeAll` condiviso come negli altri blocchi di questo file.
 
-    // M-4 dell'audit del 15 agosto. Il commento in lib/api.js e AuthContext.jsx
-    // che descrive questa policy come `using (true)` — rubrica interna,
-    // leggibile da chiunque sia autenticato, non solo dal proprietario — è
-    // corretto OGGI, ma per un'intera fase del progetto era il contrario:
-    // AuthContext.jsx:139-152 documenta un commento che affermava
-    // «by-design privacy hardening, solo proprietario+admin» molto dopo che
-    // la migrazione 20260629222802 aveva aperto la SELECT a tutto il team.
-    // Questo test lega l'affermazione alla realtà: se la policy tornasse
-    // own+admin, fallisce qui — non in un commento che nessuno ricontrolla.
-    it("legge i contatti di ALTRI membri del team, non solo i propri", async () => {
+    it("un ruolo interno legge i contatti di ALTRI membri del team", async () => {
+      const { client, userId } = await accedi(
+        process.env.RLS_TEST_JUNIOR_EMAIL, process.env.RLS_TEST_JUNIOR_PASSWORD);
       const { data, error } = await client.from("user_contacts").select("user_id, email, phone");
       expect(error).toBeNull();
       expect(data.length).toBeGreaterThan(1);
       expect(data.some((c) => c.user_id !== userId)).toBe(true);
+    });
+
+    // Il versante che M-7 ha introdotto e che nessuno verificava: la rubrica
+    // era l'ultimo dato del sistema su cui il driver non aveva una
+    // restrizione, e non per una decisione ma perché la policy era più vecchia
+    // della restrizione del ruolo.
+    //
+    // L'esito ha la forma già fissata altrove in questo file: una policy che
+    // non seleziona righe produce un elenco CORTO, non un 403. Si asserisce
+    // quindi il conteggio E l'identità della riga — `toHaveLength(1)` da solo
+    // passerebbe anche se quella riga fosse di un altro.
+    it("il driver vede solo il PROPRIO contatto, e non è un errore", async () => {
+      const { client, userId } = await accedi(
+        process.env.RLS_TEST_DRIVER_EMAIL, process.env.RLS_TEST_DRIVER_PASSWORD);
+      const { data, error } = await client.from("user_contacts").select("user_id, email, phone");
+      expect(error).toBeNull();
+      expect(data).toHaveLength(1);
+      expect(data[0].user_id).toBe(userId);
     });
   });
 

@@ -20,7 +20,15 @@ describe("esitoScrittura", () => {
 
   it("count 0 su una scrittura mirata è un rifiuto, non un successo", () => {
     expect(esitoScrittura({ error: null, count: 0 })).toBe(RIFIUTO_RLS);
-    expect(RIFIUTO_RLS.message).toMatch(/permessi insufficienti/i);
+  });
+
+  // Il testo mostrato all'utente non può affermare la causa: `count: 0` è lo
+  // stesso zero per «la policy ha filtrato la riga» e per «la riga non c'è
+  // più», e il 16 settembre in produzione era il secondo — un admin che aveva
+  // appena eliminato un cliente si è sentito dire che non ha i permessi.
+  it("il messaggio nomina ENTRAMBE le cause possibili, non una sola", () => {
+    expect(RIFIUTO_RLS.message).toMatch(/non esiste più/i);
+    expect(RIFIUTO_RLS.message).toMatch(/permessi/i);
   });
 
   it("count > 0 è successo", () => {

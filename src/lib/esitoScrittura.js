@@ -42,8 +42,22 @@
 
 // Messaggio unico per il rifiuto silenzioso: l'utente non deve dedurre da un
 // toast generico che il database ha detto di no.
+//
+// ⚠️ IL MESSAGGIO NON NOMINA PIÙ UNA SOLA CAUSA, e non è un ammorbidimento.
+// `count: 0` dice «nessuna riga toccata», non PERCHÉ: la clausola USING di una
+// policy rende invisibili le righe, ma esattamente lo stesso zero arriva quando
+// la riga non c'è più — cancellata un istante prima da questo stesso utente o
+// da un altro. Fino al 21 settembre il testo diceva «permessi insufficienti» e
+// basta, cioè affermava l'unica delle due che il codice non può verificare. Il
+// caso in produzione: 16 settembre, un admin elimina un cliente (`audit_log`:
+// `clienti.eliminati righe: 1`), la card resta a schermo perché l'elenco stava
+// disegnando i risultati di una ricerca lato server (vedi
+// `components/clients/ClientiView.jsx`), lui preme Rimuovi di nuovo — `righe: 0`
+// dieci secondi dopo — e il gestionale gli risponde che non ha i permessi.
+// Quella card ora sparisce; questo testo dice le due possibilità che restano.
 export const RIFIUTO_RLS = {
-  message: "operazione non consentita dal database (permessi insufficienti)",
+  message: "il dato non esiste più (forse è stato appena eliminato) "
+    + "oppure i permessi non consentono l'operazione",
 };
 
 /**

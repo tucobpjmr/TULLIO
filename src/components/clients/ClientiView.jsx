@@ -163,8 +163,50 @@ export const ClientiView = memo(function ClientiView({ loading = false }) {
   const ricercaAttiva = search.trim().length > 0;
   const ricercaServer = useRicercaAnagrafica(search, { enabled: ricercaAttiva });
 
+  // ─── LA RICERCA DICE QUALI SCHEDE, NON COM'ERANO ──────────────────────────
+  //
+  // I risultati della RPC sono una FOTOGRAFIA dell'istante in cui ha risposto:
+  // vivono in uno `useState` dentro useRicercaAnagrafica, non in una fetta del
+  // reducer, quindi NESSUNA mutazione locale li tocca. Finché una ricerca è
+  // attiva l'elenco veniva disegnato da loro soltanto, e la conseguenza è che
+  // eliminare o rinominare un cliente non si vedeva: la card restava a schermo
+  // com'era, con i suoi bottoni Modifica e Rimuovi ancora attivi.
+  //
+  // NON È UN DIFETTO ESTETICO. Premendo di nuovo Rimuovi su una card fantasma
+  // la DELETE parte davvero e non trova nulla: `count: 0`, che
+  // `lib/esitoScrittura.js` non può distinguere da «la RLS ha detto di no».
+  // L'utente — admin, che l'eliminazione l'aveva appena completata — si vedeva
+  // rispondere che non ha i permessi. È successo in produzione il 16 settembre
+  // e sta scritto in `audit_log`: `clienti.eliminati righe: 1` alle 14:27:59,
+  // `righe: 0` dieci secondi dopo, stesso attore.
+  //
+  // L'identità di una scheda la ristabilisce quindi `clients`, che il reducer
+  // tiene allineato (realtime + scritture ottimistiche): la ricerca resta
+  // l'insieme degli id da mostrare, il corpus locale dice che cosa sono ADESSO.
+  // Una riga che lì non c'è più non è più un'anagrafica, e sparisce dall'elenco.
+  //
+  // ⚠️ SOLO A CORPUS IN MANO. Finché `useClientiCompleti()` non ha risposto — o
+  // se quella richiesta è fallita — `clients` è vuoto, e riconciliare su un
+  // insieme vuoto cancellerebbe risultati validi: lì si resta alla fotografia,
+  // cioè al comportamento di prima. Il caso che NON copre, ed è voluto: un
+  // cliente appena creato non compare in una ricerca già in corso, perché non è
+  // nella fotografia — rimetterlo vorrebbe dire rifare lato client la
+  // normalizzazione che A-1 ha spostato sul server.
+  const corpusCompleto = !loading && clients.length > 0;
+  const risultatiAllineati = useMemo(() => {
+    if (!ricercaAttiva) return clients;
+    if (!corpusCompleto) return ricercaServer.risultati;
+    const perId = new Map(clients.map(c => [c.id, c]));
+    // `flatMap` e non `map().filter(Boolean)`: il secondo lascia `undefined`
+    // nel tipo dell'array (checkJs non lo restringe) e lo passerebbe alle card.
+    return ricercaServer.risultati.flatMap((r) => {
+      const locale = perId.get(r.id);
+      return locale ? [locale] : [];
+    });
+  }, [ricercaAttiva, corpusCompleto, ricercaServer.risultati, clients]);
+
   const filtered = useMemo(() => {
-    let base = ricercaAttiva ? ricercaServer.risultati : clients;
+    let base = risultatiAllineati;
     if (listeByClient && linkFilter !== "all") {
       base = base.filter(c => (linkFilter === "conListe" ? !!listeByClient[c.id] : !listeByClient[c.id]));
     }
@@ -175,7 +217,7 @@ export const ClientiView = memo(function ClientiView({ loading = false }) {
       // date: più recenti prima (createdAt desc)
       return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
     });
-  }, [ricercaAttiva, ricercaServer.risultati, clients, sortBy, linkFilter, listeByClient]);
+  }, [risultatiAllineati, sortBy, linkFilter, listeByClient]);
 
   // ST-9 · La finestra visibile. ✅ 818 clienti in anagrafica: senza limite si
   // montavano 818 ClienteCard, ognuna con il proprio useMemo sulle note e il
@@ -185,6 +227,18 @@ export const ClientiView = memo(function ClientiView({ loading = false }) {
   // lunghi non l'avevano affatto.
   const finestra = useFinestra(filtered, PAGINA, [search, linkFilter, sortBy]);
   const visibili = finestra.visibili;
+
+  // Il pannello di dettaglio è la SECONDA fotografia della stessa scheda:
+  // `selectedClient` è l'oggetto com'era al click, tenuto in uno useState. Vale
+  // per lui la regola dell'elenco qui sopra — l'anagrafica in stato è la
+  // verità — altrimenti eliminare il cliente aperto lascia a schermo il suo
+  // pannello, con i task e le liste di una scheda che non esiste più. Stesso
+  // guard: a corpus non ancora in mano si mostra ciò che si ha.
+  const clienteAperto = useMemo(() => {
+    if (!selectedClient) return null;
+    if (!corpusCompleto) return selectedClient;
+    return clients.find(c => c.id === selectedClient.id) || null;
+  }, [selectedClient, clients, corpusCompleto]);
 
   // M-1 · Attende l'esito e lo RIPORTA; chi chiude è la modale (che è anche
   // l'unica a sapere se ha ancora dati da proteggere). Prima questa funzione
@@ -353,13 +407,13 @@ export const ClientiView = memo(function ClientiView({ loading = false }) {
       )}
 
       {/* Pannello del cliente selezionato (v2.8 Round 9): task + liste viaggio */}
-      {selectedClient && (
+      {clienteAperto && (
         <ClienteDetailPanel
-          cliente={selectedClient}
+          cliente={clienteAperto}
           tasks={tasks}
           onClose={() => { setSelectedClient(null); setPanelTab(null); }}
           showListe={showListe}
-          liste={listeDi(selectedClient)}
+          liste={listeDi(clienteAperto)}
           initialTab={panelTab}
         />
       )}

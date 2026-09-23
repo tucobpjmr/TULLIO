@@ -5,15 +5,16 @@
 // presentazione fuori dal JSX — che è il motivo per cui il componente
 // sembrava più grande di quanto non sia. I valori sono copiati alla
 // lettera dagli originali.
+import * as stiliComuni from "../../styles/common.js";
 export const rowCenterBetween = {
-  background: "var(--navy)", padding: "20px 22px",
+  ...stiliComuni.testataBarra, padding: "20px 22px",
   borderRadius: "16px 16px 0 0",
   display: "flex", justifyContent: "space-between", alignItems: "center",
 };
 export const rowCenterGap14 = { display: "flex", alignItems: "center", gap: 14 };
-export const boxW52H52 = { width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "3px solid rgba(255,255,255,0.3)" };
-export const txtF18Bold = { fontSize: 18, fontWeight: 700, color: "#fff" };
-export const txtF11Mt2 = { fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 2 };
+export const boxW52H52 = { width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "3px solid var(--card)" };
+export const txtF18Bold = { fontSize: 18, fontWeight: 700, color: "var(--heading)" };
+export const txtF11Mt2 = { fontSize: 11, color: "var(--text-muted)", marginTop: 2 };
 export const colGap18 = { padding: "20px 22px", display: "flex", flexDirection: "column", gap: 18 };
 export const colCenterGap12 = { display: "flex", flexDirection: "column", alignItems: "center", gap: 12 };
 export const boxW100H100 = { width: 100, height: 100, borderRadius: "50%", objectFit: "cover", border: "3px solid var(--border)" };

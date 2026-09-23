@@ -43,21 +43,21 @@ import { attivaConTastiera } from "../../lib/a11y.js";
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
 const rowCenterBetween = {
-  background: "linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%)",
+  ...stiliComuni.testataBarra,
   padding: "calc(14px + var(--safe-top)) 16px 14px",
   display: "flex", alignItems: "center", justifyContent: "space-between",
-  flexShrink: 0, borderBottom: "1px solid rgba(212,168,67,0.2)",
+  flexShrink: 0,
 };
 const rowCenterMiddle = {
   width: 32, height: 32, background: "var(--gold)", borderRadius: 8,
   display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14,
 };
-const txtF15Bold = { color: "#fff", fontSize: 15, fontWeight: 700, lineHeight: 1 };
-const txtF10Mt2 = { color: "rgba(255,255,255,0.5)", fontSize: 10, letterSpacing: 1.5, marginTop: 2 };
+const txtF15Bold = { color: "var(--heading)", fontSize: 15, fontWeight: 700, lineHeight: 1 };
+const txtF10Mt2 = { color: "var(--text-muted)", fontSize: 10, letterSpacing: 1.5, marginTop: 2 };
 const rowCenterGap6 = {
   display: "flex", alignItems: "center", gap: 6,
-  background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.22)",
-  color: "#fff", height: 28, padding: "0 10px", borderRadius: 14,
+  background: "var(--card)", border: "1px solid var(--border)",
+  color: "var(--heading)", height: 28, padding: "0 10px", borderRadius: 14,
   cursor: "pointer", fontSize: 11, fontWeight: 600,
 };
 const flex1 = { flex: 1, overflow: "hidden" };
@@ -381,12 +381,12 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
                 onClick={() => pd({ type: "NEW_MODE", v: true })}
                 title="Nuova chat — scrivi a un membro del team"
                 style={{
-                  background: newMode ? "var(--gold)" : "rgba(255,255,255,0.1)",
-                  border: "none", color: newMode ? "var(--navy)" : "#fff",
+                  background: newMode ? "var(--gold)" : "var(--card)",
+                  border: "1px solid var(--border)", color: newMode ? "var(--navy)" : "var(--heading)",
                   width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 15,
                 }}>✏️</button>
             )}
-            <button onClick={onClose} style={stiliComuni.btnChiudiSuScuro}>✕</button>
+            <button onClick={onClose} style={stiliComuni.btnChiudiTestata}>✕</button>
           </div>
         </div>
 

@@ -224,7 +224,7 @@ export const ProfileEditor = ({ member, onClose }) => {
                 width: 52, height: 52, borderRadius: "50%", background: draft.color,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 18, fontWeight: 700, color: "#fff",
-                border: "3px solid rgba(255,255,255,0.3)",
+                border: "3px solid var(--card)",
               }}>{initials}</div>
             )}
             <div>
@@ -232,7 +232,7 @@ export const ProfileEditor = ({ member, onClose }) => {
               <div style={txtF11Mt2}>{roleLabel(member)}</div>
             </div>
           </div>
-          <button onClick={onClose} style={stiliComuni.btnChiudiSuScuro}>✕</button>
+          <button onClick={onClose} style={stiliComuni.btnChiudiTestata}>✕</button>
         </div>
 
         {/* Body */}

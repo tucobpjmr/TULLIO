@@ -186,7 +186,7 @@ export const TaskSlideOver = ({ task }) => {
                 e => e.currentTarget.style.background = "rgba(220,38,38,0.15)",
               )}
             >🗑️</button>
-            <button onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })} style={stiliComuni.btnChiudiSuScuro}>✕</button>
+            <button onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })} style={stiliComuni.btnChiudiTestata}>✕</button>
           </div>
         </div>
 

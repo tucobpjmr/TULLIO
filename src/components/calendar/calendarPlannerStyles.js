@@ -32,8 +32,8 @@ export const boxF12Bold2 = {
 };
 export const rowGap6MtNeg8 = { display: "flex", flexWrap: "wrap", gap: 6, marginTop: -8 };
 export const boxR14 = stiliComuni.cardElevata;
-export const grid2 = { display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", background: "var(--navy)", padding: "10px 0" };
-export const txtF12Bold = { textAlign: "center", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.7)", minWidth: 0 };
+export const grid2 = { display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", ...stiliComuni.testataBarra, padding: "10px 0" };
+export const txtF12Bold = { textAlign: "center", fontSize: 12, fontWeight: 600, color: "var(--text-muted)", minWidth: 0 };
 export const grid3 = { display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" };
 export const rowMiddleGap3 = { display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" };
 export const colGap2MinW0 = { display: "flex", flexDirection: "column", gap: 2, minWidth: 0 };

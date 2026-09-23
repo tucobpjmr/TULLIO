@@ -7,19 +7,19 @@
 // lettera dagli originali.
 import * as stiliComuni from "../../styles/common.js";
 export const rowStartBetween = {
-  background: "var(--navy)", padding: "calc(18px + var(--safe-top)) 22px 18px",
+  ...stiliComuni.testataBarra, padding: "calc(18px + var(--safe-top)) 22px 18px",
   display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0
 };
 export const rowGap8Mb8 = { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 };
 export const boxF11Bold = { fontSize: 11, fontWeight: 700, color: "var(--danger)", background: "#FEE2E2", padding: "2px 8px", borderRadius: 99 };
 export const boxF18Bold = {
-  color: "#fff", fontSize: 18, fontWeight: 700, lineHeight: 1.3,
-  background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)",
+  color: "var(--heading)", fontSize: 18, fontWeight: 700, lineHeight: 1.3,
+  background: "var(--card)", border: "1px solid var(--border)",
   borderRadius: 6, padding: "4px 8px", width: "100%", fontFamily: "inherit", outline: "none",
 };
-export const txtF18Bold = { color: "#fff", fontSize: 18, fontWeight: 700, lineHeight: 1.3 };
+export const txtF18Bold = { color: "var(--heading)", fontSize: 18, fontWeight: 700, lineHeight: 1.3 };
 export const boxF13White = {
-  background: "rgba(220,38,38,0.15)", border: "none", color: "#fff",
+  background: "rgba(220,38,38,0.15)", border: "none", color: "var(--heading)",
   width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 13,
   transition: "background 0.2s"
 };

@@ -13,10 +13,10 @@ import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
 const colHFull = { display: "flex", flexDirection: "column", height: "100%" };
 const rowCenterGap10 = {
-  background: "var(--navy)", padding: "12px 16px", display: "flex",
+  ...stiliComuni.testataBarra, padding: "12px 16px", display: "flex",
   alignItems: "center", gap: 10, flexShrink: 0,
 };
-const txtF15Bold = { color: "#fff", fontSize: 15, fontWeight: 600 };
+const txtF15Bold = { color: "var(--heading)", fontSize: 15, fontWeight: 600 };
 const p14 = { padding: 14, borderBottom: "1px solid var(--border)" };
 const rowCenterGap102 = {
   width: "100%", padding: "10px 14px", background: "var(--surface2)",
@@ -106,7 +106,7 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
   return (
     <div style={colHFull}>
       <div style={rowCenterGap10}>
-        <button onClick={onCancel} style={stiliComuni.btnChiudiSuScuro}>←</button>
+        <button onClick={onCancel} style={stiliComuni.btnChiudiTestata}>←</button>
         <div className="playfair" style={txtF15Bold}>
           {mode === "select" ? "Nuova conversazione" : "Nuovo gruppo"}
         </div>

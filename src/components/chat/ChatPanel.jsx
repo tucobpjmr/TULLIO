@@ -20,6 +20,7 @@
 //   ForwardPicker       scelta destinatario per l'inoltro
 import { memo, useCallback, useReducer, useEffect, useMemo, useRef, useState } from "react";
 import { useViewport } from "../ui/Viewport.jsx";
+import { Icona } from "../ui/Icona.jsx";
 import { Messages as MessagesAPI } from "../../lib/api.js";
 import { isUuid, newId } from "../../lib/mappers.js";
 import { formatDate, formatTime } from "../../lib/taskUtils.js";
@@ -380,13 +381,14 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
               <button
                 onClick={() => pd({ type: "NEW_MODE", v: true })}
                 title="Nuova chat — scrivi a un membro del team"
+                aria-label="Nuova chat"
                 style={{
+                  ...stiliComuni.btnChiudiTestata,
                   background: newMode ? "var(--gold)" : "var(--card)",
-                  border: "1px solid var(--border)", color: newMode ? "var(--navy)" : "var(--heading)",
-                  width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 15,
-                }}>✏️</button>
+                  color: newMode ? "var(--navy)" : "var(--heading)",
+                }}><Icona nome="modifica" dimensione={16} /></button>
             )}
-            <button onClick={onClose} style={stiliComuni.btnChiudiTestata}>✕</button>
+            <button onClick={onClose} aria-label="Chiudi" title="Chiudi" style={stiliComuni.btnChiudiTestata}><Icona nome="chiudi" dimensione={16} /></button>
           </div>
         </div>
 

@@ -48,6 +48,12 @@ const TRACCIATI = {
   piuTask: <><rect x="7.5" y="2.8" width="13.7" height="16" rx="2" /><path d="M16.8 21.2H4.6a1.8 1.8 0 0 1-1.8-1.8V6.6" /><path d="M11 7.6h6.4M11 11.4h6.4M11 15h4" /></>,
   ricerca: <><circle cx="11" cy="11" r="6.4" /><path d="M15.9 15.9l4.6 4.6" /></>,
   notifiche: <><path d="M18 15.5V10a6 6 0 1 0-12 0v5.5L4.4 18h15.2z" /><path d="M10 21h4" /></>,
+  // I comandi delle testate dei pannelli: stessa griglia e stesso tratto delle
+  // voci di nav, così una testata e la Sidebar parlano la stessa lingua.
+  chiudi: <path d="M6 6l12 12M18 6L6 18" />,
+  indietro: <path d="M19 12H5M11 6l-6 6 6 6" />,
+  modifica: <><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></>,
+  puntina: <><path d="M9 3.5h6M10 3.5v6L6.5 14h11L14 9.5v-6" /><path d="M12 14v6.5" /></>,
 };
 
 // Lo stile è costante e vive qui, non nel JSX (M-1 dell'audit del 12 agosto,

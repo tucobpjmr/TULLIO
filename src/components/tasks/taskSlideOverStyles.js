@@ -19,8 +19,9 @@ export const boxF18Bold = {
 };
 export const txtF18Bold = { color: "var(--heading)", fontSize: 18, fontWeight: 700, lineHeight: 1.3 };
 export const boxF13White = {
-  background: "rgba(220,38,38,0.15)", border: "none", color: "var(--heading)",
+  background: "rgba(220,38,38,0.15)", border: "none", color: "var(--danger)",
   width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 13,
+  display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
   transition: "background 0.2s"
 };
 export const colFlex1Gap20 = {

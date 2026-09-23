@@ -2,6 +2,7 @@
 // Creazione di una conversazione: diretta o di gruppo.
 import { useRef, useState } from "react";
 import { Avatar } from "../ui/Avatar.jsx";
+import { Icona } from "../ui/Icona.jsx";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
@@ -106,7 +107,7 @@ export const NewConversationView = ({ onCreate, onCancel, existing }) => {
   return (
     <div style={colHFull}>
       <div style={rowCenterGap10}>
-        <button onClick={onCancel} style={stiliComuni.btnChiudiTestata}>←</button>
+        <button onClick={onCancel} aria-label="Indietro" title="Indietro" style={stiliComuni.btnChiudiTestata}><Icona nome="indietro" dimensione={16} /></button>
         <div className="playfair" style={txtF15Bold}>
           {mode === "select" ? "Nuova conversazione" : "Nuovo gruppo"}
         </div>

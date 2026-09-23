@@ -34,9 +34,11 @@ export const testataBarra = {
   borderBottom: "1px solid rgba(212,168,67,0.3)",
 };
 // La ✕ (o ←) delle testate: stesso bottone "card" dei pulsanti della Topbar.
+// Il contenuto è un'<Icona>: il flex la centra nel quadrato.
 export const btnChiudiTestata = {
   background: "var(--card)", border: "1px solid var(--border)", color: "var(--heading)",
   width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 14,
+  display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
 };
 export const btnOutlineMini = { background: "transparent", border: "1px solid var(--border)", borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontWeight: 500 };
 export const btnDangerMini = {

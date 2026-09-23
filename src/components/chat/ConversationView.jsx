@@ -137,7 +137,7 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
     <div style={colHFull}>
       {/* Header */}
       <div style={rowCenterGap10}>
-        <button onClick={onBack} style={stiliComuni.btnChiudiSuScuro}>←</button>
+        <button onClick={onBack} style={stiliComuni.btnChiudiTestata}>←</button>
 
         {conv.type === "direct" ? (
           <Avatar memberId={otherTypingMember} size={36} />
@@ -182,8 +182,8 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
               onClick={() => cvd({ type: "TOGGLE_PINNED" })}
               title={showPinnedOnly ? "Mostra tutti i messaggi" : "Mostra solo i messaggi fissati"}
               style={{
-                background: showPinnedOnly ? "rgba(212,168,67,0.35)" : "rgba(255,255,255,0.1)",
-                border: "none", color: "#fff",
+                background: showPinnedOnly ? "rgba(212,168,67,0.35)" : "var(--card)",
+                border: "1px solid var(--border)", color: "var(--heading)",
                 height: 30, padding: "0 10px", borderRadius: 6, cursor: "pointer",
                 fontSize: 11.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
               }}
@@ -197,8 +197,8 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
           onClick={() => cvd({ type: "TOGGLE_SEARCH" })}
           title="Cerca nei messaggi"
           style={{
-            background: showMsgSearch ? "rgba(212,168,67,0.25)" : "rgba(255,255,255,0.1)",
-            border: "none", color: "#fff",
+            background: showMsgSearch ? "rgba(212,168,67,0.25)" : "var(--card)",
+            border: "1px solid var(--border)", color: "var(--heading)",
             width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 13,
           }}>🔍</button>
         {onDelete && (

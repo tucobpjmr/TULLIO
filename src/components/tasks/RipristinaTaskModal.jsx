@@ -42,7 +42,7 @@ import { useDispatch } from "../../state/DispatchContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import {
   boxF13Bold2, boxF13Conferma, boxF13WFull, boxF13WFull2, boxF14WFull, colGap16,
-  rowCenterBetween, rowGap10, rowGap6, txtF11Mt2, txtF18Bold, txtWhite,
+  rowCenterBetween, rowGap10, rowGap6, txtF11Mt2, txtF18Bold, txtTestata,
 } from "./trashStyles.js";
 
 // B-3 · Il titolo è l'unico campo obbligatorio del ripristino con modifica.
@@ -124,11 +124,11 @@ export function RipristinaTaskModal({ task, onClose }) {
       >
         {/* Modal header */}
         <div style={rowCenterBetween}>
-          <div style={txtWhite}>
+          <div style={txtTestata}>
             <div id="vd-trash-restore-title" className="playfair" style={txtF18Bold}>↻ Ripristina task</div>
             <div style={txtF11Mt2}>Modifica i campi se necessario, poi conferma</div>
           </div>
-          <button onClick={onClose} style={stiliComuni.btnChiudiSuScuro}>✕</button>
+          <button onClick={onClose} style={stiliComuni.btnChiudiTestata}>✕</button>
         </div>
 
         {/* Modal body */}

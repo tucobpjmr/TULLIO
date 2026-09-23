@@ -23,13 +23,13 @@ import * as stiliComuni from "../../../styles/common.js";
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
 const rowCenterBetween = {
-  background: "linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%)",
+  ...stiliComuni.testataBarra,
   padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0,
 };
 const rowCenterMiddle = { width: 38, height: 38, borderRadius: 10, background: "var(--gold)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 };
-const txtF17Bold = { color: "#fff", fontSize: 17, fontWeight: 700, lineHeight: 1.1 };
-const txtF10Mt2 = { color: "rgba(255,255,255,0.6)", fontSize: 10, letterSpacing: 1.2, marginTop: 2 };
-const boxF14White = { background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", width: 32, height: 32, borderRadius: 8, cursor: "pointer", fontSize: 14 };
+const txtF17Bold = { color: "var(--heading)", fontSize: 17, fontWeight: 700, lineHeight: 1.1 };
+const txtF10Mt2 = { color: "var(--text-muted)", fontSize: 10, letterSpacing: 1.2, marginTop: 2 };
+const boxF14White = { background: "var(--card)", border: "1px solid var(--border)", color: "var(--heading)", width: 32, height: 32, borderRadius: 8, cursor: "pointer", fontSize: 14 };
 const row = { display: "flex", borderBottom: "1px solid var(--border)", background: "var(--surface)", flexShrink: 0 };
 const boxAbsoluteW7 = {
   position: "absolute", top: 8, right: 8, width: 7, height: 7,

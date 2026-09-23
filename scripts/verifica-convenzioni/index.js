@@ -522,7 +522,7 @@ async function main() {
   //    passa dai token: ogni colore scritto in duro fuori da `src/styles/` è un
   //    pezzo di interfaccia che al buio resta chiaro. Ratchet — vedi il
   //    docblock di `coloriInDuro` per cosa resta legittimamente dentro.
-  const COLORI_IN_DURO = 310;
+  const COLORI_IN_DURO = 292;
   controlli.push({
     nome: 'colori scritti in duro fuori da src/styles/', dove: 'scripts/verifica-convenzioni/convenzioni.js',
     dichiarato: COLORI_IN_DURO, misurato: coloriInDuro(sorgenti),

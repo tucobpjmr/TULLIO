@@ -25,9 +25,17 @@ export const btnChiudi = {
   background: "none", border: "none", cursor: "pointer",
   fontSize: 16, color: "var(--text-muted)",
 };
-// La ✕ delle testate scure: toast, header navy dei modali a tutto schermo.
-export const btnChiudiSuScuro = {
-  background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
+// ─── TESTATE DEI PANNELLI ────────────────────────────────────────────────────
+// Stessa pelle di Topbar, Sidebar e BottomNav: fondo --sky, inchiostro
+// --heading, filo dorato. Una sola definizione, così le testate dei modali e
+// le barre dell'app non possono più divergere (prima erano navy + bianco).
+export const testataBarra = {
+  background: "var(--sky)", color: "var(--heading)",
+  borderBottom: "1px solid rgba(212,168,67,0.3)",
+};
+// La ✕ (o ←) delle testate: stesso bottone "card" dei pulsanti della Topbar.
+export const btnChiudiTestata = {
+  background: "var(--card)", border: "1px solid var(--border)", color: "var(--heading)",
   width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 14,
 };
 export const btnOutlineMini = { background: "transparent", border: "1px solid var(--border)", borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontWeight: 500 };
@@ -148,6 +156,8 @@ export const txtF11Bold = { fontSize: 11, color: "var(--text-muted)", fontWeight
 export const txtF12Muted = { fontSize: 12, color: "var(--text-muted)" };
 // M-3 · La riga di dettaglio subito sotto un titolo. Era `txtF12Muted2`.
 export const sottotitolo = { fontSize: 12, color: "var(--text-muted)", marginTop: 2 };
+// Lo stesso, a 11px: il sottotitolo delle testate dei modali e delle notifiche.
+export const sottotitoloPiccolo = { fontSize: 11, color: "var(--text-muted)", marginTop: 2 };
 export const txtF13 = { fontSize: 13 };
 export const txtF13Muted = { fontSize: 13, color: "var(--text-muted)" };
 export const txtF13Bold = { fontSize: 13, fontWeight: 600 };

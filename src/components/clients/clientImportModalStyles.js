@@ -5,14 +5,15 @@
 // presentazione fuori dal JSX — che è il motivo per cui il componente
 // sembrava più grande di quanto non sia. I valori sono copiati alla
 // lettera dagli originali.
+import * as stiliComuni from "../../styles/common.js";
 export const rowCenterBetween = {
-  background: "linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%)",
+  ...stiliComuni.testataBarra,
   padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0,
 };
 export const rowCenterMiddle = { width: 38, height: 38, borderRadius: 10, background: "var(--gold)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 };
-export const txtF17Bold = { color: "#fff", fontSize: 17, fontWeight: 700, lineHeight: 1.1 };
-export const txtF10Mt2 = { color: "rgba(255,255,255,0.6)", fontSize: 10, letterSpacing: 1.2, marginTop: 2 };
-export const boxF14White = { background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", width: 32, height: 32, borderRadius: 8, cursor: "pointer", fontSize: 14 };
+export const txtF17Bold = { color: "var(--heading)", fontSize: 17, fontWeight: 700, lineHeight: 1.1 };
+export const txtF10Mt2 = { color: "var(--text-muted)", fontSize: 10, letterSpacing: 1.2, marginTop: 2 };
+export const boxF14White = { background: "var(--card)", border: "1px solid var(--border)", color: "var(--heading)", width: 32, height: 32, borderRadius: 8, cursor: "pointer", fontSize: 14 };
 export const colFlex1Gap14 = { flex: 1, overflowY: "auto", padding: "18px 22px", display: "flex", flexDirection: "column", gap: 14 };
 export const boxTxtCenterR12 = {
   border: "2px dashed var(--border)", borderRadius: 12,

@@ -30,7 +30,7 @@ export const rowCenterBetween = {
 };
 export const txtTestata = { color: "var(--heading)" };
 export const txtF18Bold = { fontSize: 18, fontWeight: 700 };
-export const txtF11Mt2 = { fontSize: 11, color: "var(--text-muted)", marginTop: 2 };
+export const txtF11Mt2 = stiliComuni.sottotitoloPiccolo;
 export const colGap16 = { padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16 };
 export const boxF14WFull = {
   width: "100%", padding: "10px 12px", borderRadius: 8,

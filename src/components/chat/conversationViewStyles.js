@@ -17,7 +17,7 @@ export const rowCenterMiddle = {
   fontSize: 18, flexShrink: 0,
 };
 export const txtF14Bold = { color: "var(--heading)", fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
-export const txtF11 = { color: "var(--text-muted)", fontSize: 11 };
+export const txtF11 = stiliComuni.txtF11Muted;
 export const txtGoldLight = { color: "var(--gold-dark)" };
 export const animation2 = { animation: "typing 1s infinite", animationDelay: "0s", display: "inline-block" };
 export const animation3 = { animation: "typing 1s infinite", animationDelay: "0.2s", display: "inline-block" };
@@ -36,10 +36,8 @@ export const boxFlex1F12 = {
   borderRadius: 8, padding: "6px 10px", fontSize: 12, color: "var(--heading)",
   outline: "none", fontFamily: "inherit",
 };
-export const txtF112 = { fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" };
-export const boxF16 = {
-  background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 16,
-};
+export const txtF112 = stiliComuni.txtF11MutedNowrap;
+export const boxF16 = stiliComuni.btnChiudi;
 export const boxFlex1 = {
   flex: 1, overflowY: "auto", padding: "12px 14px",
   background: "var(--surface2)",

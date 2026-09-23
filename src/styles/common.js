@@ -156,6 +156,8 @@ export const txtF11Bold = { fontSize: 11, color: "var(--text-muted)", fontWeight
 export const txtF12Muted = { fontSize: 12, color: "var(--text-muted)" };
 // M-3 · La riga di dettaglio subito sotto un titolo. Era `txtF12Muted2`.
 export const sottotitolo = { fontSize: 12, color: "var(--text-muted)", marginTop: 2 };
+// Lo stesso, a 11px: il sottotitolo delle testate dei modali e delle notifiche.
+export const sottotitoloPiccolo = { fontSize: 11, color: "var(--text-muted)", marginTop: 2 };
 export const txtF13 = { fontSize: 13 };
 export const txtF13Muted = { fontSize: 13, color: "var(--text-muted)" };
 export const txtF13Bold = { fontSize: 13, fontWeight: 600 };

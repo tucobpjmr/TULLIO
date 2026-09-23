@@ -38,7 +38,7 @@ const txtF11Muted = {
   fontSize: 11, color: "var(--text-muted)", marginTop: 3, lineHeight: 1.35,
   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
 };
-const txtF11Muted2 = { fontSize: 11, color: "var(--text-muted)", marginTop: 2 };
+const txtF11Muted2 = stiliComuni.sottotitoloPiccolo;
 const rowCenterGap6 = { display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginTop: 2 };
 const boxW7H7 = { width: 7, height: 7, borderRadius: "50%", background: "var(--gold)" };
 const boxF13Muted2 = {

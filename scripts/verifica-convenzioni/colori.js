@@ -16,7 +16,7 @@
  * nulla lo segnali, perché non è un errore: è un colore valido, nel posto
  * sbagliato.
  *
- * PERCHÉ UN RATCHET E NON ZERO. Non tutti i 310 rimasti sono debito. Restano
+ * PERCHÉ UN RATCHET E NON ZERO. Non tutti i 292 rimasti sono debito. Restano
  * legittimamente:
  *   · i colori-DATO (`state/taskCategories.js`, `lib/taskConstants.js`): sono
  *     la palette per categoria e per ruolo, cioè contenuto, non tema;

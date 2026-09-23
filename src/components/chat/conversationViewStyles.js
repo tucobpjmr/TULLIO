@@ -23,10 +23,7 @@ export const animation2 = { animation: "typing 1s infinite", animationDelay: "0s
 export const animation3 = { animation: "typing 1s infinite", animationDelay: "0.2s", display: "inline-block" };
 export const animation4 = { animation: "typing 1s infinite", animationDelay: "0.4s", display: "inline-block" };
 export const rowCenterGap5 = { display: "inline-flex", alignItems: "center", gap: 5 };
-export const boxF13White = {
-  background: "var(--card)", border: "1px solid var(--border)", color: "var(--heading)",
-  width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 13,
-};
+export const boxF13White = stiliComuni.btnChiudiTestata;
 export const rowCenterGap8 = {
   ...stiliComuni.testataBarra, padding: "8px 12px",
   display: "flex", alignItems: "center", gap: 8, flexShrink: 0,

@@ -9,6 +9,7 @@ import { useAvatarSrc } from "../ui/Avatar.jsx";
 import { validaCampi, emailValida, obbligatorio, primoCampoInvalido } from "../../lib/validators.js";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { Modal } from "../ui/Modal.jsx";
+import { Icona } from "../ui/Icona.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
 
 import { AccountSicurezza } from "./AccountSicurezza.jsx";
@@ -232,7 +233,7 @@ export const ProfileEditor = ({ member, onClose }) => {
               <div style={txtF11Mt2}>{roleLabel(member)}</div>
             </div>
           </div>
-          <button onClick={onClose} style={stiliComuni.btnChiudiTestata}>✕</button>
+          <button onClick={onClose} aria-label="Chiudi" title="Chiudi" style={stiliComuni.btnChiudiTestata}><Icona nome="chiudi" dimensione={16} /></button>
         </div>
 
         {/* Body */}

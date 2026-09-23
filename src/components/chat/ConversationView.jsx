@@ -23,6 +23,7 @@
 // una vista ha ragione di avere.
 import { useReducer, useRef, useMemo } from "react";
 import { Avatar } from "../ui/Avatar.jsx";
+import { Icona } from "../ui/Icona.jsx";
 import { typingUserIds, buildTypingLabel } from "../../lib/typingUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useChatContext } from "./chatContext.js";
@@ -137,7 +138,7 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
     <div style={colHFull}>
       {/* Header */}
       <div style={rowCenterGap10}>
-        <button onClick={onBack} style={stiliComuni.btnChiudiTestata}>←</button>
+        <button onClick={onBack} aria-label="Indietro" title="Indietro" style={stiliComuni.btnChiudiTestata}><Icona nome="indietro" dimensione={16} /></button>
 
         {conv.type === "direct" ? (
           <Avatar memberId={otherTypingMember} size={36} />
@@ -188,7 +189,7 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
                 fontSize: 11.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
               }}
             >
-              <span>📌</span>
+              <Icona nome="puntina" dimensione={14} />
               <span>{pinnedCount}</span>
             </button>
           );
@@ -196,17 +197,17 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
         <button
           onClick={() => cvd({ type: "TOGGLE_SEARCH" })}
           title="Cerca nei messaggi"
+          aria-label="Cerca nei messaggi"
           style={{
+            ...stiliComuni.btnChiudiTestata,
             background: showMsgSearch ? "rgba(212,168,67,0.25)" : "var(--card)",
-            border: "1px solid var(--border)", color: "var(--heading)",
-            width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 13,
-          }}>🔍</button>
+          }}><Icona nome="ricerca" dimensione={16} /></button>
         {onDelete && (
           <button
             onClick={onDelete}
             title={conv.type === "group" ? "Elimina gruppo" : "Elimina conversazione"}
             aria-label={conv.type === "group" ? "Elimina gruppo" : "Elimina conversazione"}
-            style={boxF13White}>🗑</button>
+            style={boxF13White}><Icona nome="cestino" dimensione={16} /></button>
         )}
       </div>
 

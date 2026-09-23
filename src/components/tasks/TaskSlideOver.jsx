@@ -12,6 +12,7 @@ import { useState, useEffect } from "react";
 import { useViewport } from "../ui/Viewport.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
+import { Icona } from "../ui/Icona.jsx";
 import { STATUSES, STATUS_LABELS, PRIORITIES } from "../../lib/taskConstants.js";
 import { formatDate, formatTime, isOverdue, clientContact } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
@@ -180,13 +181,13 @@ export const TaskSlideOver = ({ task }) => {
             )}
           </div>
           <div style={stiliComuni.rowGap6}>
-            <button onClick={handleDelete} title="Sposta nel cestino" style={boxF13White}
+            <button onClick={handleDelete} title="Sposta nel cestino" aria-label="Sposta nel cestino" style={boxF13White}
               {...conTastiera(
                 e => e.currentTarget.style.background = "rgba(220,38,38,0.4)",
                 e => e.currentTarget.style.background = "rgba(220,38,38,0.15)",
               )}
-            >🗑️</button>
-            <button onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })} style={stiliComuni.btnChiudiTestata}>✕</button>
+            ><Icona nome="cestino" dimensione={16} /></button>
+            <button onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })} aria-label="Chiudi" title="Chiudi" style={stiliComuni.btnChiudiTestata}><Icona nome="chiudi" dimensione={16} /></button>
           </div>
         </div>
 

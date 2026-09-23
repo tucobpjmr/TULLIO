@@ -14,6 +14,7 @@ import { formatFileSize } from "../../lib/fileUtils.js";
 // non una `normName` locale che la punteggiatura faceva divergere dalle altre.
 import { chiaveCliente } from "../../lib/chiaveCliente.js";
 import { Modal } from "../ui/Modal.jsx";
+import { Icona } from "../ui/Icona.jsx";
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
 import * as stiliComuni from "../../styles/common.js";
@@ -319,7 +320,7 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
               <div style={txtF10Mt2}>DA CSV, EXCEL O EXPORT DI UN ALTRO GESTIONALE</div>
             </div>
           </div>
-          <button onClick={requestClose} style={boxF14White}>✕</button>
+          <button onClick={requestClose} aria-label="Chiudi" title="Chiudi" style={boxF14White}><Icona nome="chiudi" dimensione={16} /></button>
         </div>
 
         <div style={colFlex1Gap14}>

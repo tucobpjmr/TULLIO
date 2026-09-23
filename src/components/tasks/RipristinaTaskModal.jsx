@@ -36,6 +36,7 @@ import { PRIORITIES, STATUS_LABELS } from "../../lib/taskConstants.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { Modal } from "../ui/Modal.jsx";
+import { Icona } from "../ui/Icona.jsx";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../lib/validators.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
@@ -128,7 +129,7 @@ export function RipristinaTaskModal({ task, onClose }) {
             <div id="vd-trash-restore-title" className="playfair" style={txtF18Bold}>↻ Ripristina task</div>
             <div style={txtF11Mt2}>Modifica i campi se necessario, poi conferma</div>
           </div>
-          <button onClick={onClose} style={stiliComuni.btnChiudiTestata}>✕</button>
+          <button onClick={onClose} aria-label="Chiudi" title="Chiudi" style={stiliComuni.btnChiudiTestata}><Icona nome="chiudi" dimensione={16} /></button>
         </div>
 
         {/* Modal body */}

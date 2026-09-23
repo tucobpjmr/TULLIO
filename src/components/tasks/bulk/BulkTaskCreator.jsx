@@ -16,6 +16,7 @@ import { DuplicateTab } from "./DuplicateTab.jsx";
 import { ImportTab } from "./ImportTab.jsx";
 import { TemplateTab } from "./TemplateTab.jsx";
 import { Modal } from "../../ui/Modal.jsx";
+import { Icona } from "../../ui/Icona.jsx";
 import { useConfirm } from "../../../state/ConfirmContext.jsx";
 import { useClients } from "../../../state/ClientsContext.jsx";
 import * as stiliComuni from "../../../styles/common.js";
@@ -29,7 +30,7 @@ const rowCenterBetween = {
 const rowCenterMiddle = { width: 38, height: 38, borderRadius: 10, background: "var(--gold)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 };
 const txtF17Bold = { color: "var(--heading)", fontSize: 17, fontWeight: 700, lineHeight: 1.1 };
 const txtF10Mt2 = { color: "var(--text-muted)", fontSize: 10, letterSpacing: 1.2, marginTop: 2 };
-const boxF14White = { background: "var(--card)", border: "1px solid var(--border)", color: "var(--heading)", width: 32, height: 32, borderRadius: 8, cursor: "pointer", fontSize: 14 };
+const boxF14White = { background: "var(--card)", border: "1px solid var(--border)", color: "var(--heading)", width: 32, height: 32, borderRadius: 8, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", padding: 0 };
 const row = { display: "flex", borderBottom: "1px solid var(--border)", background: "var(--surface)", flexShrink: 0 };
 const boxAbsoluteW7 = {
   position: "absolute", top: 8, right: 8, width: 7, height: 7,
@@ -117,7 +118,7 @@ export const BulkTaskCreator = ({ existingTasks, onCreate, onClose }) => {
               <div style={txtF10Mt2}>MANUALE · DUPLICA · IMPORT · TEMPLATE</div>
             </div>
           </div>
-          <button onClick={requestClose} style={boxF14White}>✕</button>
+          <button onClick={requestClose} aria-label="Chiudi" title="Chiudi" style={boxF14White}><Icona nome="chiudi" dimensione={16} /></button>
         </div>
 
         {/* Barra tab + descrizione: solo dopo aver scelto una modalità. */}

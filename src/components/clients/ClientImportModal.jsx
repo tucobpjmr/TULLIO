@@ -309,7 +309,7 @@ export const ClientImportModal = ({ existingClients = [], onImport, onClose }) =
     <Modal
       open onClose={requestClose} labelledBy="import-clienti-title"
       width={820} padding={20} layer="modalFull"
-      cardStyle={{ borderRadius: 16, display: "flex", flexDirection: "column", overflow: "stiliComuni.hidden" }}
+      cardStyle={{ borderRadius: 16, display: "flex", flexDirection: "column", overflow: "hidden" }}
     >
       <>
         <div style={rowCenterBetween}>

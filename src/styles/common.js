@@ -172,6 +172,14 @@ export const txtF18 = { fontSize: 18 };
 export const txtHeadingMb16 = { margin: 0, marginBottom: 16, color: "var(--heading)" };
 // Un nome che deve stare su una riga sola: il troncamento è parte della forma.
 export const nomeTroncato = { fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+// Come nomeTroncato, a 13px e nel colore del testo: il nome di una voce in un
+// elenco (conversazione, risultato di ricerca, file in coda). Promossa qui quando
+// `QuickAddTask.jsx` ha smesso di scrivere `overflow: "stiliComuni.hidden"` ed
+// è diventata la terza copia identica.
+export const nomeTroncatoF13 = {
+  fontSize: 13, fontWeight: 600, color: "var(--text)",
+  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+};
 // Le emoji grandi degli stati vuoti.
 export const txtF36Mb12 = { fontSize: 36, marginBottom: 12, opacity: 0.3 };
 export const txtF40Mb12 = { fontSize: 40, marginBottom: 12 };

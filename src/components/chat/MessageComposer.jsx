@@ -37,7 +37,7 @@ const rowCenterRelative = {
   // safe-area in basso: il composer resta sopra l'home-indicator/toolbar iOS.
   paddingBottom: "calc(10px + env(safe-area-inset-bottom, 0px))",
   display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
-  position: "stiliComuni.relative",
+  position: "relative",
 };
 const rowCenterGap102 = {
   display: "flex", alignItems: "center", gap: 10,

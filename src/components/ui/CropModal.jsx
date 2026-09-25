@@ -138,7 +138,7 @@ export const CropModal = ({ src, onConfirm, onCancel }) => {
         onTouchMove={e => { const t = e.touches[0]; moveDrag(t.clientX, t.clientY); }}
         onTouchEnd={endDrag}
         style={{
-          width: PREVIEW, height: PREVIEW, borderRadius: "50%", overflow: "stiliComuni.hidden",
+          width: PREVIEW, height: PREVIEW, borderRadius: "50%", overflow: "hidden",
           position: "relative", cursor: "grab", userSelect: "none",
           border: "3px solid var(--gold)", boxShadow: "0 0 0 5px rgba(212,168,67,0.18)",
           flexShrink: 0,

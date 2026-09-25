@@ -37,10 +37,7 @@ export const boxStickyF11 = {
   textTransform: "uppercase", letterSpacing: 1, background: "var(--surface2)",
   borderBottom: "1px solid var(--border)", position: "sticky", top: 0,
 };
-export const txtF13Bold = {
-  fontSize: 13, fontWeight: 600, color: "var(--text)",
-  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-};
+export const txtF13Bold = stiliComuni.nomeTroncatoF13;
 export const txtDanger = { color: "var(--danger)", marginRight: 6 };
 export const rowGap10F11 = { fontSize: 11, color: "var(--text-muted)", marginTop: 2, display: "flex", gap: 10 };
 export const txtBoldNavyLight = { color: "var(--navy-light)", fontWeight: 600 };

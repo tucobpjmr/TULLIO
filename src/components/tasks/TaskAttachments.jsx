@@ -20,20 +20,21 @@ const txtF11Bold = { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", 
 const txtF13Muted = { fontSize: 13, color: "var(--text-muted)", padding: "8px 0" };
 const colR8 = {
   display: "flex", flexDirection: "column",
-  background: "var(--surface2)", borderRadius: 8, overflow: "stiliComuni.hidden",
+  background: "var(--surface2)", borderRadius: 8, overflow: "hidden",
 };
 const rowCenterGap10 = { display: "flex", alignItems: "center", gap: 10, padding: "8px 10px" };
 const txtF18 = { fontSize: 18, flexShrink: 0 };
 const txtF13Bold = {
   fontSize: 13, fontWeight: 600, color: "var(--text)",
-  overflow: "stiliComuni.hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+  // Nomi lunghi vanno a capo invece di uscire dalla riga e finire sotto i pulsanti.
+  overflowWrap: "anywhere", lineHeight: 1.3,
 };
 const rowGap6F11 = { fontSize: 11, color: "var(--text-muted)", display: "flex", gap: 6, flexWrap: "wrap" };
 const boxF15Navy = {
-  background: "none", border: "none", cursor: "pointer", fontSize: 15, padding: 4, color: "var(--heading)",
+  background: "none", border: "none", cursor: "pointer", fontSize: 15, padding: 4, color: "var(--heading)", flexShrink: 0,
 };
 const boxF13Muted = {
-  background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: 4, color: "var(--text-muted)",
+  background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: 4, color: "var(--text-muted)", flexShrink: 0,
 };
 const rowMiddle = { padding: "0 10px 10px", display: "flex", justifyContent: "center" };
 const boxMaxWFullR6 = {
@@ -206,7 +207,7 @@ export function TaskAttachments({ taskId, editable }) {
                 <div style={rowCenterGap10}>
                   <span style={txtF18}>{fileIcon(file.file_type || file.file_name)}</span>
                   <div className="vd-flex-1-min0">
-                    <div style={txtF13Bold}>{file.file_name}</div>
+                    <div style={txtF13Bold} title={file.file_name}>{file.file_name}</div>
                     <div style={rowGap6F11}>
                       {file.file_size != null && <span>{formatFileSize(file.file_size)}</span>}
                       {file.users?.name && <span>· {file.users.name.split(" ")[0]}</span>}
@@ -215,7 +216,7 @@ export function TaskAttachments({ taskId, editable }) {
                   </div>
                   {kind && (
                     <button onClick={() => togglePreview(file)} title={isOpen ? "Chiudi anteprima" : "Anteprima"} style={{
-                      background: "none", border: "none", cursor: "pointer", fontSize: 15, padding: 4,
+                      background: "none", border: "none", cursor: "pointer", fontSize: 15, padding: 4, flexShrink: 0,
                       color: isOpen ? "var(--gold-dark)" : "var(--navy)",
                     }}>{isOpen ? "🔽" : "👁️"}</button>
                   )}

@@ -25,14 +25,14 @@ import { useDispatch } from "../../state/DispatchContext.jsx";
 const rowCenterMiddle = {
   width: 32, height: 32, background: "#fff", borderRadius: 8,
   display: "flex", alignItems: "center", justifyContent: "center",
-  flexShrink: 0, cursor: "pointer", padding: 0, position: "stiliComuni.relative",
+  flexShrink: 0, cursor: "pointer", padding: 0, position: "relative",
   border: "none", overflow: "hidden",
 };
 const w266H266 = { display: "block", width: 26.6, height: 26.6 };
 const boxP0 = { background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" };
 const txtF15Bold = { color: "var(--heading)", fontSize: 15, fontWeight: 700, lineHeight: 1 };
 const txtF10 = { color: "var(--text-muted)", fontSize: 10, letterSpacing: 1.5 };
-const relativeFlex1MaxW520 = { flex: 1, maxWidth: 520, position: "stiliComuni.relative" };
+const relativeFlex1MaxW520 = { flex: 1, maxWidth: 520, position: "relative" };
 const iconaRicerca = { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", display: "flex" };
 const boxF13Navy = {
   width: "100%", background: "var(--card)", border: "1px solid var(--border)",
@@ -42,7 +42,7 @@ const boxF13Navy = {
 const rowCenterMiddle2 = {
   background: "var(--card)", border: "1px solid var(--border)",
   borderRadius: 8, width: 36, height: 36, cursor: "pointer",
-  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "stiliComuni.relative"
+  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, position: "relative"
 };
 const rowCenterMiddle3 = {
   position: "absolute", top: -4, right: -4, background: "var(--gold)",

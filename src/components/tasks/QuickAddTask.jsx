@@ -37,7 +37,7 @@ const rowCenterGap10 = {
   display: "flex", alignItems: "center", gap: 10, padding: "6px 10px",
   background: "var(--surface2)", borderRadius: 8,
 };
-const txtF13Bold = { fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "stiliComuni.hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const txtF13Bold = { fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const txtF11Light = { fontSize: 11, color: "var(--text-light)", marginTop: 4 };
 const txtF12Danger = { fontSize: 12, color: "var(--danger)", marginTop: 6 };
 // L'avviso di riuscita parziale non è rosso: la task è stata creata, e un

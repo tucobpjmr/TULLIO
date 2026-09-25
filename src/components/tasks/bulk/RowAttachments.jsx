@@ -8,7 +8,7 @@ import * as stiliComuni from "../../../styles/common.js";
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
 const flexShrink2 = { flexShrink: 0 };
-const minW0 = { overflow: "stiliComuni.hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 };
+const minW0 = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 };
 const txtMuted = { color: "var(--text-muted)", flexShrink: 0 };
 
 

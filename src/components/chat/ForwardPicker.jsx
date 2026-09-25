@@ -37,7 +37,6 @@ const rowCenterMiddle = {
   display: "flex", alignItems: "center", justifyContent: "center",
   fontSize: 14, flexShrink: 0,
 };
-const txtF13Bold = { fontSize: 13, fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const txtF11Muted = { fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 1 };
 const txtRight = { padding: "10px 14px", borderTop: "1px solid var(--border)", textAlign: "right" };
 const boxF125Text = {
@@ -129,7 +128,7 @@ export const ForwardPicker = ({ msg, conversations, messages, onPick, onClose })
                 <div style={rowCenterMiddle}>{c.icon || "👥"}</div>
               )}
               <div className="vd-flex-1-min0">
-                <div style={txtF13Bold}>
+                <div style={stiliComuni.nomeTroncatoF13}>
                   {getConversationName(c, currentUserId, getMember)}
                 </div>
                 {last && (

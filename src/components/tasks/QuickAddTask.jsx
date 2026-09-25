@@ -37,7 +37,6 @@ const rowCenterGap10 = {
   display: "flex", alignItems: "center", gap: 10, padding: "6px 10px",
   background: "var(--surface2)", borderRadius: 8,
 };
-const txtF13Bold = { fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const txtF11Light = { fontSize: 11, color: "var(--text-light)", marginTop: 4 };
 const txtF12Danger = { fontSize: 12, color: "var(--danger)", marginTop: 6 };
 // L'avviso di riuscita parziale non è rosso: la task è stata creata, e un
@@ -324,7 +323,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
                   <div key={i} style={rowCenterGap10}>
                     <span style={stiliComuni.txtF16}>{fileIcon(f.type || f.name)}</span>
                     <div className="vd-flex-1-min0">
-                      <div style={txtF13Bold}>{f.name}</div>
+                      <div style={stiliComuni.nomeTroncatoF13}>{f.name}</div>
                       <div style={stiliComuni.txtF11Muted}>{formatFileSize(f.size)}</div>
                     </div>
                     <button type="button" onClick={() => removeFile(i)} disabled={busy} title="Rimuovi" style={{

@@ -21,7 +21,7 @@
 // mostrerebbe soltanto errori, e dà un diniego leggibile invece di una
 // schermata vuota.
 
-import { canAccessAdmin, canAccessListe, canAccessDocumenti } from "../lib/permissions.js";
+import { canAccessAdmin, canAccessListe } from "../lib/permissions.js";
 
 /**
  * Vista → il predicato che la apre e il messaggio di diniego.
@@ -48,16 +48,6 @@ export const VISTE_RISERVATE = {
   liste: {
     puo: canAccessListe,
     diniego: "Il modulo Liste viaggio non è disponibile per il tuo ruolo",
-  },
-  // Stesso insieme di ruoli, funzione propria: `can_documenti()` lato database
-  // e `canAccessDocumenti` qui — vedi il perché in lib/permissions.js. La voce
-  // di nav è già filtrata per ruolo (shell/navHelpers.js), ma `activeView` si
-  // imposta anche da percorsi che non passano dalla nav (la query `?v=`, una
-  // notifica push), ed è l'ultimo punto prima di montare una vista che mostra
-  // documenti di identità.
-  documenti: {
-    puo: canAccessDocumenti,
-    diniego: "L'archivio documenti non è disponibile per il tuo ruolo",
   },
 };
 

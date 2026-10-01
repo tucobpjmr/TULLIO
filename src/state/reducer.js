@@ -24,7 +24,7 @@ import {
   canViewTask, canEditTask, canCreateTaskCategory,
   canEditClient, canDeleteClient,
 } from "../lib/permissions.js";
-// I guard per vista (quali ruoli aprono Admin, Liste, Documenti) vivono in una
+// I guard per vista (quali ruoli aprono Admin e Liste) vivono in una
 // tabella, non in tre `if` copiati l'uno dall'altro.
 import { dinegoVista } from "./visteRiservate.js";
 // Le voci del log attività (quali azioni ci finiscono e come si leggono) hanno

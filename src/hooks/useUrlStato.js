@@ -88,7 +88,6 @@ import { useEffect, useRef, useState } from "react";
 // case del reducer.
 export const VISTE = new Set([
   "dashboard", "calendar", "clienti", "archivio", "trash", "admin", "liste",
-  "documenti",
 ]);
 
 // La dashboard non si scrive: è il default, così `/` resta `/`.

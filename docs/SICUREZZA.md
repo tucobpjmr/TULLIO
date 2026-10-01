@@ -153,12 +153,12 @@ dove sta il controllo di ruolo. Verificato uno per uno, **rileggendo
 
 **✅ Live:** nessun lint di RLS mancante o disabilitata sull'intero schema `public`.
 
-**📄 Repo:** 22 tabelle con `ENABLE ROW LEVEL SECURITY` esplicito, e ogni
+**📄 Repo:** 21 tabelle con `ENABLE ROW LEVEL SECURITY` esplicito, e ogni
 `CREATE TABLE` presente nelle migrazioni ha la sua `ALTER TABLE … ENABLE RLS`
 (verificato per differenza fra i due insiemi: risultato vuoto).
 
 ```
-categories · clients · comments · conversations · documenti_identita
+categories · clients · comments · conversations
 dossier_suppliers · dossiers · lista_beneficiari · lista_history
 liste_viaggio · messages · movimenti_lista · notices · notifications
 push_subscriptions · suppliers · task_files · task_history · tasks
@@ -172,8 +172,7 @@ nella sessione 24: le tabelle restano, protette, ma nessun codice le usa.)
 
 `storage.objects` non è una tabella di `public` e non compare nell'elenco qui
 sopra, ma ha la stessa esigenza: sopra le policy per-bucket
-(`avatars_*`, `chat_files_*`, `task_files_storage_*`,
-`documenti_identita_storage_*`) c'è una policy **RESTRICTIVE**,
+(`avatars_*`, `chat_files_*`, `task_files_storage_*`) c'è una policy **RESTRICTIVE**,
 `storage_active_only`, che le AND-a tutte con «utente attivo e non pending».
 
 Dal **16 settembre 2026** (`20260916150000`) quella policy è

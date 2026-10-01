@@ -232,38 +232,6 @@ Navigazione: Desktop → Sidebar collassabile. Tablet/Mobile → BottomNav.
 
 > ⛔ **Fornitore** e **Pratica di viaggio** (Dossier) sono stati **RIMOSSI DEFINITIVAMENTE** in sessione 24. Non reintrodurli.
 
-### Documento di identità (archivio passeggeri)
-```js
-{
-  id: UUID,
-  passeggero: string,        // required — "COGNOME NOME", dedotto dal nome file all'import
-  clientId: UUID|null,       // FK FACOLTATIVA su clients: un passeggero non è per forza un cliente
-  tipo: "passaporto"|"carta_identita"|"patente"|"altro",
-  numero: string|null,
-  scadenza: "YYYY-MM-DD"|null,   // alimenta il filtro «Da rinnovare» (soglia 180 giorni)
-  filePath: string,          // path nel bucket privato 'documenti-identita'
-  fileName, fileSize, fileType,
-  note: string|null,
-  uploadedBy: UUID|null,     // chi ha caricato: metà della policy di DELETE
-  createdAt, updatedAt
-}
-```
-
-Tre cose da sapere prima di toccare questo modulo:
-
-- **Il file NON sta nel database.** Sta nel bucket privato `documenti-identita`;
-  qui ci sono i metadati. Con ~1000 documenti attesi la scelta opposta
-  significherebbe gigabyte dentro Postgres — è l'errore già pagato e corretto
-  su `users.photo_url`, che teneva gli avatar come data-URL base64.
-- **Si comprime PRIMA di caricare**, in `src/lib/comprimiImmagine.js`: 1600px
-  di lato lungo, JPEG 0.8, ~300 kB a file. Senza, 1000 foto da telefono sono
-  2-5 GB contro 1 GB di Storage sul piano Free. La soglia vive anche in
-  `scripts/verifica-volumi/volumi.js`, che è l'unica delle sue a misurare il
-  bucket invece di una query.
-- **Niente cestino, di proposito.** L'eliminazione è definitiva: un cestino
-  sarebbe una seconda copia dello stesso dato sensibile, che continua a
-  esistere dopo che qualcuno ha chiesto di eliminarlo.
-
 ### Team member
 ```js
 {
@@ -359,18 +327,6 @@ canAccessListe(team, userId)     — modulo Liste: rispecchia can_liste() sul DB
                                    `!isDriver(...)`: erano cinque formulazioni
                                    della stessa regola, divergenti sui ruoli
                                    fuori enum e sugli utenti disattivati
-canAccessDocumenti(team, userId) — archivio documenti: rispecchia
-                                   can_documenti() sul DB, stesso insieme di
-                                   can_liste() ma funzione PROPRIA — due
-                                   domande diverse su due moduli diversi, che
-                                   oggi hanno la stessa risposta e domani
-                                   possono non averla
-canDeleteDocumento(team, doc, userId)
-                                 — rispecchia documenti_identita_delete: chi
-                                   ha caricato, oppure manager/admin. Un
-                                   documento senza `uploadedBy` (utente
-                                   eliminato, FK `set null`) resta ai soli
-                                   manager/admin, come fa il database
 getAvailableCategories(categories, team, userId)
 getVisibleTasks(team, tasks, userId)
 // src/state/AppDataContext.jsx — le stesse regole, legate allo state React.
@@ -414,8 +370,6 @@ getNavItemsForUser(userId)       — NAV_ITEMS filtrati per ruolo
 | Creare task (tutte cat.) | ✅ | ✅ | ❌ (solo transfer) |
 | Azioni Admin | ✅ | ❌ | ❌ |
 | Cestino | ✅ | ❌ | ❌ |
-| Archivio documenti di identità | ✅ | ✅ | ❌ |
-| Eliminare un documento altrui | ✅ | ✅ Manager / ❌ Agent | ❌ |
 
 ## Struttura componenti attuali (post Phase 2f + Fase 1 CRM)
 
@@ -435,8 +389,6 @@ VoyageDesk (export default, ViewportProvider wrapper)
     │   │   └── Scadenze Prossime + Carico Team (locale)
     │   ├── calendar/CalendarPlanner (mese + settimana + distribuzione + helper iCal)
     │   ├── clients/ClientiView          ← mantenuto (anagrafica clienti)
-    │   ├── documenti/DocumentiView     ← archivio documenti di identità
-    │   │   └── DocumentoCard / DocumentoModal / CaricaDocumentoModal / ImportDocumentiModal
     │   ├── tasks/Trash + tasks/Archive
     │   └── admin/AdminView (5 tab locale, stili da adminStyles.js)
     ├── tasks/TaskSlideOver
@@ -531,8 +483,6 @@ src/
 │   ├── supabase.js
 │   ├── taskConstants.js     PRIORITIES/STATUSES/STATUS_*/NOTICE_COLORS/TASK_TEMPLATES (Phase 2a)
 │   ├── taskUtils.js         formatDate/formatTime/isUrgent/isMyTask/... (Phase 2a)
-│   ├── comprimiImmagine.js  ridimensiona e ricomprime PRIMA dell'upload: è ciò che
-│   │                        tiene l'archivio documenti dentro il piano Free
 │   ├── xlsx.js              loadXLSX() lazy loader (Phase 2f)
 │   └── mentions.js          findMentions() — parser @menzioni (caveat #2, gemello DB)
 ├── hooks/                   (sessione 18)
@@ -607,17 +557,6 @@ src/
 │   │   └── adminStyles.js (13 costanti stile consolidate)
 │   ├── clients/
 │   │   └── ClientiView.jsx              ← anagrafica clienti (mantenuta)
-│   ├── documenti/           archivio dei documenti di identità dei passeggeri
-│   │   ├── DocumentiView.jsx            elenco, ricerca, filtro per scadenza
-│   │   ├── DocumentoCard.jsx            la scheda in elenco — NIENTE anteprima, di proposito
-│   │   ├── DocumentoModal.jsx           dettaglio: anteprima, correzione dati, eliminazione
-│   │   ├── CaricaDocumentoModal.jsx     il gesto quotidiano: un documento, i suoi dati
-│   │   ├── ImportDocumentiModal.jsx     l'import massivo, con anteprima non saltabile
-│   │   ├── importaDocumenti.js          l'orchestrazione a blocchi (pura, dipendenze iniettate)
-│   │   ├── nomeDaFile.js                COGNOME_NOME.jpg → «COGNOME NOME» (pura)
-│   │   ├── scadenze.js                  stato del documento e filtro «Da rinnovare» (pura)
-│   │   ├── documentiModello.js          riga DB ↔ oggetto dell'app, tipi ammessi
-│   │   └── useDocumenti.js              i dati del modulo: nessun reducer, nessun realtime
 │   └── shell/               il guscio dell'app
 │       ├── Topbar.jsx / Sidebar.jsx / BottomNav.jsx / FAB.jsx / NavBadge.jsx
 │       ├── UserSwitcher.jsx / OfflineBanner.jsx / AdminRollbackBanner.jsx

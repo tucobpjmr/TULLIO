@@ -25,8 +25,8 @@ describe("dinegoVista", () => {
   });
 
   it("restituisce il messaggio, non un booleano: il chiamante ha bisogno di entrambi", () => {
-    expect(dinegoVista("documenti", TEAM, "dario")).toMatch(/archivio documenti/i);
-    expect(dinegoVista("documenti", TEAM, "gina")).toBeNull();
+    expect(dinegoVista("liste", TEAM, "dario")).toMatch(/liste viaggio/i);
+    expect(dinegoVista("liste", TEAM, "gina")).toBeNull();
   });
 
   it("ogni vista riservata dichiara predicato e messaggio", () => {
@@ -35,46 +35,33 @@ describe("dinegoVista", () => {
       expect(regola.diniego.length, vista).toBeGreaterThan(10);
     }
   });
+
+  it("l'archivio documenti non è più una vista", () => {
+    expect(VISTE_RISERVATE.documenti).toBeUndefined();
+  });
 });
 
 describe("SET_VIEW — le viste riservate", () => {
-  it("nega l'archivio documenti al driver, con un toast d'errore", () => {
-    const next = reducer(stato("dario"), { type: "SET_VIEW", payload: "documenti" });
-    expect(next.activeView).not.toBe("documenti");
+  it("nega Liste al driver, con un toast d'errore", () => {
+    const next = reducer(stato("dario"), { type: "SET_VIEW", payload: "liste" });
+    expect(next.activeView).not.toBe("liste");
     expect(next.toasts.at(-1).type).toBe("error");
   });
 
-  it("lo apre a un agent", () => {
-    const next = reducer(stato("gina"), { type: "SET_VIEW", payload: "documenti" });
-    expect(next.activeView).toBe("documenti");
-  });
-
-  // Le due regole preesistenti non devono essere cambiate dall'estrazione.
-  it("Admin resta negata ai non-admin e Liste al driver", () => {
+  it("Admin resta negata ai non-admin, Liste aperta a un agent", () => {
     expect(reducer(stato("gina"), { type: "SET_VIEW", payload: "admin" }).activeView).not.toBe("admin");
-    expect(reducer(stato("dario"), { type: "SET_VIEW", payload: "liste" }).activeView).not.toBe("liste");
     expect(reducer(stato("gina"), { type: "SET_VIEW", payload: "liste" }).activeView).toBe("liste");
   });
 });
 
 describe("SET_CURRENT_USER — la vista che il nuovo utente non può tenere", () => {
-  // Il disallineamento che l'estrazione chiude: prima questo elenco nominava
-  // "admin" e "liste" a mano, quindi passare a un driver mentre si è
-  // sull'archivio documenti lo lasciava su una vista che non può usare.
-  it("riporta a dashboard chi non può più stare sui documenti", () => {
-    let s = reducer(stato("marco"), { type: "SET_VIEW", payload: "documenti" });
-    expect(s.activeView).toBe("documenti");
-    s = reducer(s, { type: "SET_CURRENT_USER", payload: "dario" });
-    expect(s.activeView).toBe("dashboard");
-  });
-
   it("non tocca la vista se il nuovo utente può tenerla", () => {
-    let s = reducer(stato("marco"), { type: "SET_VIEW", payload: "documenti" });
+    let s = reducer(stato("marco"), { type: "SET_VIEW", payload: "liste" });
     s = reducer(s, { type: "SET_CURRENT_USER", payload: "gina" });
-    expect(s.activeView).toBe("documenti");
+    expect(s.activeView).toBe("liste");
   });
 
-  it("continua a riportare a dashboard da Admin e da Liste", () => {
+  it("riporta a dashboard da Admin e da Liste", () => {
     let s = reducer(stato("marco"), { type: "SET_VIEW", payload: "admin" });
     expect(reducer(s, { type: "SET_CURRENT_USER", payload: "gina" }).activeView).toBe("dashboard");
 

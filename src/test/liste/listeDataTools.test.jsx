@@ -323,6 +323,7 @@ describe("ListaDetail — Copia agente e Riepilogo cliente", () => {
     setup();
     fireEvent.click(screen.getByRole("button", { name: "Riepilogo cliente" }));
     expect(screen.getByText("Riepilogo buono viaggio")).toBeTruthy();
+    expect(screen.getByAltText("London Viaggi")).toBeTruthy();
 
     const riepilogo = document.querySelector(".lv-riepilogo");
     expect(within(riepilogo).getByText("ROSSI MARIO")).toBeTruthy();

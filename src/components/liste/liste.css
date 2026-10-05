@@ -222,7 +222,9 @@
    più fogli in stampa, resta ancorato a una sola pagina. */
 @media print{
   body > :not(.lv-root){display:none}
-  .no-print{display:none}
+  /* !important: altrimenti ".lv-overlay .lv-modal .actions{display:flex}",
+     più specifica, rimette i pulsanti nel foglio stampato. */
+  .no-print{display:none!important}
   .lv-overlay{position:static;display:block;background:none;padding:0}
   .lv-overlay .lv-modal{max-height:none;overflow:visible}
   .lv-riepilogo{padding:24px;background:#fff}

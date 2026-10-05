@@ -48,7 +48,6 @@ export function RiepilogoClienteModal({ lista, movimenti, saldo: saldoEsatto, on
     <LvOverlay onClose={onClose} wide chiudiSuVelo>
       <div className="lv-riepilogo">
         <img className="rp-logo" src="/logo-london-viaggi.png" alt="London Viaggi" />
-        <div className="rp-brand">Liste Viaggio · Gestione buoni</div>
         <h2>Riepilogo buono viaggio</h2>
         <div className="rp-cliente">{intestazioneLista(lista) || "—"}</div>
         {lista.titolo && <div className="rp-tit">{lista.titolo}</div>}

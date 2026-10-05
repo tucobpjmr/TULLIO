@@ -199,6 +199,7 @@
   .lv-main{padding:16px 12px 80px}
 }
 /* ---------- riepilogo cliente (anteprima + stampa) ---------- */
+.lv-riepilogo .rp-logo{display:block;height:56px;width:auto;margin:0 0 12px}
 .lv-riepilogo .rp-brand{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--lv-primary)}
 .lv-riepilogo h2{font-size:18px;margin:2px 0 14px}
 .lv-riepilogo .rp-cliente{font-size:16px;font-weight:700}

@@ -220,13 +220,20 @@
    perdeva il saldo totale perché un elemento fixed non si impagina su
    più fogli in stampa, resta ancorato a una sola pagina. */
 @media print{
+  @page{size:A4;margin:15mm}
   body > :not(.lv-root){display:none}
   /* !important: altrimenti ".lv-overlay .lv-modal .actions{display:flex}",
      più specifica, rimette i pulsanti nel foglio stampato. */
   .no-print{display:none!important}
   .lv-overlay{position:static;display:block;background:none;padding:0}
-  .lv-overlay .lv-modal{max-height:none;overflow:visible}
-  .lv-riepilogo{padding:24px;background:#fff}
+  /* Il modale in stampa restava una card larga 600px con ombra e angoli
+     arrotondati, piccola in un angolo del foglio: qui diventa il foglio
+     stesso, a tutta larghezza dentro i margini di @page. */
+  .lv-overlay .lv-modal,.lv-overlay .lv-modal.wide{max-width:none;width:100%;max-height:none;overflow:visible;padding:0;border-radius:0;box-shadow:none;animation:none}
+  .lv-riepilogo{padding:0;background:#fff}
+  .lv-riepilogo .rp-logo{height:64px}
+  .lv-riepilogo table.lv-mov tr{break-inside:avoid}
+  .lv-riepilogo .rp-saldo,.lv-riepilogo .rp-esaurita{break-inside:avoid}
   .lv-riepilogo table.lv-mov td{border-bottom:1px solid #ddd}
 }
 

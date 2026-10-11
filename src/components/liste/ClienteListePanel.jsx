@@ -8,7 +8,8 @@
 // cliente non è il contesto in cui si registra un movimento.
 import { useMemo, useState } from "react";
 import { ListeAPI } from "./listeApi.js";
-import { eur, fmtDate, intestazioneLista, saldoClass, sommaImporti } from "./listeFormato.js";
+import { fmtDate, intestazioneLista, sommaImporti } from "./listeFormato.js";
+import { SaldoNascosto, propsRigaApribile } from "./SaldoNascosto.jsx";
 import { useListeWrite } from "./listePersistence.js";
 import { useCaricamento } from "../../hooks/useCaricamento.js";
 import "./liste.css";
@@ -135,14 +136,14 @@ export function ClienteListePanel({ cliente }) {
                 s.ultimo_movimento ? `ultimo ${fmtDate(s.ultimo_movimento)}` : null,
               ].filter(Boolean).join(" · ");
               return (
-                <button key={l.id} type="button" className="lv-lista-row" onClick={() => apri(l.id)}>
+                <div key={l.id} className="lv-lista-row" {...propsRigaApribile(() => apri(l.id))}>
                   <div className="who">
                     <b>{l.titolo || intestazioneLista(l) || "—"}</b>
                     <span>{sub}</span>
                   </div>
                   <span className={`lv-badge ${l.stato}`}>{l.stato}</span>
-                  <span className={`lv-saldo lv-num ${saldoClass(Number(s.saldo))}`}>{eur(s.saldo)}</span>
-                </button>
+                  <SaldoNascosto valore={s.saldo} />
+                </div>
               );
             })}
           </div>
@@ -153,7 +154,7 @@ export function ClienteListePanel({ cliente }) {
           {liste.length > 1 && (
             <span style={txtF13LvMuted}>
               Totale su {liste.length} liste:{" "}
-              <b className={`lv-saldo lv-num ${saldoClass(totale)}`}>{eur(totale)}</b>
+              <SaldoNascosto valore={totale} etichetta="totale" grassetto />
             </span>
           )}
         </div>

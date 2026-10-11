@@ -292,3 +292,21 @@ describe("ClienteListePanel — vista dal lato del cointestatario", () => {
     expect(ListeAPIMock.listByClient).toHaveBeenCalledWith("cl-maria");
   });
 });
+
+describe("ClienteListePanel — saldo nascosto", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("ogni riga ha il suo occhio e il saldo parte nascosto", async () => {
+    const dispatch = vi.fn();
+    render(<ClienteListePanel cliente={{ id: "cl-maria", name: "MARIA BIANCHI" }} />, { dispatch });
+    await screen.findByText("MARIO ROSSI e MARIA BIANCHI");
+    const occhi = screen.getAllByRole("button", { name: "Mostra saldo" });
+    expect(occhi.length).toBeGreaterThan(0);
+    expect(screen.queryByText(/\d,\d\d\s€/)).toBeNull();
+    fireEvent.click(occhi[0]);
+    expect(screen.getByRole("button", { name: "Nascondi saldo" })).toBeTruthy();
+    expect(screen.getByText(/\d,\d\d\s€/)).toBeTruthy();
+    // Svelare il saldo non apre la lista.
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+});

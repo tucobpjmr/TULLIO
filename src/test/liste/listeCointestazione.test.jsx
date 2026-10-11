@@ -138,6 +138,25 @@ describe("ListaDetail — cointestatari", () => {
 
   beforeEach(() => vi.clearAllMocks());
 
+  it("il box SALDO parte nascosto e si svela con l'occhio", () => {
+    render(
+      <ListaDetail
+        lista={LISTA}
+        movimenti={[{ id: "m1", data: "2026-10-02", importo: 200, descrizione: "X" }]}
+        history={[]}
+        usersById={{}}
+        onReload={vi.fn()}
+        onArchived={vi.fn()}
+        clients={CLIENTS}
+      />,
+      { dispatch: vi.fn() },
+    );
+    const box = document.querySelector(".lv-saldo-box");
+    expect(within(box).queryByText(/200,00/)).toBeNull();
+    fireEvent.click(within(box).getByRole("button", { name: "Mostra saldo" }));
+    expect(within(box).getByText(/200,00/)).toBeTruthy();
+  });
+
   it("mostra il cointestatario già presente come chip", () => {
     setup();
     expect(screen.getByText("MARIA BIANCHI")).toBeTruthy();

@@ -2,8 +2,9 @@
 // Saldo di una lista che parte NASCOSTO e si svela con l'icona a occhio.
 // Le schermate delle liste si aprono spesso davanti al cliente al banco: gli
 // importi non devono essere leggibili a colpo d'occhio. Usato nella home del
-// modulo (ListaRow) e nel pannello liste della scheda cliente. Lo stato è
-// locale a ogni istanza e non persiste: ricaricando torna nascosto.
+// modulo (ListaRow), nel dettaglio di una lista e nel pannello liste della
+// scheda cliente. Lo stato è locale a ogni istanza e non persiste:
+// ricaricando torna nascosto.
 import { useState } from "react";
 import { Icona } from "../ui/Icona.jsx";
 import { eur, saldoClass } from "./listeFormato.js";
@@ -12,7 +13,8 @@ const MASCHERA = "•••••• €";
 
 // `etichetta` completa l'aria-label dell'occhio ("Mostra saldo", "Mostra
 // totale"): due occhi nello stesso pannello devono restare distinguibili.
-export function SaldoNascosto({ valore, etichetta = "saldo", grassetto = false }) {
+// `classe` aggiunge classi all'importo (es. `val` nel box SALDO del dettaglio).
+export function SaldoNascosto({ valore, etichetta = "saldo", grassetto = false, classe = "" }) {
   const [visibile, setVisibile] = useState(false);
   // L'occhio sta dentro una riga cliccabile: né il click né i tasti devono
   // risalire fino a lei, altrimenti svelare il saldo aprirebbe la lista.
@@ -24,7 +26,7 @@ export function SaldoNascosto({ valore, etichetta = "saldo", grassetto = false }
   const Tag = grassetto ? "b" : "span";
   return (
     <span className="lv-saldo-wrap">
-      <Tag className={`lv-saldo lv-num ${visibile ? saldoClass(Number(valore)) : "zero"}`}>
+      <Tag className={`${classe} lv-saldo lv-num ${visibile ? saldoClass(Number(valore)) : "zero"}`}>
         {visibile ? eur(valore) : MASCHERA}
       </Tag>
       <button

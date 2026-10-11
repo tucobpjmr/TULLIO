@@ -3,7 +3,8 @@
 // movimenti, stato e saldo. Estratta da ListeViaggio.jsx (A-4, audit del 12
 // agosto): un secondo componente nello stesso file di un modulo già a
 // 495/500 righe, senza dipendere da nessuno stato o hook del genitore.
-import { eur, fmtDate, intestazioneLista, saldoClass } from "./listeFormato.js";
+import { fmtDate, intestazioneLista } from "./listeFormato.js";
+import { SaldoNascosto, propsRigaApribile } from "./SaldoNascosto.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -32,19 +33,19 @@ export function ListaRow({ lista, saldo, onOpen, trashed = false, children }) {
       {/* Nel cestino il saldo non si mostra: `liste_saldi` filtra le liste
           archiviate, quindi il valore sarebbe uno 0,00 € fuorviante e non il
           saldo reale della lista (la SPA sorgente lo mostrava comunque). */}
-      {!trashed && (
-        <span className={`lv-saldo lv-num ${saldoClass(Number(s.saldo))}`}>{eur(s.saldo)}</span>
-      )}
+      {!trashed && <SaldoNascosto valore={s.saldo} />}
       {children}
     </>
   );
 
-  // Nel cestino la riga non è cliccabile (porta i propri bottoni): resta un
-  // div, così i bottoni interni non finiscono annidati dentro un <button>.
+  // Nel cestino la riga non è cliccabile (porta i propri bottoni): niente
+  // ruolo di bottone né gestione dei tasti.
   if (!onOpen) {
     return <div className="lv-lista-row" style={cursor2}>{content}</div>;
   }
   return (
-    <button type="button" className="lv-lista-row" onClick={onOpen}>{content}</button>
+    <div className="lv-lista-row" {...propsRigaApribile(onOpen)}>
+      {content}
+    </div>
   );
 }

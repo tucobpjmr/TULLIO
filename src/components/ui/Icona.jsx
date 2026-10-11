@@ -53,6 +53,10 @@ const TRACCIATI = {
   indietro: <path d="M19 12H5M11 6l-6 6 6 6" />,
   modifica: <><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></>,
   puntina: <><path d="M9 3.5h6M10 3.5v6L6.5 14h11L14 9.5v-6" /><path d="M12 14v6.5" /></>,
+  // Mostra/nascondi un importo (saldo delle liste viaggio): occhio aperto e
+  // occhio barrato sulla stessa griglia, così il toggle non "salta".
+  occhio: <><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" /></>,
+  occhioBarrato: <><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" /><path d="M4 4l16 16" /></>,
 };
 
 // Lo stile è costante e vive qui, non nel JSX (M-1 dell'audit del 12 agosto,

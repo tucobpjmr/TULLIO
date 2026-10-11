@@ -71,6 +71,10 @@
 .lv-root .lv-saldo.pos{color:var(--lv-pos)}
 .lv-root .lv-saldo.neg{color:var(--lv-neg)}
 .lv-root .lv-saldo.zero{color:var(--lv-muted)}
+.lv-root .lv-saldo-wrap{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.lv-root .lv-occhio{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:none;border-radius:99px;background:none;color:var(--lv-muted);cursor:pointer}
+.lv-root .lv-occhio:hover{background:#EEF2F6;color:inherit}
+.lv-root .lv-occhio:focus-visible{outline:2px solid currentColor;outline-offset:1px}
 .lv-root .lv-badge{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:99px;white-space:nowrap}
 .lv-root .lv-badge.attiva{background:#E7F3EC;color:var(--lv-pos)}
 .lv-root .lv-badge.esaurita{background:#F6E8E6;color:var(--lv-stamp)}

@@ -4,6 +4,7 @@
 // vanilla, con lo stato dei campi in useState invece che in variabili globali.
 import { useEffect, useMemo, useState } from "react";
 import { actionLabel, eur, fmtDate, sommaImporti } from "./listeFormato.js";
+import { BottoneOcchio, MASCHERA } from "./BottoneOcchio.jsx";
 import { SaldoNascosto } from "./SaldoNascosto.jsx";
 import { docHtml, downloadBlob } from "./listeDocumenti.js";
 import { useListeWrite } from "./listePersistence.js";
@@ -46,6 +47,9 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
   const [editCell, setEditCell] = useState(null); // { id, campo }
   const [modal, setModal] = useState(null);       // null | "editLista" | "bulk" | "addBeneficiario" | { mov }
   const [riepilogoOpen, setRiepilogoOpen] = useState(false);
+  // Gli importi dei movimenti partono nascosti come il saldo (sommandoli lo si
+  // ricaverebbe): un unico occhio nell'intestazione li svela tutti insieme.
+  const [importiVisibili, setImportiVisibili] = useState(false);
   const conferma = useConfirm();
 
   // Cointestatari già presenti (client_id + nome, dalla LISTA_SELECT). Chi
@@ -255,7 +259,12 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
                   <tr>
                     <th>Data</th>
                     <th>Descrizione</th>
-                    <th style={txtRight}>Importo</th>
+                    <th style={txtRight}>
+                      <span className="lv-saldo-wrap">
+                        Importo
+                        <BottoneOcchio visibile={importiVisibili} onToggle={() => setImportiVisibili((v) => !v)} etichetta="importi" />
+                      </span>
+                    </th>
                     <th className="met">Metodo</th>
                     <th />
                   </tr>
@@ -295,7 +304,9 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
                             {m.metodo ? m.metodo.toUpperCase() : "+ metodo"}
                           </span>
                         </td>
-                        {cell(m, "importo", `imp lv-num ${Number(m.importo) > 0 ? "pos" : "neg"}`, eur(m.importo))}
+                        {importiVisibili
+                          ? cell(m, "importo", `imp lv-num ${Number(m.importo) > 0 ? "pos" : "neg"}`, eur(m.importo))
+                          : cell(m, "importo", "imp lv-num nascosto", MASCHERA)}
                         {cell(m, "metodo", "met", m.metodo || "")}
                         <td className="act">
                           <button className="lv-icon-btn" title="Modifica tutti i campi" aria-label="Modifica movimento" onClick={() => setModal({ mov: m })}>✎</button>

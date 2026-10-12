@@ -4,42 +4,24 @@
 // importi non devono essere leggibili a colpo d'occhio. Usato nella home del
 // modulo (ListaRow), nel dettaglio di una lista e nel pannello liste della
 // scheda cliente. Lo stato è locale a ogni istanza e non persiste:
-// ricaricando torna nascosto.
+// ricaricando torna nascosto. Gli importi dei movimenti del dettaglio usano
+// MASCHERA e BottoneOcchio con un unico stato per tutta la tabella.
 import { useState } from "react";
-import { Icona } from "../ui/Icona.jsx";
+import { BottoneOcchio, MASCHERA } from "./BottoneOcchio.jsx";
 import { eur, saldoClass } from "./listeFormato.js";
-
-const MASCHERA = "•••••• €";
 
 // `etichetta` completa l'aria-label dell'occhio ("Mostra saldo", "Mostra
 // totale"): due occhi nello stesso pannello devono restare distinguibili.
 // `classe` aggiunge classi all'importo (es. `val` nel box SALDO del dettaglio).
 export function SaldoNascosto({ valore, etichetta = "saldo", grassetto = false, classe = "" }) {
   const [visibile, setVisibile] = useState(false);
-  // L'occhio sta dentro una riga cliccabile: né il click né i tasti devono
-  // risalire fino a lei, altrimenti svelare il saldo aprirebbe la lista.
-  const toggle = (e) => {
-    e.stopPropagation();
-    setVisibile((v) => !v);
-  };
-  const azione = `${visibile ? "Nascondi" : "Mostra"} ${etichetta}`;
   const Tag = grassetto ? "b" : "span";
   return (
     <span className="lv-saldo-wrap">
       <Tag className={`${classe} lv-saldo lv-num ${visibile ? saldoClass(Number(valore)) : "zero"}`}>
         {visibile ? eur(valore) : MASCHERA}
       </Tag>
-      <button
-        type="button"
-        className="lv-occhio"
-        onClick={toggle}
-        onKeyDown={(e) => e.stopPropagation()}
-        aria-pressed={visibile}
-        aria-label={azione}
-        title={azione}
-      >
-        <Icona nome={visibile ? "occhioBarrato" : "occhio"} dimensione={18} />
-      </button>
+      <BottoneOcchio visibile={visibile} onToggle={() => setVisibile((v) => !v)} etichetta={etichetta} />
     </span>
   );
 }

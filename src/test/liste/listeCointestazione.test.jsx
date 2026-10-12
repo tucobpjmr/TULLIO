@@ -157,6 +157,33 @@ describe("ListaDetail — cointestatari", () => {
     expect(within(box).getByText(/200,00/)).toBeTruthy();
   });
 
+  it("gli importi dei movimenti partono nascosti e un unico occhio li svela tutti", () => {
+    render(
+      <ListaDetail
+        lista={LISTA}
+        movimenti={[
+          { id: "m1", data_movimento: "2026-10-02", importo: 200, descrizione: "A" },
+          { id: "m2", data_movimento: "2026-10-03", importo: 300, descrizione: "B" },
+        ]}
+        history={[]}
+        usersById={{}}
+        onReload={vi.fn()}
+        onArchived={vi.fn()}
+        clients={CLIENTS}
+      />,
+      { dispatch: vi.fn() },
+    );
+    const tabella = document.querySelector("table.lv-mov");
+    expect(within(tabella).queryByText(/200,00|300,00/)).toBeNull();
+    const occhi = within(tabella).getAllByRole("button", { name: "Mostra importi" });
+    expect(occhi).toHaveLength(1);
+    fireEvent.click(occhi[0]);
+    expect(within(tabella).getByText(/200,00/)).toBeTruthy();
+    expect(within(tabella).getByText(/300,00/)).toBeTruthy();
+    // Il saldo resta nascosto: ha il suo occhio.
+    expect(within(document.querySelector(".lv-saldo-box")).queryByText(/500,00/)).toBeNull();
+  });
+
   it("mostra il cointestatario già presente come chip", () => {
     setup();
     expect(screen.getByText("MARIA BIANCHI")).toBeTruthy();

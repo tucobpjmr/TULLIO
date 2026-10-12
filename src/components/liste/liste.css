@@ -112,6 +112,7 @@
 .lv-root table.lv-mov .imp{text-align:right;font-weight:600;white-space:nowrap}
 .lv-root table.lv-mov .imp.pos{color:var(--lv-pos)}
 .lv-root table.lv-mov .imp.neg{color:var(--lv-neg)}
+.lv-root table.lv-mov .imp.nascosto{color:var(--lv-muted)}
 .lv-root table.lv-mov .met{color:var(--lv-muted);font-size:13px;text-transform:uppercase}
 .lv-root table.lv-mov .dt{white-space:nowrap;color:var(--lv-muted);font-size:13px}
 .lv-root table.lv-mov .act{text-align:right;white-space:nowrap}

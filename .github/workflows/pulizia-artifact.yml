@@ -1,0 +1,23 @@
+name: Pulizia artifact
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Elimina tutti gli artifact del repo
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          ids=$(gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" --jq '.artifacts[].id')
+          count=0
+          for id in $ids; do
+            gh api -X DELETE "repos/$REPO/actions/artifacts/$id" && count=$((count+1))
+          done
+          echo "Eliminati $count artifact"

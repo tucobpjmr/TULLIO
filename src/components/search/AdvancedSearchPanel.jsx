@@ -70,7 +70,7 @@ function filtriReducer(s, a) {
 
 export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, currentUserId }) => {
   const dispatch = useDispatch();
-  const { isMobile } = useViewport();
+  const { isMobile, isDesktop } = useViewport();
   const { team, categories, per } = useAppData();
   // A-3. Questo pannello ha una casella «includi nel cestino» e un filtro per
   // stato che comprende «completato»: entrambi PROMETTONO di cercare in ciò
@@ -178,20 +178,23 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
     <div
       className="fade-in"
       style={{
-        position: isMobile ? "fixed" : "absolute",
-        // Su mobile è position:fixed → l'offset è dal bordo dello schermo, non
-        // dalla topbar: senza --safe-top il pannello finirebbe sotto la topbar
-        // (che su iPhone è alta 58px + inset).
-        top: isMobile ? "calc(64px + var(--safe-top))" : "calc(100% + 8px)",
-        left: isMobile ? 8 : 0,
-        right: isMobile ? 8 : "auto",
-        width: isMobile ? "auto" : 680,
-        // iOS Safari: dvh = viewport visibile. Su mobile il pannello parte a
-        // top:64 e ha zIndex sotto la bottom-nav → riservo ~140px (offset top +
-        // nav) così l'ultimo risultato non finisce nascosto sotto la nav.
-        maxHeight: isMobile
-          ? "calc(100dvh - 140px - var(--safe-top) - var(--safe-bottom))"
-          : "calc(100dvh - 80px)",
+        // Mobile e tablet (≤1024px): position:fixed → l'offset è dal bordo dello
+        // schermo, non dalla topbar: senza --safe-top il pannello finirebbe
+        // sotto la topbar (che su iPhone è alta 58px + inset). Sul tablet,
+        // ancorato al campo di ricerca con width 680, usciva dal bordo destro:
+        // lo si àncora a destra e la larghezza non supera lo schermo.
+        position: isDesktop ? "absolute" : "fixed",
+        top: isDesktop ? "calc(100% + 8px)" : "calc(64px + var(--safe-top))",
+        left: isDesktop ? 0 : isMobile ? 8 : "auto",
+        right: isDesktop ? "auto" : 8,
+        width: isDesktop ? 680 : isMobile ? "auto" : "min(680px, calc(100vw - 16px))",
+        // iOS Safari: dvh = viewport visibile. Sotto i 1024px il pannello parte
+        // a top:64 e ha zIndex sotto la bottom-nav (global.css la mostra fino a
+        // 1024px) → riservo ~140px (offset top + nav) così l'ultimo risultato
+        // non finisce nascosto sotto la nav.
+        maxHeight: isDesktop
+          ? "calc(100dvh - 80px)"
+          : "calc(100dvh - 140px - var(--safe-top) - var(--safe-bottom))",
         overflow: "hidden",
         background: "var(--surface)", borderRadius: 12,
         boxShadow: "0 20px 60px rgba(0,0,0,0.25)",

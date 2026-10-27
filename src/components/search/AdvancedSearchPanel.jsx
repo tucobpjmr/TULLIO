@@ -70,7 +70,7 @@ function filtriReducer(s, a) {
 
 export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, currentUserId }) => {
   const dispatch = useDispatch();
-  const { isMobile } = useViewport();
+  const { isMobile, isDesktop } = useViewport();
   const { team, categories, per } = useAppData();
   // A-3. Questo pannello ha una casella «includi nel cestino» e un filtro per
   // stato che comprende «completato»: entrambi PROMETTONO di cercare in ciò
@@ -189,9 +189,14 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
         // iOS Safari: dvh = viewport visibile. Su mobile il pannello parte a
         // top:64 e ha zIndex sotto la bottom-nav → riservo ~140px (offset top +
         // nav) così l'ultimo risultato non finisce nascosto sotto la nav.
+        // Tablet (641–1024px): la bottom-nav c'è ancora (global.css la mostra
+        // fino a 1024px) → oltre agli 80px della topbar va tolta anche lei
+        // (~70px + home indicator), altrimenti copre l'ultimo risultato.
         maxHeight: isMobile
           ? "calc(100dvh - 140px - var(--safe-top) - var(--safe-bottom))"
-          : "calc(100dvh - 80px)",
+          : isDesktop
+            ? "calc(100dvh - 80px)"
+            : "calc(100dvh - 160px - var(--safe-bottom))",
         overflow: "hidden",
         background: "var(--surface)", borderRadius: 12,
         boxShadow: "0 20px 60px rgba(0,0,0,0.25)",

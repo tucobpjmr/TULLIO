@@ -18,7 +18,7 @@ const whiteSpace2 = { whiteSpace: "nowrap", overflow: "hidden" };
 const marginTop2 = { marginTop: "auto", padding: "16px 12px", borderTop: "1px solid var(--border)" };
 const txtF10Mb8 = { fontSize: 10, color: "var(--text-muted)", letterSpacing: 1, marginBottom: 8 };
 const rowGap4 = { display: "flex", flexWrap: "wrap", gap: 4 };
-const boxAbsoluteW7 = { position: "absolute", bottom: 0, right: 0, width: 7, height: 7, borderRadius: "50%", background: "#2D7A4F", border: "1px solid var(--sky)" };
+const boxAbsoluteW7 = { position: "absolute", bottom: 0, right: 0, width: 7, height: 7, borderRadius: "50%", background: "#2D7A4F", border: "1px solid var(--sidebar-bg)" };
 
 // ST-2: `activeView` invece di `state`, e `memo`. Team e utente corrente
 // arrivano da AppDataContext, dov'erano già.
@@ -60,7 +60,7 @@ export const Sidebar = memo(function Sidebar({ activeView, onOpenBulk, onOpenCha
   const badges = getNavBadges(team);
   return (
     <div style={{
-      width: col ? 60 : 210, background: "var(--sky)", color: "var(--heading)",
+      width: col ? 60 : 210, background: "var(--sidebar-bg)", color: "var(--heading)",
       display: "flex", flexDirection: "column",
       transition: "width 0.25s ease", flexShrink: 0,
       borderRight: "1px solid rgba(212,168,67,0.3)", position: "relative",
@@ -72,7 +72,7 @@ export const Sidebar = memo(function Sidebar({ activeView, onOpenBulk, onOpenCha
         borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: "var(--text-muted)",
         fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center",
         transition: "all 0.2s",
-      }}>{col ? "→" : "←"}</button>
+      }}><Icona nome={col ? "avanti" : "indietro"} dimensione={14} spessore={2.6} /></button>
 
       <div style={{ marginTop: 48, padding: col ? "0 8px" : "0 12px", display: "flex", flexDirection: "column", gap: 2 }}>
         {navItems.map(item => {

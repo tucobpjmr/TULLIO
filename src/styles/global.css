@@ -80,6 +80,7 @@
   --navy-light: #1a3060;
   --navy-dark: #08152d;
   --sky: #D0EEF9;
+  --sidebar-bg: #FFFFFF;
   --gold: #D4A843;
   --gold-light: #e8c46a;
   --gold-dark: #b8902e;
@@ -152,6 +153,7 @@
     --navy-light: #2C3F69;
     --navy-dark: #16233C;
     --sky: #182643;
+    --sidebar-bg: #182643;
     --gold: #D9B05C;
     --gold-light: #EBCB86;
     --gold-dark: #B8902E;
@@ -179,6 +181,7 @@
   --navy-light: #2C3F69;
   --navy-dark: #16233C;
   --sky: #182643;
+  --sidebar-bg: #182643;
   --gold: #D9B05C;
   --gold-light: #EBCB86;
   --gold-dark: #B8902E;

@@ -51,6 +51,7 @@ const TRACCIATI = {
   // voci di nav, così una testata e la Sidebar parlano la stessa lingua.
   chiudi: <path d="M6 6l12 12M18 6L6 18" />,
   indietro: <path d="M19 12H5M11 6l-6 6 6 6" />,
+  avanti: <path d="M5 12h14M13 6l6 6-6 6" />,
   modifica: <><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></>,
   puntina: <><path d="M9 3.5h6M10 3.5v6L6.5 14h11L14 9.5v-6" /><path d="M12 14v6.5" /></>,
   // Mostra/nascondi un importo (saldo delle liste viaggio): occhio aperto e
@@ -76,8 +77,11 @@ const svgBase = { display: "block", flexShrink: 0 };
 // dietro la ErrorBoundary.
 //
 // `memo` per coerenza con NavBadge e con le altre foglie del guscio: le prop
-// sono due primitive, quindi il bail-out è sempre valido.
-export const Icona = memo(function Icona({ nome, dimensione = 20 }) {
+// sono tre primitive, quindi il bail-out è sempre valido.
+//
+// `spessore` ispessisce il tratto dove l'icona è l'unico contenuto di un
+// bottone piccolo (le frecce di Sidebar e Liste viaggio): a 1.7 si perde.
+export const Icona = memo(function Icona({ nome, dimensione = 20, spessore = 1.7 }) {
   const tracciato = TRACCIATI[nome];
   if (!tracciato) return null;
   return (
@@ -87,7 +91,7 @@ export const Icona = memo(function Icona({ nome, dimensione = 20 }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.7"
+      strokeWidth={spessore}
       strokeLinecap="round"
       strokeLinejoin="round"
       style={svgBase}

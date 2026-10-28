@@ -72,7 +72,7 @@ export const Sidebar = memo(function Sidebar({ activeView, onOpenBulk, onOpenCha
         borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: "var(--text-muted)",
         fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center",
         transition: "all 0.2s",
-      }}>{col ? "→" : "←"}</button>
+      }}><Icona nome={col ? "avanti" : "indietro"} dimensione={14} spessore={2.6} /></button>
 
       <div style={{ marginTop: 48, padding: col ? "0 8px" : "0 12px", display: "flex", flexDirection: "column", gap: 2 }}>
         {navItems.map(item => {

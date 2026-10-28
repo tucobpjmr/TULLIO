@@ -12,6 +12,7 @@
 // breadcrumb e testata — segue lo stile Tullio (navy/oro, Playfair).
 import { memo, useCallback, useEffect, useId, useMemo, useReducer, useRef, useState } from "react";
 import { useViewport } from "../ui/Viewport.jsx";
+import { Icona } from "../ui/Icona.jsx";
 import { useListeData } from "./useListeData.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
@@ -305,7 +306,7 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = /** @type
             fontSize: 16, color: "var(--heading)", cursor: "pointer", flexShrink: 0,
           }}
         >
-          ←
+          <Icona nome="indietro" dimensione={18} spessore={2.6} />
         </button>
       )}
       <h1 className="playfair" style={{ fontSize: isMobile ? 19 : 23, color: "var(--heading)", minWidth: 0 }}>

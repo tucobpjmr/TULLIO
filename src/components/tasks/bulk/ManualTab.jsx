@@ -18,6 +18,7 @@ import * as stiliComuni from "../../../styles/common.js";
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
 const colGap16 = { display: "flex", flexDirection: "column", gap: 16 };
+const colGap8Mb8 = { display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 };
 const boxR10 = { background: "var(--surface2)", borderRadius: 10, padding: "12px 14px" };
 const gridGap6F10 = { display: "grid", gridTemplateColumns: "26px 1fr 130px 100px 120px 130px 28px", gap: 6, fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "0 4px", letterSpacing: 0.5 };
 const txtF11Bold = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", flexShrink: 0 };
@@ -39,7 +40,7 @@ const txtBoldWarning = { color: "var(--warning)", fontWeight: 600 };
 export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
   const { categories, currentUserId, getAssignableTeam } = useAppData();
   const { isMobile } = useViewport();
-  const [common, setCommon] = useState({ client: "", category: "booking", priority: "medium", assignee: "", praticaRef: "", contact: "", dueDate: "" });
+  const [common, setCommon] = useState({ title: "", description: "", client: "", category: "booking", priority: "medium", assignee: "", praticaRef: "", contact: "", dueDate: "" });
   const cli = useClientSuggestions(clients, common.client);
   const pickClient = (c) => {
     setCommon(p => ({ ...p, client: c.name, contact: p.contact.trim() ? p.contact : clientContact(c) }));
@@ -60,24 +61,43 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
 
   // Gli allegati oltre il limite del bucket vengono scartati subito: caricarli
   // fallirebbe comunque, ma solo a task già create.
-  const addRowFiles = (key, fileList) => {
+  // Restituisce i file entro il limite e aggiorna l'avviso sugli scartati.
+  const filtraPerDimensione = (fileList) => {
     const arr = Array.from(fileList || []);
-    if (!arr.length) return;
+    if (!arr.length) return [];
     const tooBig = arr.filter(f => !isWithinSizeLimit(f.size));
-    const ok = arr.filter(f => isWithinSizeLimit(f.size));
     setAvvisoDimensioni(tooBig.length
       ? `${tooBig.map(f => `"${f.name}"`).join(", ")} super${tooBig.length === 1 ? "a" : "ano"} il limite di ${formatFileSize(MAX_TASK_FILE_SIZE)} per file`
       : "");
+    return arr.filter(f => isWithinSizeLimit(f.size));
+  };
+  const addRowFiles = (key, fileList) => {
+    const ok = filtraPerDimensione(fileList);
     if (ok.length) setRows(rs => rs.map(r => r.key === key ? { ...r, files: [...r.files, ...ok] } : r));
   };
   const removeRowFile = (key, idx) =>
     setRows(rs => rs.map(r => r.key === key ? { ...r, files: r.files.filter((_, i) => i !== idx) } : r));
 
-  const validRows = rows.filter(r => r.title.trim());
+  // Allegati comuni: si sommano a quelli di riga e finiscono su OGNI task
+  // creata (ogni task ha il suo path nel bucket, quindi il file si carica
+  // una volta per task).
+  const [commonFiles, setCommonFiles] = useState([]);
+  const addCommonFiles = (fileList) => {
+    const ok = filtraPerDimensione(fileList);
+    if (ok.length) setCommonFiles(fs => [...fs, ...ok]);
+  };
+  const removeCommonFile = (idx) => setCommonFiles(fs => fs.filter((_, i) => i !== idx));
+
+  // Titolo e descrizione comuni valgono come gli altri campi comuni: la riga
+  // che ne ha uno proprio vince. Con un titolo comune ogni riga ha un titolo,
+  // quindi anche le righe vuote diventano task.
+  const rowTitle = (r) => r.title.trim() || common.title.trim();
+  const validRows = rows.filter(r => rowTitle(r));
   // Righe con qualche dato ma senza titolo: verrebbero scartate in silenzio.
   const rowHasData = (r) => r.description.trim() || r.category || r.priority || r.assignee || r.dueDate || r.files.length > 0;
-  const ignoredRows = rows.filter(r => !r.title.trim() && rowHasData(r));
-  const totalFiles = validRows.reduce((n, r) => n + r.files.length, 0);
+  const rowMissingTitle = (r) => !rowTitle(r) && rowHasData(r);
+  const ignoredRows = rows.filter(rowMissingTitle);
+  const totalFiles = validRows.reduce((n, r) => n + r.files.length + commonFiles.length, 0);
 
   // Etichette delle impostazioni comuni, mostrate come valore ereditato nelle
   // righe che non specificano nulla (così l'operatore vede cosa uscirà davvero).
@@ -93,7 +113,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
   const commonDueLabel = common.dueDate ? formatPickerValue(common.dueDate) : "";
 
   const isDirty = validRows.length > 0 || ignoredRows.length > 0 ||
-    !!(common.client.trim() || common.praticaRef.trim() || common.contact.trim() || common.dueDate);
+    !!(common.title.trim() || common.description.trim() || commonFiles.length > 0 || common.client.trim() || common.praticaRef.trim() || common.contact.trim() || common.dueDate);
   useEffect(() => { onDirty?.(isDirty); }, [isDirty, onDirty]);
 
   // Creazione: il freno al doppio invio, l'attesa a schermo e il "i dati sono
@@ -116,9 +136,9 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
       // lì: qui resta la sola regola di QUESTA tab, cioè che il valore della
       // riga vince su quello comune.
       const prepared = validRows.map((r) => ({
-        files: r.files,
+        files: [...commonFiles, ...r.files],
         task: nuovoTask({
-          title: r.title,
+          title: rowTitle(r),
           category: r.category || common.category,
           priority: r.priority || common.priority,
           assignees: [r.assignee || common.assignee],
@@ -126,7 +146,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
           praticaRef: common.praticaRef,
           contact: common.contact,
           dueDate: r.dueDate || common.dueDate,
-          description: r.description,
+          description: r.description.trim() ? r.description : common.description,
         }),
       }));
 
@@ -165,6 +185,30 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
       <div style={boxR10}>
         <div style={stiliComuni.etichettaSezione}>
           IMPOSTAZIONI COMUNI (usate se la riga non specifica)
+        </div>
+        <div style={colGap8Mb8}>
+          <input
+            value={common.title}
+            onChange={e => setCommon({ ...common, title: e.target.value })}
+            placeholder="Titolo task (comune)…"
+            aria-label="Titolo (comune a tutte le righe)"
+            style={bulkInputStyle}
+          />
+          <textarea
+            value={common.description}
+            onChange={e => setCommon({ ...common, description: e.target.value })}
+            rows={2}
+            placeholder="Descrizione (comune, facoltativa)…"
+            aria-label="Descrizione (comune a tutte le righe)"
+            style={bulkTextareaStyle}
+          />
+          <RowAttachments
+            files={commonFiles}
+            onAdd={addCommonFiles}
+            onRemove={removeCommonFile}
+            disabled={busy}
+            hint="Allega file a tutte le task"
+          />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 8 }}>
           <div style={stiliComuni.relative}>
@@ -219,21 +263,21 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
           isMobile ? (
             /* Mobile: ogni riga è una card impilata (no scroll orizzontale) */
             <div key={r.key} style={{
-              border: `1px solid ${!r.title.trim() && rowHasData(r) ? "var(--warning)" : "var(--border)"}`,
+              border: `1px solid ${rowMissingTitle(r) ? "var(--warning)" : "var(--border)"}`,
               borderRadius: 10, padding: 10, background: "var(--surface)", display: "flex", flexDirection: "column", gap: 8,
             }}>
               <div style={stiliComuni.rowCenterGap8}>
                 <span style={txtF11Bold}>#{idx + 1}</span>
-                <input value={r.title} onChange={e => updateRow(r.key, "title", e.target.value)} placeholder="Titolo task..." style={{
+                <input value={r.title} onChange={e => updateRow(r.key, "title", e.target.value)} placeholder={common.title.trim() ? `${common.title.trim()} (comune)` : "Titolo task..."} style={{
                   ...bulkInputStyle, flex: 1,
-                  borderColor: !r.title.trim() && rowHasData(r) ? "var(--warning)" : "var(--border)",
+                  borderColor: rowMissingTitle(r) ? "var(--warning)" : "var(--border)",
                 }} />
                 <button onClick={() => removeRow(r.key)} disabled={rows.length === 1} style={{
                   background: "transparent", border: "none", cursor: rows.length === 1 ? "not-allowed" : "pointer",
                   fontSize: 16, color: "var(--text-muted)", opacity: rows.length === 1 ? 0.3 : 1, flexShrink: 0,
                 }}>✕</button>
               </div>
-              {!r.title.trim() && rowHasData(r) && (
+              {rowMissingTitle(r) && (
                 <div style={txtF105Bold}>⚠ Aggiungi un titolo o questa riga verrà ignorata</div>
               )}
               <div style={grid2ColGap8}>
@@ -261,7 +305,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
                 value={r.description}
                 onChange={e => updateRow(r.key, "description", e.target.value)}
                 rows={2}
-                placeholder="Descrizione (facoltativa)…"
+                placeholder={common.description.trim() ? `${common.description.trim()} (comune)` : "Descrizione (facoltativa)…"}
                 style={bulkTextareaStyle}
               />
               <RowAttachments
@@ -274,10 +318,10 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
           ) : (
             <div key={r.key} style={gridCenterGap6}>
               <div style={txtF11Muted}>{idx + 1}</div>
-              <input value={r.title} onChange={e => updateRow(r.key, "title", e.target.value)} placeholder="Titolo task..." style={{
+              <input value={r.title} onChange={e => updateRow(r.key, "title", e.target.value)} placeholder={common.title.trim() ? `${common.title.trim()} (comune)` : "Titolo task..."} style={{
                 ...bulkInputStyle,
-                borderColor: !r.title.trim() && rowHasData(r) ? "var(--warning)" : "var(--border)",
-              }} title={!r.title.trim() && rowHasData(r) ? "Aggiungi un titolo o la riga verrà ignorata" : undefined} />
+                borderColor: rowMissingTitle(r) ? "var(--warning)" : "var(--border)",
+              }} title={rowMissingTitle(r) ? "Aggiungi un titolo o la riga verrà ignorata" : undefined} />
               <select value={r.category} onChange={e => updateRow(r.key, "category", e.target.value)} style={bulkInputStyle}>
                 <option value="">{commonCatLabel}</option>
                 {Object.entries(categories).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
@@ -307,7 +351,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
                 value={r.description}
                 onChange={e => updateRow(r.key, "description", e.target.value)}
                 rows={2}
-                placeholder="Descrizione (facoltativa)…"
+                placeholder={common.description.trim() ? `${common.description.trim()} (comune)` : "Descrizione (facoltativa)…"}
                 style={{ ...bulkTextareaStyle, gridColumn: "2 / -2" }}
               />
               {/* Terza riga della griglia: allegati della singola task, allineati

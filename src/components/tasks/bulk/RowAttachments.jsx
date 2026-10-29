@@ -17,7 +17,7 @@ const txtMuted = { color: "var(--text-muted)", flexShrink: 0 };
 // della task (path `<task_id>/…` e policy RLS del bucket 'task-files'), quindi
 // avviene in handleCreate subito dopo la persistenza — stesso schema di
 // QuickAddTask per la creazione singola.
-export const RowAttachments = ({ files, onAdd, onRemove, disabled, style = /** @type {object|undefined} */ (undefined) }) => {
+export const RowAttachments = ({ files, onAdd, onRemove, disabled, style = /** @type {object|undefined} */ (undefined), hint = "Allega file a questa task" }) => {
   const inputRef = useRef(null);
   return (
     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, minWidth: 0, ...style }}>
@@ -32,7 +32,7 @@ export const RowAttachments = ({ files, onAdd, onRemove, disabled, style = /** @
         type="button"
         disabled={disabled}
         onClick={() => inputRef.current?.click()}
-        title={`Allega file a questa task · max ${formatFileSize(MAX_TASK_FILE_SIZE)} per file`}
+        title={`${hint} · max ${formatFileSize(MAX_TASK_FILE_SIZE)} per file`}
         style={{ ...bulkAttachBtn, opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }}
       >📎 Allega{files.length > 0 ? ` (${files.length})` : ""}</button>
       {files.map((f, i) => (

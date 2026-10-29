@@ -61,18 +61,32 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
 
   // Gli allegati oltre il limite del bucket vengono scartati subito: caricarli
   // fallirebbe comunque, ma solo a task già create.
-  const addRowFiles = (key, fileList) => {
+  // Restituisce i file entro il limite e aggiorna l'avviso sugli scartati.
+  const filtraPerDimensione = (fileList) => {
     const arr = Array.from(fileList || []);
-    if (!arr.length) return;
+    if (!arr.length) return [];
     const tooBig = arr.filter(f => !isWithinSizeLimit(f.size));
-    const ok = arr.filter(f => isWithinSizeLimit(f.size));
     setAvvisoDimensioni(tooBig.length
       ? `${tooBig.map(f => `"${f.name}"`).join(", ")} super${tooBig.length === 1 ? "a" : "ano"} il limite di ${formatFileSize(MAX_TASK_FILE_SIZE)} per file`
       : "");
+    return arr.filter(f => isWithinSizeLimit(f.size));
+  };
+  const addRowFiles = (key, fileList) => {
+    const ok = filtraPerDimensione(fileList);
     if (ok.length) setRows(rs => rs.map(r => r.key === key ? { ...r, files: [...r.files, ...ok] } : r));
   };
   const removeRowFile = (key, idx) =>
     setRows(rs => rs.map(r => r.key === key ? { ...r, files: r.files.filter((_, i) => i !== idx) } : r));
+
+  // Allegati comuni: si sommano a quelli di riga e finiscono su OGNI task
+  // creata (ogni task ha il suo path nel bucket, quindi il file si carica
+  // una volta per task).
+  const [commonFiles, setCommonFiles] = useState([]);
+  const addCommonFiles = (fileList) => {
+    const ok = filtraPerDimensione(fileList);
+    if (ok.length) setCommonFiles(fs => [...fs, ...ok]);
+  };
+  const removeCommonFile = (idx) => setCommonFiles(fs => fs.filter((_, i) => i !== idx));
 
   // Titolo e descrizione comuni valgono come gli altri campi comuni: la riga
   // che ne ha uno proprio vince. Con un titolo comune ogni riga ha un titolo,
@@ -83,7 +97,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
   const rowHasData = (r) => r.description.trim() || r.category || r.priority || r.assignee || r.dueDate || r.files.length > 0;
   const rowMissingTitle = (r) => !rowTitle(r) && rowHasData(r);
   const ignoredRows = rows.filter(rowMissingTitle);
-  const totalFiles = validRows.reduce((n, r) => n + r.files.length, 0);
+  const totalFiles = validRows.reduce((n, r) => n + r.files.length + commonFiles.length, 0);
 
   // Etichette delle impostazioni comuni, mostrate come valore ereditato nelle
   // righe che non specificano nulla (così l'operatore vede cosa uscirà davvero).
@@ -99,7 +113,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
   const commonDueLabel = common.dueDate ? formatPickerValue(common.dueDate) : "";
 
   const isDirty = validRows.length > 0 || ignoredRows.length > 0 ||
-    !!(common.title.trim() || common.description.trim() || common.client.trim() || common.praticaRef.trim() || common.contact.trim() || common.dueDate);
+    !!(common.title.trim() || common.description.trim() || commonFiles.length > 0 || common.client.trim() || common.praticaRef.trim() || common.contact.trim() || common.dueDate);
   useEffect(() => { onDirty?.(isDirty); }, [isDirty, onDirty]);
 
   // Creazione: il freno al doppio invio, l'attesa a schermo e il "i dati sono
@@ -122,7 +136,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
       // lì: qui resta la sola regola di QUESTA tab, cioè che il valore della
       // riga vince su quello comune.
       const prepared = validRows.map((r) => ({
-        files: r.files,
+        files: [...commonFiles, ...r.files],
         task: nuovoTask({
           title: rowTitle(r),
           category: r.category || common.category,
@@ -187,6 +201,13 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
             placeholder="Descrizione (comune, facoltativa)…"
             aria-label="Descrizione (comune a tutte le righe)"
             style={bulkTextareaStyle}
+          />
+          <RowAttachments
+            files={commonFiles}
+            onAdd={addCommonFiles}
+            onRemove={removeCommonFile}
+            disabled={busy}
+            hint="Allega file a tutte le task"
           />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 8 }}>

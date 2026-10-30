@@ -26,7 +26,9 @@ describe("BulkTaskCreator — chiusura con dati non salvati", () => {
 
     const titolo = await screen.findByText("Chiudere senza creare?");
     const overlayConferma = titolo.closest('[role="dialog"]').parentElement;
-    expect(Number(overlayConferma.style.zIndex)).toBeGreaterThan(Z.modalFullBackdrop);
+    // Stesso layer della modale: a pari z-index vince il portale montato dopo,
+    // cioè la conferma. Con il layer «modal» (1000) stava sotto.
+    expect(Number(overlayConferma.style.zIndex)).toBeGreaterThanOrEqual(Z.modalFullBackdrop);
 
     fireEvent.click(screen.getByText("Chiudi e perdi"));
     await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));

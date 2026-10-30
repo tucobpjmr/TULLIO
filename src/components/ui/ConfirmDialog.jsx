@@ -43,7 +43,7 @@ export function ConfirmDialog({
   }, [open, danger]);
 
   return (
-    <Modal open={open} onClose={onCancel} labelledBy="vd-confirm-title" width={420}>
+    <Modal open={open} onClose={onCancel} labelledBy="vd-confirm-title" width={420} layer="modalFull">
       <div style={padding2}>
         <h2
           id="vd-confirm-title"

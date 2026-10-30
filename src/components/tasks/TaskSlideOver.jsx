@@ -184,7 +184,7 @@ export const TaskSlideOver = ({ task }) => {
             <button onClick={handleDelete} title="Sposta nel cestino" aria-label="Sposta nel cestino" style={boxF13White}
               {...conTastiera(
                 e => e.currentTarget.style.background = "rgba(220,38,38,0.4)",
-                e => e.currentTarget.style.background = "rgba(220,38,38,0.15)",
+                e => e.currentTarget.style.background = "var(--card)",
               )}
             ><Icona nome="cestino" dimensione={16} /></button>
             <button onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })} aria-label="Chiudi" title="Chiudi" style={stiliComuni.btnChiudiTestata}><Icona nome="chiudi" dimensione={16} /></button>

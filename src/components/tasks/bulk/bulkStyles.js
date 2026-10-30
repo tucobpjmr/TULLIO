@@ -36,7 +36,7 @@ export const bulkIconBtnSmall = {
 };
 export const bulkAttachBtn = {
   display: "inline-flex", alignItems: "center", gap: 5,
-  background: "transparent", border: "1px dashed var(--border)", borderRadius: 8,
+  background: "var(--card)", border: "1px dashed var(--border)", borderRadius: 8,
   padding: "4px 10px", fontSize: 11.5, fontWeight: 600, color: "var(--text-muted)",
   fontFamily: "inherit", flexShrink: 0,
 };

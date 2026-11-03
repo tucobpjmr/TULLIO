@@ -8,10 +8,9 @@
 import * as stiliComuni from "../../styles/common.js";
 export const rowCenterBetween = stiliComuni.rowCenterBetween;
 export const rowCenterMiddle = {
-  width: 34, height: 34, borderRadius: 8,
-  background: "var(--navy)", color: "var(--gold)",
+  width: 34, height: 34,
   display: "flex", alignItems: "center", justifyContent: "center",
-  fontSize: 18,
+  fontSize: 24,
 };
 export const txtF17Bold = { fontSize: 17, fontWeight: 700, color: "var(--heading)" };
 export const rowCenterGap5 = {

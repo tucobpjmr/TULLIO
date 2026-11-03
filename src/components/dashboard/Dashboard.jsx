@@ -250,7 +250,7 @@ export const Dashboard = memo(function Dashboard({
             className="hover-lift"
             style={{
               padding: isMobile ? "8px 14px" : "10px 18px", borderRadius: 9,
-              border: "none", background: "var(--navy)",
+              border: "none", background: "var(--navy-light)",
               color: "#fff", cursor: "pointer", fontFamily: "inherit",
               fontSize: isMobile ? 13 : 14, fontWeight: 600,
               display: "inline-flex", alignItems: "center", gap: 7, flexShrink: 0,

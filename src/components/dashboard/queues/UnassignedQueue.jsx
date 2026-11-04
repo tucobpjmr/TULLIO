@@ -81,7 +81,7 @@ export const UnassignedQueue = ({ tasks, onTake, uid, loading = false }) => {
   return (
     <QueueShell
       accent="unassigned"
-      icon="🙋"
+      icon="🌐"
       title="Coda globale"
       tight={empty}
       badge={caricando ? "…" : empty ? null : (hasFilter ? `${filtered.length}/${tasks.length}` : `${tasks.length} in attesa`)}

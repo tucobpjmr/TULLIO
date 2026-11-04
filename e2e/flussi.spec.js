@@ -42,7 +42,11 @@ test('una task creata compare in un\'altra scheda senza ricaricare', async ({ br
   const scheda = await contesto.newPage();
   const altra = await contesto.newPage();
   await entra(scheda);
-  await entra(altra);
+  // Stesso contesto = stessa sessione salvata: la seconda scheda entra già
+  // autenticata, senza passare dal form di login (ha però il proprio
+  // origin_client, che vive in sessionStorage, per pagina).
+  await altra.goto('/');
+  await expect(altra.getByRole('button', { name: 'Cambia utente loggato' })).toBeVisible({ timeout: 20_000 });
 
   // «k» apre la creazione rapida (scorciatoia documentata nell'app).
   await scheda.keyboard.press('k');

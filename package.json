@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:rls": "vitest run src/test/integration",
+    "test:e2e": "playwright test",
     "verifica:copertura": "vitest run --coverage",
     "importa:liste": "node scripts/importa-liste/index.js",
     "verifica:rpc": "node scripts/verifica-rpc/index.js",

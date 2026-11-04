@@ -33,10 +33,26 @@ import { CONTA_RIGHE } from './comuni.js';
 const TASK_SELECT_WITH_COMMENTS =
   '*, comments(id, user_id, text, created_at, users(name))';
 
+// Letterale di array Postgres per un filtro `eq` (`{"a","b"}`, `{}` se vuoto).
+// Ogni elemento fra virgolette, con `"` e `\` protetti: gli assegnatari sono
+// uuid, ma un letterale costruito male confronterebbe con un altro valore.
+export const letteraleArray = (valori) =>
+  `{${valori.map((v) => `"${String(v).replace(/["\\]/g, '\\$&')}"`).join(',')}}`;
+
 // Purge definitiva di uno o più task, con la pulizia dello storage che la FK
 // non fa. Un'unica implementazione per il caso singolo e per quello in blocco:
 // le due varianti differivano solo nel filtro (`eq` vs `in`), e tenerne due
 // significava che la seconda poteva dimenticarsi i file orfani.
+//
+// ⚠️ PRIMA I FILE, POI LA RIGA, ed è obbligato (verificato il 4 novembre,
+// rilievo M-5 dell'analisi di quel giorno, che proponeva l'ordine inverso).
+// La policy `task_files_storage_delete` (migrazione 20260630090744) lascia
+// cancellare un oggetto a chi l'ha caricato OPPURE se esiste ancora la riga di
+// `tasks` nominata dal primo segmento del path. Cancellata la riga, i file
+// caricati dai colleghi non li cancella più nessuno — nemmeno un admin — e
+// restano nel bucket per sempre. Il prezzo dell'ordine attuale è più piccolo:
+// se la DELETE fallisce dopo la rimozione, il task resta nel CESTINO (la purge
+// parte solo da lì) senza i suoi allegati.
 const purgeTasks = async (ids) => {
   const lista = (ids || []).filter(Boolean);
   if (!lista.length) return { error: null };
@@ -136,9 +152,29 @@ export const Tasks = {
     const supabase = await getSupabase();
     return supabase.from('tasks').insert(tasks.map(withOrigin)).select();
   },
-  update: async (id, patch) => {
+  // ─── M-1/M-2 dell'audit del 4 novembre · «confronta e scrivi» ────────────
+  // Con `attesi` (colonne DB → valore che chi scrive ha visto) la UPDATE tocca
+  // la riga solo se quelle colonne valgono ancora così: se un collega le ha
+  // cambiate nel frattempo, le righe aggiornate sono zero invece di vincere
+  // l'ultimo che salva. Il confronto sta nella WHERE della stessa UPDATE, quindi
+  // è atomico: due «prendi in carico» simultanei non passano entrambi.
+  // Ritorna l'ARRAY delle righe aggiornate (vuoto = nessuna): perché zero, lo
+  // decide chi chiama (state/scritturaTaskConfrontata.js), rileggendo la riga.
+  // Senza `attesi` resta la scrittura di sempre.
+  update: async (id, patch, { attesi } = /** @type {{ attesi?: object }} */ ({})) => {
     const supabase = await getSupabase();
-    return supabase.from('tasks').update(withOrigin(patch)).eq('id', id).select().single();
+    let q = supabase.from('tasks').update(withOrigin(patch)).eq('id', id);
+    if (!attesi) return q.select().single();
+    for (const [colonna, valore] of Object.entries(attesi)) {
+      if (valore == null) q = q.is(colonna, null);
+      else if (Array.isArray(valore)) q = q.eq(colonna, letteraleArray(valore));
+      else q = q.eq(colonna, valore);
+    }
+    return q.select();
+  },
+  leggi: async (id) => {
+    const supabase = await getSupabase();
+    return supabase.from('tasks').select('*').eq('id', id).maybeSingle();
   },
   softDelete: async (id) => {
     const supabase = await getSupabase();

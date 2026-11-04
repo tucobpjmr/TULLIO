@@ -189,6 +189,18 @@ export function subscribeToTable(tableName, handler, onStato) {
 // è online finché non gli si apre una chat.
 const CANALE_PRESENZA = 'presenza:agenzia';
 
+// ─── M-3 dell'audit del 4 novembre · presenza e «sta scrivendo» sono PRIVATI
+// Erano canali pubblici: Realtime non valuta policy su un canale pubblico, e
+// con la sola chiave anon (che sta nel bundle) chiunque poteva leggere chi è
+// collegato o pubblicare un «sta scrivendo» a nome di altri. Con `private: true`
+// l'ingresso passa dalle policy su `realtime.messages` della migrazione
+// 20261104181351: presenza solo per utenti attivi, «sta scrivendo» solo per i
+// partecipanti della conversazione. Un canale privato e uno pubblico con lo
+// stesso nome sono distinti, quindi chi entra nel pubblico non vede niente.
+// ⛔ Non togliere `private` per «far funzionare» un canale che non si aggancia:
+// la causa è una policy che manca, e senza `private` tornerebbe aperto a tutti.
+const CANALE_PRIVATO = { private: true };
+
 /**
  * Apre il canale di presenza e ci pubblica il proprio stato.
  *
@@ -220,7 +232,7 @@ export function subscribeToPresence({ key, payload, onSync }) {
     // useEffect e mostrare una pagina bianca.
     if (typeof supabase?.channel !== 'function') return;
     const channel = supabase.channel(CANALE_PRESENZA, {
-      config: { presence: { key } },
+      config: { ...CANALE_PRIVATO, presence: { key } },
     });
     channel
       .on('presence', { event: 'sync' }, () => onSync(channel.presenceState()))
@@ -259,7 +271,7 @@ export function subscribeToTyping(conversationId, onEvent) {
   getSupabase().then((supabase) => {
     if (smontato) return;
     const channel = supabase
-      .channel(`typing:${conversationId}`, { config: { broadcast: { self: false } } })
+      .channel(`typing:${conversationId}`, { config: { ...CANALE_PRIVATO, broadcast: { self: false } } })
       .on('broadcast', { event: 'typing' }, ({ payload }) => onEvent(payload))
       .subscribe();
     canale = channel;

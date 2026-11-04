@@ -99,7 +99,11 @@ export function fondiScrittureInVolo(incoming, locali, pending) {
 //   totale li azzererebbe. Il chiamante che ne ha bisogno passa questa
 //   funzione; default: sostituzione.
 export function applicaRigaRealtime(collezione, pending, evento, fondiRiga) {
-  const { eventType, id, row } = evento;
+  const { eventType, row } = evento;
+  // Rete di sicurezza: un evento senza `id` esplicito lo prende dalla riga.
+  // Con `id` indefinito nessuna riga combaciava e l'UPDATE diventava un
+  // doppione in coda all'elenco.
+  const id = evento.id ?? row?.id;
   const correnti = collezione || [];
   // Scrittura in volo su questa riga → vince il locale, l'evento si scarta.
   if (pending?.has(id)) return correnti;

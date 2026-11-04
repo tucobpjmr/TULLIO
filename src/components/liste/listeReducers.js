@@ -17,7 +17,7 @@
 //
 // Qui lo stato "due aperti" non è più rappresentabile: c'è UN campo `tipo`, e
 // aprire sostituisce. Stesso movimento già fatto nel sottosistema accanto
-// (chat/chatReducers.js), rilievo ST-7 di docs/AUDIT_STRUTTURA_2026-08-10.md.
+// (chat/chatReducers.js), rilievo ST-7 di docs/archivio/audit/AUDIT_STRUTTURA_2026-08-10.md.
 //
 // NON entrano qui `search`/`filter`/`sort`/`limit`: sono quattro valori
 // indipendenti che convivono per definizione (si cerca DENTRO un filtro, con un

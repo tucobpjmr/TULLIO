@@ -7,6 +7,10 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.js"],
+    // I test di Vitest stanno in src/. `e2e/` è di Playwright (M-8, 4 novembre):
+    // senza questo confine Vitest raccoglierebbe anche `*.spec.js` e li
+    // eseguirebbe in jsdom, dove `@playwright/test` non c'è.
+    include: ["src/**/*.{test,spec}.{js,jsx}"],
     // ─── B-3 (audit del 10 settembre) · LA COPERTURA, MISURATA ────────────
     //
     // Duemila test e nessun numero: «tanti test» è una quantità, non una

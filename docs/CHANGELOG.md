@@ -1,5 +1,55 @@
 # CHANGELOG — VoyageDesk
 
+## 4 novembre (ii) — i rilievi di priorità media (M-1…M-8)
+
+**M-1/M-2 · Confronta e scrivi sui task.** UPDATE_TASK e MOVE_TASK portano i
+valori che l'utente vedeva (`meta.attesi`, fissati in `normalize`) e la UPDATE
+passa solo se il database li ha ancora: il confronto sta nella WHERE della
+stessa query (`Tasks.update` con `attesi`), quindi due «prendi in carico»
+simultanei non passano più entrambi. Zero righe aggiornate si rilegge
+(`state/scritturaTaskConfrontata.js`): valori già scritti = successo (la coda
+offline che rigioca), campo cambiato da un collega = conflitto con la sua
+versione a schermo e un toast chiaro, niente di cambiato = RLS. L'annullamento
+di uno swipe rimette solo i campi dello swipe, e solo se valgono ancora quanto
+lo swipe li aveva messi. ⚠️ `description` ed `estimatedHours` restano fuori dal
+confronto (lunghezza in URL, null↔'' e null↔0). Le voci della coda offline
+salvate dalla versione precedente, senza `attesi`, si scrivono come prima.
+
+**Trovato in corso d'opera · doppioni dal realtime.** `useAppHydration`
+mandava al reducer gli UPDATE/INSERT di task, avvisi e clienti senza `id`, e
+`applicaRigaRealtime` usava proprio quell'id: la modifica di un collega veniva
+AGGIUNTA come riga nuova, lo stesso task due volte fino al reload successivo, e
+il controllo sulle scritture in volo non scattava. I test delle due metà usavano
+payload diversi. Corretto alla fonte e, in difesa, nel merge.
+
+**M-3 · Presenza e «sta scrivendo» su canali privati.** Migrazione
+`20261104181351`, applicata dopo un dry-run: presenza solo agli utenti attivi,
+«sta scrivendo» solo ai partecipanti. «Allow public access» resta acceso: i
+canali `postgres_changes` sono pubblici e protetti dalla RLS delle tabelle, e un
+canale privato non comunica con il pubblico omonimo (docs/SICUREZZA.md).
+
+**M-4 · La coda offline si svuota al logout**, per l'utente che esce
+(`state/codaDispositivo.js`), dopo una conferma se ci sono modifiche non ancora
+consegnate (`shell/useConfermaUscita.js`).
+
+**M-5 · Verificato, non cambiato.** Il rilievo proponeva di cancellare la riga
+del task prima dei suoi file: la policy `task_files_storage_delete` lo
+impedirebbe per i file caricati dai colleghi, che resterebbero nel bucket per
+sempre. L'ordine attuale è obbligato; ora lo dice il commento su `purgeTasks`, e
+un caso in `rls.test.js` lo lega al database.
+
+**M-6 · Non fatto, per scelta.** La finestra di 60 giorni e i clienti on-demand
+esistono già, `count: 'exact'` è misurato a 11 ms e protegge dai troncamenti
+silenziosi, e i commenti servono alla ricerca avanzata.
+
+**M-7 · Archivio.** Gli audit con tutti i rilievi chiusi (16) e gli handoff
+(41 + `HANDOFF.md`) stanno in `docs/archivio/`; in `docs/` restano i 7 audit con
+rilievi aperti. Indice, `verifica:convenzioni` e riferimenti nel codice aggiornati.
+
+**M-8 · Test end-to-end.** Playwright (`e2e/`, `playwright.config.js`,
+`.github/workflows/e2e.yml`): l'avvio della build gira sempre, i flussi (login,
+task vista in un'altra scheda, logout pulito) con i segreti dello staging.
+
 ## 4 novembre — logout e bozza del pannello task (A-1, A-2)
 
 **A-1 · Le push non sopravvivono più al logout.** Uscire non toccava le push:

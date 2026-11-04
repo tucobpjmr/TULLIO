@@ -15,13 +15,12 @@
 // l'hook torna `{ api, inAttesa }` e non un oggetto solo.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { creaDeposito } from "../lib/depositoIdb.js";
-import { creaCodaScritture, guastoDiRete, scritturaGiaApplicata } from "../state/codaScritture.js";
+import { guastoDiRete, scritturaGiaApplicata } from "../state/codaScritture.js";
+import { apriCodaDispositivo } from "../state/codaDispositivo.js";
 import { PERSISTENCE } from "../state/persistence.js";
 import { erroreDiScrittura, toastErrore, toastSuccesso } from "../state/registroScritture.js";
 import { testoEccezione } from "../lib/errori.js";
 
-const STORE = "coda_scritture";
 
 /**
  * L'API stabile che `useSyncedDispatch` riceve. Solo tre membri, e nessuno
@@ -51,7 +50,7 @@ export function useCodaScritture({ enabled, uid, state, rawDispatch }) {
   const uidRif = useRef(uid);
   uidRif.current = uid;
 
-  const coda = useMemo(() => creaCodaScritture(creaDeposito({ store: STORE })), []);
+  const coda = useMemo(() => apriCodaDispositivo(), []);
   const [inAttesa, setInAttesa] = useState(0);
   // `useState` per il conteggio (serve a disegnare la striscia) e un ref per
   // il drenaggio in corso (serve a NON ripartire due volte): due cose diverse,
@@ -88,7 +87,7 @@ export function useCodaScritture({ enabled, uid, state, rawDispatch }) {
           if (err && !scritturaGiaApplicata(err)) {
             // Rifiuto del SERVER, non della rete: rigiocarla darebbe lo stesso
             // esito per sempre. Esce dalla coda e l'utente lo deve sapere.
-            perse.push({ voce, err });
+            perse.push({ voce, err, res });
           } else {
             riuscite += 1;
           }
@@ -111,13 +110,17 @@ export function useCodaScritture({ enabled, uid, state, rawDispatch }) {
           `${plurale(riuscite, "La modifica in attesa è stata inviata", "modifiche in attesa sono state inviate")}.`
         ));
       }
-      for (const { voce, err } of perse) {
+      for (const { voce, err, res } of perse) {
         // Il rollback dell'entry, quando c'è: dopo un reload lo stato viene dal
         // server e il rollback è un no-op — è la forma giusta, perché in quel
         // caso non c'è nulla di ottimistico da annullare. `compensazione` per
         // la stessa ragione di useSyncedDispatch: il case del reducer non deve
         // accodare il proprio toast di successo.
-        const undo = PERSISTENCE[voce.tipo]?.rollback?.(statoRif.current, voce.azione);
+        // `res` serve alle entry che sanno compensare un CONFLITTO con la
+        // versione letta dal server (M-1 del 4 novembre): senza, una modifica
+        // rigiocata e rifiutata perché un collega era arrivato prima
+        // lascerebbe a schermo la copia locale.
+        const undo = PERSISTENCE[voce.tipo]?.rollback?.(statoRif.current, voce.azione, res);
         if (undo) rawDispatch({ ...undo, meta: { ...undo.meta, compensazione: true } });
         rawDispatch(toastErrore(testoEccezione(err, "modifica in attesa rifiutata dal server")));
       }

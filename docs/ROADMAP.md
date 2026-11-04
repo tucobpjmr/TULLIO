@@ -12,7 +12,7 @@ Stato: ✅ fatto · 🔶 parziale · ⬜ da fare · ⛔ accettato/non applicabil
 ## 🎯 Blocchi Operatività 100%
 
 > 🆕 **Sessione 34 — nuovi blocchi 5→8 (allegati task + OneDrive + WhatsApp).**
-> Dettaglio tecnico completo in `docs/HANDOFF_SESSION_2026-06-21_v34_attachments_onedrive_whatsapp.md`.
+> Dettaglio tecnico completo in `docs/archivio/handoff/HANDOFF_SESSION_2026-06-21_v34_attachments_onedrive_whatsapp.md`.
 
 ### ✅ Block 5 — Allegati Task (FONDAZIONE) — COMPLETO (sessione 34) — 🔴 Alta — Sforzo M
 
@@ -311,7 +311,7 @@ Obiettivo: portare `src/VoyageDesk.jsx` da ~8300 righe a uno **shell sottile** c
 
 Phase 2g (PR #41, sessione 18): `React.lazy` + `<Suspense>` sui 4 componenti pesanti caricati on-demand. Bundle `index` 268.60 → 205.13 kB (64.11 → **50.90 kB gz, −20%**) + 4 chunk async (AdminView 7.12, Bulk 6.00, AIDayPlanner 3.28, TaskSlideOver 2.18 kB gz). La stima v12 di −100 kB confondeva raw/gz: il guadagno reale gz è −13.2 kB.
 
-Vedi `docs/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phase 2g + quick win #10/#18/#3/#8/#2/#25).
+Vedi `docs/archivio/handoff/HANDOFF_SESSION_2026-06-14_v13.md` per il dettaglio sessione 18 (Phase 2g + quick win #10/#18/#3/#8/#2/#25).
 
 ---
 

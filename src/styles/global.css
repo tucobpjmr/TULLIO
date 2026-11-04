@@ -241,7 +241,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: va
 /* ─── UTILITY (M-1) ───
    I tre pattern qui sotto erano ripetuti IDENTICI — stessa stringa, stesso
    valore — in 21+9+10 punti del codice, e sono stati i primi a diventare
-   classi (M-1, audit del 12 agosto: docs/AUDIT_ARCHITETTURA_2026-08-12.md).
+   classi (M-1, audit del 12 agosto: docs/archivio/audit/AUDIT_ARCHITETTURA_2026-08-12.md).
    I valori sono copiati, non normalizzati: nessun pixel cambia.
 
    Le forme costanti che NON sono diventate classi vivono in styles/common.js

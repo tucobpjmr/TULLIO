@@ -71,7 +71,7 @@ import {
   MessageTemplates as MessageTemplatesAPI,
 } from "../lib/api.js";
 import {
-  toDbTask, toDbTaskPatch, toDbNotice, toDbNoticePatch,
+  toDbTask, toDbNotice, toDbNoticePatch,
   toDbClient, toDbClientPatch, toDbCategory, toDbMessageTemplate, newId, isUuid,
 } from "../lib/mappers.js";
 import {
@@ -82,6 +82,9 @@ import { chiaveCliente } from "../lib/chiaveCliente.js";
 // Team, restore backup e profilo personale: in un file proprio, vedi la nota
 // sopra ...PERSISTENCE_ADMIN più sotto.
 import { PERSISTENCE_ADMIN } from "./persistenceAdmin.js";
+import {
+  scriviTaskConfrontato, valoriAttesi, compensazioneConflitto,
+} from "./scritturaTaskConfrontata.js";
 
 // Risultato "nessuna operazione": stessa forma di una risposta supabase-js
 // riuscita, così l'orchestratore non ha bisogno di un ramo speciale.
@@ -183,8 +186,20 @@ export const PERSISTENCE = {
       return !!prev && canEditTask(s.team, prev, uid);
     },
     entityId: (a) => a.payload?.id,
-    persist: (s, a) => TasksAPI.update(a.payload.id, toDbTaskPatch(a.payload)),
-    rollback: (s, a) => {
+    // M-1/M-2 dell'audit del 4 novembre: i valori che l'utente VEDEVA nei
+    // campi toccati viaggiano con l'azione (anche in coda offline), e la
+    // scrittura passa solo se il database li ha ancora — vedi
+    // state/scritturaTaskConfrontata.js. Fissati qui e non in `persist`
+    // perché `persist` non deve leggere lo stato (contratto di `offline`).
+    normalize: (a, s) => ({
+      ...a,
+      meta: { ...a.meta, attesi: valoriAttesi(findTask(s, a.payload?.id), a.payload) },
+    }),
+    persist: (s, a) => scriviTaskConfrontato(a.payload.id, a.payload, a.meta?.attesi),
+    // Su conflitto si mostra la versione del collega, non la copia locale.
+    rollback: (s, a, res) => {
+      const conflitto = compensazioneConflitto(res);
+      if (conflitto) return conflitto;
       const prev = findTask(s, a.payload?.id);
       return prev ? { type: "UPDATE_TASK", payload: prev } : null;
     },
@@ -198,11 +213,18 @@ export const PERSISTENCE = {
       return !!prev && canEditTask(s.team, prev, uid);
     },
     entityId: (a) => a.payload?.taskId,
-    persist: (s, a) => TasksAPI.update(a.payload.taskId, { status: a.payload.newStatus }),
+    normalize: (a, s) => ({
+      ...a,
+      meta: { ...a.meta, attesi: { status: findTask(s, a.payload?.taskId)?.status ?? null } },
+    }),
+    persist: (s, a) => scriviTaskConfrontato(
+      a.payload.taskId, { status: a.payload.newStatus }, a.meta?.attesi),
     // `s` è lo stato PRE-dispatch: `prev.status` è ancora la colonna di
     // partenza. Si rimanda un altro MOVE_TASK verso quella, così il case del
     // reducer applica anche il suo `completedAtPatch` nella direzione giusta.
-    rollback: (s, a) => {
+    rollback: (s, a, res) => {
+      const conflitto = compensazioneConflitto(res);
+      if (conflitto) return conflitto;
       const prev = findTask(s, a.payload?.taskId);
       return prev ? { type: "MOVE_TASK", payload: { taskId: a.payload.taskId, newStatus: prev.status } } : null;
     },
@@ -258,11 +280,22 @@ export const PERSISTENCE = {
   // "↩ Annulla" tornava indietro solo in UI: la riga su Supabase restava nello
   // stato post-azione e ricompariva al primo reload/evento realtime.
   UNDO_LAST_ACTION: {
+    // M-1 dell'audit del 4 novembre: si annullano SOLO i campi che lo swipe
+    // aveva cambiato, e solo se valgono ancora quanto lo swipe li aveva messi.
+    // Prima si riscriveva il task intero com'era prima dello swipe: un
+    // collega che nel frattempo aveva cambiato scadenza o descrizione perdeva
+    // la modifica, e l'annullamento passava sopra a chi aveva preso il task.
     persist: (s) => {
       const la = s.lastAction;
-      if (la?.type === "MOVE_TASK")   return TasksAPI.update(la.taskId, { status: la.prevStatus });
+      if (la?.type === "MOVE_TASK") {
+        return scriviTaskConfrontato(la.taskId, { status: la.prevStatus },
+          la.newStatus !== undefined ? { status: la.newStatus } : undefined);
+      }
       if (la?.type === "DELETE_TASK") return TasksAPI.restore(la.taskId);
-      if (la?.type === "UPDATE_TASK") return TasksAPI.update(la.taskId, toDbTaskPatch(la.prevSnapshot));
+      if (la?.type === "UPDATE_TASK") {
+        return scriviTaskConfrontato(la.taskId, la.prevSnapshot,
+          valoriAttesi(la.valoriSwipe ?? {}, la.prevSnapshot));
+      }
       return NOOP;
     },
     // Se QUESTA scrittura fallisce, il reducer ha già applicato l'annullamento
@@ -270,7 +303,9 @@ export const PERSISTENCE = {
     // l'annullamento"). `s` è lo stato PRE-dispatch, cioè ancora quello
     // successivo allo swipe che si sta annullando, quindi basta rileggerlo da
     // lì senza un secondo snapshot.
-    rollback: (s) => {
+    rollback: (s, a, res) => {
+      const conflitto = compensazioneConflitto(res);
+      if (conflitto) return conflitto;
       const la = s.lastAction;
       if (!la) return null;
       if (la.type === "MOVE_TASK") {

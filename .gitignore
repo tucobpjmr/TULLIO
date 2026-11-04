@@ -12,3 +12,7 @@ import-liste/
 # Report di copertura (B-3): si rigenera a ogni `npm run verifica:copertura`,
 # e il numero che conta è la soglia in vite.config.js, non il report.
 coverage/
+
+# Esiti di Playwright (M-8): si rigenerano a ogni `npx playwright test`.
+test-results/
+playwright-report/

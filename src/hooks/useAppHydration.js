@@ -242,7 +242,7 @@ const applicaRiga = ({ action, mapper, dispatch, quandoIgnorare }) => (_tbl, pay
   }
   const row = mapper(payload.new);
   if (!row?.id) return false;
-  dispatch({ type: action, payload: { eventType: payload.eventType, row } });
+  dispatch({ type: action, payload: { eventType: payload.eventType, id: row.id, row } }); // senza `id`: doppione (4/11)
   return true;
 };
 

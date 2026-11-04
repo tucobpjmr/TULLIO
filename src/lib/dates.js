@@ -4,7 +4,7 @@
 // PERCHÉ ESISTE, e perché non riduce le forme a una. Prima c'erano sedici
 // chiamate a `toLocaleDateString`/`toLocaleTimeString` sparse in nove file,
 // quasi tutte scritte in linea dentro il JSX, che producevano sette forme
-// diverse (ST-8 di docs/AUDIT_STRUTTURA_2026-08-10.md). Sette forme sono
+// diverse (ST-8 di docs/archivio/audit/AUDIT_STRUTTURA_2026-08-10.md). Sette forme sono
 // probabilmente le sette giuste — l'intestazione di un calendario e il
 // timestamp di un messaggio non devono somigliarsi — quindi il difetto non era
 // la varietà: era che la varietà non stava scritta da nessuna parte. La settima

@@ -48,7 +48,7 @@ export const SOGLIE = [
     rimedio:
       'Collega Messages.listForConversation (src/lib/api.js) al posto di listAll ' +
       'in hooks/useChatData.js — è già scritta e mai chiamata di proposito. ' +
-      'Vedi ST-4 passo 2 in docs/AUDIT_STRUTTURA_2026-08-10.md.',
+      'Vedi ST-4 passo 2 in docs/archivio/audit/AUDIT_STRUTTURA_2026-08-10.md.',
   },
   {
     tabella: 'task_history',

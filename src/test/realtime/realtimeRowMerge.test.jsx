@@ -99,6 +99,27 @@ describe("applicaRigaRealtime — l'invariante per un evento singolo", () => {
     const out = applicaRigaRealtime(undefined, new Map(), { eventType: "INSERT", id: "a", row: { id: "a" } });
     expect(out).toEqual([{ id: "a" }]);
   });
+
+  // Trovato il 4 novembre: useAppHydration dispatchava `{ eventType, row }`
+  // SENZA `id`, mentre questi test passavano sempre l'id — le due metà del
+  // contratto erano verificate ciascuna con un payload diverso. Con l'id
+  // assente nessuna riga combaciava e un UPDATE di un collega diventava un
+  // doppione in coda all'elenco, e il controllo sulle scritture in volo non
+  // scattava mai.
+  it("un evento senza `id` esplicito lo prende dalla riga: nessun doppione", () => {
+    const out = applicaRigaRealtime(
+      [{ id: "a", nome: "vecchia" }, { id: "b", nome: "altra" }],
+      new Map(),
+      { eventType: "UPDATE", row: { id: "a", nome: "aggiornata" } },
+    );
+    expect(out).toEqual([{ id: "a", nome: "aggiornata" }, { id: "b", nome: "altra" }]);
+  });
+
+  it("e rispetta la scrittura in volo anche così", () => {
+    const locale = [{ id: "a", nome: "mia, in volo" }];
+    const out = applicaRigaRealtime(locale, new Map([["a", 1]]), { eventType: "UPDATE", row: { id: "a", nome: "altrui" } });
+    expect(out).toBe(locale);
+  });
 });
 
 describe("reducer — MERGE_TASK_ROW", () => {

@@ -1,0 +1,48 @@
+# M-8 dell'audit del 4 novembre · test end-to-end nel browser vero.
+#
+# Due famiglie (vedi e2e/README.md):
+#   - avvio.spec.js gira SEMPRE: la build di produzione si apre sulla
+#     schermata di login senza errori;
+#   - flussi.spec.js gira solo se i segreti dello staging ci sono (gli stessi
+#     di rls.yml), altrimenti i suoi test risultano «skipped».
+#
+# `@playwright/test` si installa con --no-save: non è nelle devDependencies,
+# così `npm ci` resta identico per chi non esegue gli E2E.
+name: E2E
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save @playwright/test@1.63.0
+      - run: npx playwright install --with-deps chromium
+      - name: Test E2E
+        env:
+          # La build punta allo staging quando i segreti ci sono. Senza, i
+          # valori fittizi bastano a far arrivare l'app al login: è ciò che
+          # avvio.spec.js verifica.
+          VITE_SUPABASE_URL: ${{ secrets.RLS_TEST_URL || 'https://e2e.invalid' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.RLS_TEST_ANON_KEY || 'chiave-fittizia' }}
+          RLS_TEST_URL: ${{ secrets.RLS_TEST_URL }}
+          RLS_TEST_ANON_KEY: ${{ secrets.RLS_TEST_ANON_KEY }}
+          RLS_TEST_JUNIOR_EMAIL: ${{ secrets.RLS_TEST_JUNIOR_EMAIL }}
+          RLS_TEST_JUNIOR_PASSWORD: ${{ secrets.RLS_TEST_JUNIOR_PASSWORD }}
+        run: npx playwright test
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-trace
+          path: test-results/
+          retention-days: 7

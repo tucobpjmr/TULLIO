@@ -309,6 +309,20 @@ export function AuthProvider({ children }) {
     }
   }, [uidSessione]);
 
+  // M-4 dell'audit del 4 novembre: le scritture fatte senza rete e non ancora
+  // consegnate stanno su IndexedDB con l'azione intera (nomi di clienti,
+  // contatti, testi). All'uscita si tolgono quelle di chi esce: restavano lì
+  // fino a sette giorni, su un dispositivo che in agenzia è spesso condiviso.
+  // Chi le avrebbe perse è avvisato PRIMA, dal guscio (shell/confermaUscita.js).
+  const svuotaCoda = useCallback(async () => {
+    try {
+      const { svuotaScrittureDi } = await import('../state/codaDispositivo.js');
+      await svuotaScrittureDi(uidSessione);
+    } catch (err) {
+      console.warn('[auth] coda offline non svuotata al logout', err);
+    }
+  }, [uidSessione]);
+
   // scope:'local' → esce SOLO dalla scheda/dispositivo corrente. Senza scope,
   // supabase-js usa di default 'global' e revoca TUTTE le sessioni dell'utente
   // su ogni scheda e dispositivo: un logout in un punto invalidava lato server
@@ -317,10 +331,11 @@ export function AuthProvider({ children }) {
   // Function) falliva con "Token non valido" (session_not_found).
   const signOut = useCallback(async () => {
     await revocaPush({ ovunque: false });
+    await svuotaCoda();
     const res = await supabaseAuth.signOut({ scope: 'local' });
     await svuotaCache();
     return res;
-  }, [revocaPush, svuotaCache]);
+  }, [revocaPush, svuotaCoda, svuotaCache]);
 
   // Uscita da OGNI dispositivo: revoca i refresh token lato server. È il
   // rimedio per un dispositivo perso, e non ha il difetto che ha portato a
@@ -331,10 +346,11 @@ export function AuthProvider({ children }) {
   // sessione revocata continuerebbe altrimenti a mostrare le notifiche.
   const signOutOvunque = useCallback(async () => {
     await revocaPush({ ovunque: true });
+    await svuotaCoda();
     const res = await supabaseAuth.signOut({ scope: 'global' });
     await svuotaCache();
     return res;
-  }, [revocaPush, svuotaCache]);
+  }, [revocaPush, svuotaCoda, svuotaCache]);
 
   // Invia l'email con il link per reimpostare la password. redirectTo riporta
   // l'utente sull'app, dove detectSessionInUrl genera l'evento PASSWORD_RECOVERY.
@@ -387,11 +403,12 @@ export function AuthProvider({ children }) {
       // cancellare l'intenzione, che altrimenti verrebbe riusata per l'utente
       // successivo.
       await revocaPush({ ovunque: false });
+      await svuotaCoda();
       await supabaseAuth.signOut();
       await svuotaCache();
     }
     return result;
-  }, [revocaPush, svuotaCache]);
+  }, [revocaPush, svuotaCoda, svuotaCache]);
 
   const value = useMemo(() => ({
     session,

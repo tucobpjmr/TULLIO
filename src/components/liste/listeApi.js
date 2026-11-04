@@ -14,7 +14,7 @@
 // admin/manager/agent. Il gate lato client (role !== "driver") è difesa in
 // profondità, non la garanzia: quella è e resta la RLS.
 //
-// PERCHÉ STA QUI E NON IN src/lib/ (ST-6 di docs/AUDIT_STRUTTURA_2026-08-10.md).
+// PERCHÉ STA QUI E NON IN src/lib/ (ST-6 di docs/archivio/audit/AUDIT_STRUTTURA_2026-08-10.md).
 // Questo file è PRIVATO del modulo Liste: i suoi importatori sono tutti dentro
 // components/liste/, nessuno fuori. Stava in src/lib/ — la cartella dei moduli
 // condivisi da tutta l'app — ed è esattamente il posto da cui tre viste del core
@@ -37,7 +37,7 @@ import { getClientId } from '../../lib/clientId.js';
 // funzione privata di questo modulo. Ora sta in lib/pagination.js: `clients`
 // (818 righe) ne aveva bisogno quanto liste_viaggio e movimenti_lista, e la
 // regola non doveva esistere in due copie per essere applicata in due posti
-// (ST-3 di docs/AUDIT_STRUTTURA_2026-08-10.md).
+// (ST-3 di docs/archivio/audit/AUDIT_STRUTTURA_2026-08-10.md).
 import { fetchAllRows, WITH_COUNT } from '../../lib/pagination.js';
 
 // Le liste portano sempre con sé il nome del titolare (clients) e degli

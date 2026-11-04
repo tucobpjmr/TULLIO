@@ -37,6 +37,16 @@ test.afterAll(async () => {
   await client.from('tasks').delete().eq('title', TITOLO);
 });
 
+// Il contatore della «Coda Globale» e non il titolo a schermo: la creazione
+// rapida lascia la task senza assegnatari, quindi finisce nella coda globale,
+// che la dashboard non apre per prima ed è paginata a dieci righe. Il
+// contatore conta l'intera coda in memoria, cioè ciò che il realtime aggiorna.
+const contaCodaGlobale = async (page) => {
+  const testo = await page.getByRole('button', { name: /Coda Globale/ }).textContent();
+  const m = /(\d+)\s*$/.exec(testo ?? '');
+  return m ? Number(m[1]) : NaN;
+};
+
 test('una task creata compare in un\'altra scheda senza ricaricare', async ({ browser }) => {
   const contesto = await browser.newContext();
   const scheda = await contesto.newPage();
@@ -47,6 +57,8 @@ test('una task creata compare in un\'altra scheda senza ricaricare', async ({ br
   // origin_client, che vive in sessionStorage, per pagina).
   await altra.goto('/');
   await expect(altra.getByRole('button', { name: 'Cambia utente loggato' })).toBeVisible({ timeout: 20_000 });
+  await expect.poll(() => contaCodaGlobale(altra), { timeout: 20_000 }).toBeGreaterThanOrEqual(0);
+  const prima = await contaCodaGlobale(altra);
 
   // «k» apre la creazione rapida (scorciatoia documentata nell'app).
   await scheda.keyboard.press('k');
@@ -54,8 +66,9 @@ test('una task creata compare in un\'altra scheda senza ricaricare', async ({ br
   await scheda.getByRole('button', { name: '✓ Crea Task' }).click();
   await expect(scheda.locator('#qat-title')).toBeHidden();
 
-  // L'altra scheda ha un origin_client diverso: l'evento realtime la raggiunge.
-  await expect(altra.getByText(TITOLO).first()).toBeVisible({ timeout: 15_000 });
+  // L'altra scheda ha un origin_client diverso: l'evento realtime la raggiunge,
+  // senza ricaricare la pagina.
+  await expect.poll(() => contaCodaGlobale(altra), { timeout: 15_000 }).toBe(prima + 1);
   await contesto.close();
 });
 

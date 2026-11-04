@@ -11,7 +11,7 @@
 // Questa logica esisteva già, ma solo dentro `lib/listeApi.js`, dove serviva
 // per liste_viaggio (616 righe) e movimenti_lista (5.320). `Clients.list()`
 // non ce l'aveva, e la tabella `clients` è a 818 righe: a meno di 200 dal cap
-// (rilievo ST-3 di docs/AUDIT_STRUTTURA_2026-08-10.md). Promuoverla da
+// (rilievo ST-3 di docs/archivio/audit/AUDIT_STRUTTURA_2026-08-10.md). Promuoverla da
 // funzione privata di un modulo a modulo condiviso è ciò che rende la
 // correzione un riuso invece del terzo posto in cui la stessa regola è
 // scritta.

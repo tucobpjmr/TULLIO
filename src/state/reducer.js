@@ -36,6 +36,7 @@ import { LOGGED_ACTIONS, buildLogEntry } from "./activityLog.js";
 import { pushToast, marcaToast, ritiraToast } from "./toastQueue.js";
 import { applyRestoreBackupRollback } from "./restoreBackupRollback.js";
 import { fondiScrittureInVolo, applicaRigaRealtime, fondiThreadCommenti } from "./pendingWrites.js";
+import { campiPrima } from "./campiPrima.js";
 // Due fette di dominio hanno un reducer proprio. Il perché della scelta — e il
 // criterio con cui si decide se una fetta può uscire senza spezzare la macchina
 // a stati — sta in cima a state/noticesReducer.js.
@@ -279,7 +280,7 @@ function baseReducer(state, action) {
         ? pushToast(state.toasts, { message: `✓ Spostato in "${STATUS_LABELS[action.payload.newStatus]}"`, type: "success", undoable: true })
         : pushToast(state.toasts, { message: `Task spostato in "${STATUS_LABELS[action.payload.newStatus]}"`, type: "success" });
       const lastAction = action.swipe
-        ? { type: "MOVE_TASK", taskId: action.payload.taskId, prevStatus }
+        ? { type: "MOVE_TASK", taskId: action.payload.taskId, prevStatus, newStatus: action.payload.newStatus }
         : state.lastAction;
       return { ...state, tasks, toasts, lastAction };
     }
@@ -320,8 +321,9 @@ function baseReducer(state, action) {
       const toasts = action.swipe
         ? pushToast(state.toasts, { message: action.toastMessage || "Task aggiornato!", type: "success", undoable: true })
         : pushToast(state.toasts, { message: "Task aggiornato!", type: "success" });
+      const { id: _id, ...valoriSwipe } = action.payload; // M-1: vedi campiPrima
       const lastAction = action.swipe && prev
-        ? { type: "UPDATE_TASK", taskId: action.payload.id, prevSnapshot: prev }
+        ? { type: "UPDATE_TASK", taskId: action.payload.id, prevSnapshot: campiPrima(prev, valoriSwipe), valoriSwipe }
         : state.lastAction;
       return { ...state, tasks, toasts, lastAction };
     }
@@ -674,7 +676,7 @@ function baseReducer(state, action) {
         return { ...state, tasks, toasts: pushToast(state.toasts, { message: "Azione annullata", type: "success" }), lastAction: null };
       }
       if (la.type === "UPDATE_TASK") {
-        const tasks = state.tasks.map(t => t.id === la.taskId ? la.prevSnapshot : t);
+        const tasks = state.tasks.map(t => t.id === la.taskId ? { ...t, ...la.prevSnapshot } : t);
         return { ...state, tasks, toasts: pushToast(state.toasts, { message: "Azione annullata", type: "success" }), lastAction: null };
       }
       return state;

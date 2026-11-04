@@ -63,7 +63,7 @@ export const Conversations = {
 
 export const Messages = {
   // Non chiamata da nessuna parte, DI PROPOSITO: è il secondo passo di ST-4
-  // (docs/AUDIT_STRUTTURA_2026-08-10.md), la lettura per-conversazione che
+  // (docs/archivio/audit/AUDIT_STRUTTURA_2026-08-10.md), la lettura per-conversazione che
   // sostituirà il corpus intero di listAll() quando `messages` supererà la
   // soglia scritta lì (~1500) — oggi 13. Rimossa una prima volta in questo
   // stesso intervento (B-2, secondo audit del 14 agosto) scambiandola per

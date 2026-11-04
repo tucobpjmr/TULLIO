@@ -182,5 +182,25 @@ export function creaCodaScritture(deposito, { adesso = () => Date.now() } = {}) 
         await deposito.svuota();
       } catch { /* niente da fare, e niente da dire all'utente */ }
     },
+
+    /**
+     * Toglie le voci di UN utente, lasciando quelle degli altri (M-4 del 4
+     * novembre). Serve al logout: le voci portano le azioni intere — nomi di
+     * clienti, contatti, testi — e senza questo restavano su IndexedDB fino a
+     * sette giorni dopo l'uscita, su un dispositivo che può essere condiviso.
+     * Le voci di un altro account restano: quell'utente non è uscito.
+     * @param {string} uid
+     */
+    async rimuoviPerUtente(uid) {
+      let righe = [];
+      try {
+        righe = await deposito.tutte();
+      } catch {
+        return;
+      }
+      for (const r of righe) {
+        if (r?.uid === uid && r.id != null) await deposito.rimuovi(r.id).catch(() => {});
+      }
+    },
   };
 }

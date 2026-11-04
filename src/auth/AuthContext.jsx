@@ -18,6 +18,11 @@ const AuthContext = createContext(null);
 // (authError + retry) invece di restare bloccata per sempre.
 const AUTH_TIMEOUT_MS = 15000;
 
+// Tetto alla revoca delle push al logout (A-1, audit del 4 novembre): oltre,
+// si esce comunque. Più corto di AUTH_TIMEOUT_MS perché qui l'utente ha
+// appena premuto «Esci» e aspetta solo quello.
+export const REVOCA_PUSH_TIMEOUT_MS = 5000;
+
 function withTimeout(promise, ms, label) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`[auth] ${label} in timeout dopo ${ms}ms`)), ms);
@@ -289,6 +294,35 @@ export function AuthProvider({ children }) {
     svuotaCacheUrl();
   }, []);
 
+  // A-1 dell'audit del 4 novembre: all'uscita le push di questo dispositivo si
+  // revocano, altrimenti su un PC condiviso arrivano a chi entra dopo. Va
+  // chiamata PRIMA del signOut (la DELETE su push_subscriptions passa dalla
+  // RLS) e con un tetto di tempo: senza rete il logout non deve restare appeso.
+  // Import dinamico per la stessa ragione di svuotaCache.
+  const uidSessione = session?.user?.id ?? null;
+  const revocaPush = useCallback(async (opzioni) => {
+    try {
+      const { revocaPushAlLogout } = await import('../lib/push.js');
+      await withTimeout(revocaPushAlLogout(uidSessione, opzioni), REVOCA_PUSH_TIMEOUT_MS, 'revocaPush');
+    } catch (err) {
+      console.warn('[auth] revoca push al logout non completata', err);
+    }
+  }, [uidSessione]);
+
+  // M-4 dell'audit del 4 novembre: le scritture fatte senza rete e non ancora
+  // consegnate stanno su IndexedDB con l'azione intera (nomi di clienti,
+  // contatti, testi). All'uscita si tolgono quelle di chi esce: restavano lì
+  // fino a sette giorni, su un dispositivo che in agenzia è spesso condiviso.
+  // Chi le avrebbe perse è avvisato PRIMA, dal guscio (shell/confermaUscita.js).
+  const svuotaCoda = useCallback(async () => {
+    try {
+      const { svuotaScrittureDi } = await import('../state/codaDispositivo.js');
+      await svuotaScrittureDi(uidSessione);
+    } catch (err) {
+      console.warn('[auth] coda offline non svuotata al logout', err);
+    }
+  }, [uidSessione]);
+
   // scope:'local' → esce SOLO dalla scheda/dispositivo corrente. Senza scope,
   // supabase-js usa di default 'global' e revoca TUTTE le sessioni dell'utente
   // su ogni scheda e dispositivo: un logout in un punto invalidava lato server
@@ -296,21 +330,27 @@ export function AuthProvider({ children }) {
   // in memoria → la successiva azione privilegiata (es. invito via Edge
   // Function) falliva con "Token non valido" (session_not_found).
   const signOut = useCallback(async () => {
+    await revocaPush({ ovunque: false });
+    await svuotaCoda();
     const res = await supabaseAuth.signOut({ scope: 'local' });
     await svuotaCache();
     return res;
-  }, [svuotaCache]);
+  }, [revocaPush, svuotaCoda, svuotaCache]);
 
   // Uscita da OGNI dispositivo: revoca i refresh token lato server. È il
   // rimedio per un dispositivo perso, e non ha il difetto che ha portato a
   // 'local' sopra — qui la sessione morta nelle altre schede è ESATTAMENTE
   // ciò che si vuole, quindi il toast "Sessione scaduta" di api.js è la
   // risposta giusta e non un effetto collaterale da nascondere.
+  // Qui le push si tolgono da OGNI dispositivo: un telefono perso con la
+  // sessione revocata continuerebbe altrimenti a mostrare le notifiche.
   const signOutOvunque = useCallback(async () => {
+    await revocaPush({ ovunque: true });
+    await svuotaCoda();
     const res = await supabaseAuth.signOut({ scope: 'global' });
     await svuotaCache();
     return res;
-  }, [svuotaCache]);
+  }, [revocaPush, svuotaCoda, svuotaCache]);
 
   // Invia l'email con il link per reimpostare la password. redirectTo riporta
   // l'utente sull'app, dove detectSessionInUrl genera l'evento PASSWORD_RECOVERY.
@@ -358,11 +398,17 @@ export function AuthProvider({ children }) {
     const { Users: UsersAPI } = await import('../lib/api.js');
     const result = await UsersAPI.deleteAccount();
     if (!result.error) {
+      // Le righe su push_subscriptions le cancella già la Edge Function
+      // delete-account; qui serve revocare la sottoscrizione del browser e
+      // cancellare l'intenzione, che altrimenti verrebbe riusata per l'utente
+      // successivo.
+      await revocaPush({ ovunque: false });
+      await svuotaCoda();
       await supabaseAuth.signOut();
       await svuotaCache();
     }
     return result;
-  }, [svuotaCache]);
+  }, [revocaPush, svuotaCoda, svuotaCache]);
 
   const value = useMemo(() => ({
     session,

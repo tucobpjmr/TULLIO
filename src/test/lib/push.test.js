@@ -11,6 +11,7 @@ const Push = {
   save: vi.fn(async () => ({ error: null })),
   findByEndpoint: vi.fn(async () => ({ data: { id: "r1" }, error: null })),
   removeByEndpoint: vi.fn(async () => ({ error: null })),
+  removeAllForUser: vi.fn(async () => ({ error: null })),
   sendTest: vi.fn(async () => ({ error: null })),
 };
 vi.mock("../../lib/api.js", () => ({ Push }));
@@ -130,6 +131,65 @@ describe("intenzione dell'utente", () => {
     setupBrowser();
     await push.disablePush();
     const r = await push.syncPushSubscription("u1");
+    expect(r.error).toBe("opt-out");
+    expect(Push.save).not.toHaveBeenCalled();
+  });
+});
+
+// ─── A-1 dell'audit del 4 novembre · le push non sopravvivono al logout ─────
+// Il logout non toccava le push: la riga su push_subscriptions restava
+// dell'utente uscito, e su un PC condiviso chi entrava dopo riceveva le sue
+// notifiche, anteprime della chat comprese.
+describe("revocaPushAlLogout", () => {
+  it("toglie la riga di questo dispositivo, revoca il browser e cancella l'intenzione", async () => {
+    const sub = makeSub();
+    setupBrowser({ subscription: sub });
+    localStorage.setItem("vd:push-intent", "on");
+
+    await push.revocaPushAlLogout("u1");
+
+    expect(Push.removeByEndpoint).toHaveBeenCalledWith(ENDPOINT);
+    expect(Push.removeAllForUser).not.toHaveBeenCalled();
+    expect(sub.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem("vd:push-intent")).toBe(null);
+  });
+
+  it("con `ovunque` toglie le righe dell'utente su ogni dispositivo", async () => {
+    const sub = makeSub();
+    setupBrowser({ subscription: sub });
+
+    await push.revocaPushAlLogout("u1", { ovunque: true });
+
+    expect(Push.removeAllForUser).toHaveBeenCalledWith("u1");
+    expect(sub.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("revoca il browser anche se la DELETE fallisce (rete assente)", async () => {
+    // È la revoca del browser a fermare la consegna: un endpoint revocato
+    // risponde 410 e la Edge Function ne cancella la riga da sé.
+    const sub = makeSub();
+    setupBrowser({ subscription: sub });
+    Push.removeByEndpoint.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    await expect(push.revocaPushAlLogout("u1")).resolves.toBeUndefined();
+    expect(sub.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("senza service worker non solleva e cancella comunque l'intenzione", async () => {
+    localStorage.setItem("vd:push-intent", "on");
+    await expect(push.revocaPushAlLogout("u1")).resolves.toBeUndefined();
+    expect(Push.removeByEndpoint).not.toHaveBeenCalled();
+    expect(localStorage.getItem("vd:push-intent")).toBe(null);
+  });
+
+  it("chi entra dopo NON viene ri-sottoscritto in silenzio", async () => {
+    // Senza cancellare l'intenzione, syncPushSubscription all'avvio dell'app
+    // registrerebbe per il nuovo utente le push che lui non ha mai chiesto.
+    setupBrowser();
+    localStorage.setItem("vd:push-intent", "on");
+    await push.revocaPushAlLogout("u1");
+
+    const r = await push.syncPushSubscription("u2");
     expect(r.error).toBe("opt-out");
     expect(Push.save).not.toHaveBeenCalled();
   });

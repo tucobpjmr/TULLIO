@@ -94,27 +94,27 @@ const costruisciAncore = (registryTesto) => [
 
 // Gli audit sotto controllo: nome del file, prefisso dei suoi rilievi.
 const AUDIT = [
-  { file: 'AUDIT_STRUTTURA_2026-08-10.md', prefisso: 'ST' },
-  { file: 'AUDIT_PERFORMANCE_2026-08.md', prefisso: 'P2' },
+  { file: 'archivio/audit/AUDIT_STRUTTURA_2026-08-10.md', prefisso: 'ST' },
+  { file: 'archivio/audit/AUDIT_PERFORMANCE_2026-08.md', prefisso: 'P2' },
   // Quattro prefissi in una tabella sola: Critici, Alta, Media, Bassa.
-  { file: 'AUDIT_ARCHITETTURA_2026-08-12.md', prefisso: ['C', 'A', 'M', 'B'] },
-  { file: 'AUDIT_ARCHITETTURA_2026-08-14.md', prefisso: ['C', 'A', 'M', 'B'] },
-  { file: 'AUDIT_ARCHITETTURA_2026-08-14_ii.md', prefisso: ['C', 'A', 'M', 'B'] },
-  { file: 'AUDIT_ARCHITETTURA_2026-08-14_iii.md', prefisso: ['C', 'A', 'M', 'B'] },
+  { file: 'archivio/audit/AUDIT_ARCHITETTURA_2026-08-12.md', prefisso: ['C', 'A', 'M', 'B'] },
+  { file: 'archivio/audit/AUDIT_ARCHITETTURA_2026-08-14.md', prefisso: ['C', 'A', 'M', 'B'] },
+  { file: 'archivio/audit/AUDIT_ARCHITETTURA_2026-08-14_ii.md', prefisso: ['C', 'A', 'M', 'B'] },
+  { file: 'archivio/audit/AUDIT_ARCHITETTURA_2026-08-14_iii.md', prefisso: ['C', 'A', 'M', 'B'] },
   // B-6 dell'audit del 16 agosto: questi due mancavano dal registro, quindi il
   // loro ⟦stato: N/M chiusi⟧ in INDEX.md non lo verificava nessuno — un
   // marcatore machine-readable che nessuna macchina legge è una nota a
   // margine, e l'audit del 15 agosto è quello con più rilievi ANCORA APERTI.
   { file: 'AUDIT_ARCHITETTURA_2026-08-15.md', prefisso: ['C', 'A', 'M', 'B'] },
-  { file: 'AUDIT_ARCHITETTURA_2026-08-16.md', prefisso: ['C', 'A', 'M', 'B'] },
+  { file: 'archivio/audit/AUDIT_ARCHITETTURA_2026-08-16.md', prefisso: ['C', 'A', 'M', 'B'] },
   // Registrato insieme al documento, non dopo: è la lezione di B-6/B-7 sopra —
   // un audit fuori dal registro ha un ⟦stato: N/M chiusi⟧ che nessuno verifica,
   // e questo è quello con tutti gli undici rilievi ancora aperti.
-  { file: 'AUDIT_PERFORMANCE_UX_2026-08-16_ii.md', prefisso: ['C', 'A', 'M', 'B'] },
+  { file: 'archivio/audit/AUDIT_PERFORMANCE_UX_2026-08-16_ii.md', prefisso: ['C', 'A', 'M', 'B'] },
   // Stessa regola di sopra, applicata alla riga che la enuncia: registrato
   // insieme al documento. È l'audit con tutti e nove i rilievi ancora aperti,
   // cioè quello in cui il marcatore di INDEX.md ha più occasioni di scadere.
-  { file: 'AUDIT_PERFORMANCE_UX_2026-08-19.md', prefisso: ['C', 'A', 'M', 'B'] },
+  { file: 'archivio/audit/AUDIT_PERFORMANCE_UX_2026-08-19.md', prefisso: ['C', 'A', 'M', 'B'] },
   // Mancava dal registro fin dalla sua creazione — esattamente la condizione
   // che B-6 del 16 agosto aveva esteso questo elenco per impedire. Registrato
   // ora, nella stessa sessione che ne chiude B-1 e B-3: senza, l'aggiornamento
@@ -127,12 +127,12 @@ const AUDIT = [
   // dichiarata in cima al documento, e la ragione è che i riferimenti A-3/A-4/
   // A-5 sono già citati dentro il codice (eslint.config.js, styles/common.js,
   // lib/realtime.js, questo stesso script).
-  { file: 'AUDIT_ARCHITETTURA_2026-08-23_ii.md', prefisso: 'A' },
+  { file: 'archivio/audit/AUDIT_ARCHITETTURA_2026-08-23_ii.md', prefisso: 'A' },
   // Registrato insieme al documento, come i quattro sopra: e' l'audit con tre
   // rilievi ANCORA APERTI, cioe' quello il cui marcatore ha piu' occasioni di
   // scadere. I prefissi sono due — M (media) e B (bassa) — perche' non ha
   // rilievi critici ne' di alta priorita'.
-  { file: 'AUDIT_ARCHITETTURA_2026-08-25.md', prefisso: ['M', 'B'] },
+  { file: 'archivio/audit/AUDIT_ARCHITETTURA_2026-08-25.md', prefisso: ['M', 'B'] },
   // Registrato insieme al documento, come i cinque sopra — ed e' l'audit con
   // TUTTI E UNDICI i rilievi ancora aperti, cioe' quello il cui marcatore
   // ha piu' occasioni di scadere. I prefissi sono tre: A (alta), M (media),
@@ -143,7 +143,7 @@ const AUDIT = [
   // di components/liste/, che scrivono con `esegui` e non con un dispatch del
   // registry core). Finche' non e' chiuso, il controllo n. 5-bis qui sotto
   // stampa uno 0 che vale solo per il core.
-  { file: 'AUDIT_ARCHITETTURA_2026-08-26.md', prefisso: ['A', 'M', 'B'] },
+  { file: 'archivio/audit/AUDIT_ARCHITETTURA_2026-08-26.md', prefisso: ['A', 'M', 'B'] },
   // L'audit di sicurezza del 26 agosto. Entra nel registro il giorno stesso in
   // cui nasce, e non dopo, per la ragione che questo elenco porta scritta piu'
   // sopra: un audit fuori dal registro ha un marcatore che nessuno verifica, e
@@ -157,12 +157,12 @@ const AUDIT = [
   // marcatore che nessuno verifica, e il momento in cui scade e' esattamente
   // quello in cui si comincia a chiudere i suoi rilievi. Nasce con otto rilievi
   // tutti aperti, nessuno critico: i prefissi sono tre.
-  { file: 'AUDIT_STATO_FLUSSO_DATI_2026-08-28.md', prefisso: ['A', 'M', 'B'] },
+  { file: 'archivio/audit/AUDIT_STATO_FLUSSO_DATI_2026-08-28.md', prefisso: ['A', 'M', 'B'] },
   // Registrato insieme al documento, come impone B-6 del 16 agosto: nasce con
   // dodici rilievi tutti aperti e nessun critico, quindi i prefissi sono tre.
   // È l'audit con il marcatore piu' esposto a scadere in silenzio — il valore
   // di partenza e' 0/12 e ogni rilievo chiuso lo muove.
-  { file: 'AUDIT_UX_ERRORI_2026-08-31.md', prefisso: ['A', 'M', 'B'] },
+  { file: 'archivio/audit/AUDIT_UX_ERRORI_2026-08-31.md', prefisso: ['A', 'M', 'B'] },
   // L'audit di codebase completa del 31 agosto: il primo senza un perimetro
   // tematico. Registrato insieme al documento, per la ragione scritta piu'
   // sopra — un audit fuori dal registro ha un marcatore che nessuno verifica,
@@ -185,7 +185,7 @@ const AUDIT = [
   //
   // Nasce con undici rilievi tutti aperti ed e' l'unico dei due in registro con
   // un rilievo CRITICO ancora da chiudere, quindi i prefissi sono quattro.
-  { file: 'AUDIT_ARCHITETTURA_SICUREZZA_2026-09-02.md', prefisso: ['C', 'A', 'M', 'B'] },
+  { file: 'archivio/audit/AUDIT_ARCHITETTURA_SICUREZZA_2026-09-02.md', prefisso: ['C', 'A', 'M', 'B'] },
   // L'audit di architettura e sicurezza del 4 settembre. Registrato insieme al
   // documento, per la ragione scritta piu' sopra.
   //

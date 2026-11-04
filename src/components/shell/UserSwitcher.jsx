@@ -13,6 +13,7 @@ import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 import { conTastiera } from "../../lib/a11y.js";
 import { useTema } from "../../hooks/useTema.js";
+import { useConfermaUscita } from "./useConfermaUscita.js";
 import { ETICHETTE_TEMA, TEMI } from "../../lib/tema.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
@@ -80,6 +81,7 @@ export const UserSwitcher = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const { signOut } = useAuth();
+  const confermaUscita = useConfermaUscita();
   const ref = useRef(null);
 
   // Step O (caveat #16): logout reale. Prima marca l'utente offline (best
@@ -87,6 +89,7 @@ export const UserSwitcher = () => {
   // sessione — l'AuthGate in main.jsx ri-renderizza LoginScreen da solo.
   const handleLogout = async () => {
     if (signingOut) return;
+    if (!(await confermaUscita())) return;
     setSigningOut(true);
     try { await UsersAPI.setPresence(currentUserId, "offline"); } catch { /* best effort */ }
     const { error } = await signOut();

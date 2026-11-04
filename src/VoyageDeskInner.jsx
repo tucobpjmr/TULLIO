@@ -108,7 +108,7 @@ const Trash = lazy(() =>
 const Archive = lazy(() =>
   import("./components/tasks/Archive.jsx").then(m => ({ default: m.Archive }))
 );
-// Suggerimento strategico #3 (docs/AUDIT_PERFORMANCE_2026-08.md): un
+// Suggerimento strategico #3 (docs/archivio/audit/AUDIT_PERFORMANCE_2026-08.md): un
 // React.Profiler attorno alla vista attiva, per rispondere "quanto costa un
 // render" con un numero invece che a sensazione — la stessa domanda a cui
 // `npm run misura:render` risponde per la sola `layoutColumns`, qui estesa

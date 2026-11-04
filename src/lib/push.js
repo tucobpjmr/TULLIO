@@ -143,6 +143,36 @@ export async function disablePush() {
   }
 }
 
+// Revoca le push di QUESTO dispositivo quando l'utente esce (A-1, audit del
+// 4 novembre). Senza, la riga su push_subscriptions restava dell'utente uscito
+// e su un PC condiviso chi entrava dopo riceveva le sue notifiche — anteprime
+// della chat comprese.
+//
+// Diversa da disablePush in due punti:
+//   - la revoca del browser avviene SEMPRE, anche se la DELETE fallisce (rete
+//     assente, sessione già scaduta): è lei a fermare la consegna, perché un
+//     endpoint revocato risponde 410 e la Edge Function cancella la riga;
+//   - con `ovunque` toglie le righe dell'utente su ogni dispositivo.
+// Va chiamata PRIMA del signOut: la DELETE passa dalla RLS e serve il JWT.
+// Non solleva mai: il logout non deve fallire per colpa delle push.
+export async function revocaPushAlLogout(userId, { ovunque = false } = {}) {
+  // Prima di tutto, e anche senza service worker: senza l'intenzione salvata
+  // syncPushSubscription non ri-sottoscrive in silenzio l'utente successivo.
+  writeIntent(false);
+  let sub = null;
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    sub = reg ? await reg.pushManager.getSubscription() : null;
+  } catch { /* nessun service worker: niente da revocare in questo browser */ }
+  try {
+    if (ovunque && userId) await Push.removeAllForUser(userId);
+    else if (sub) await Push.removeByEndpoint(sub.endpoint);
+  } catch { /* best effort: la revoca del browser qui sotto basta a fermare la consegna */ }
+  try {
+    await sub?.unsubscribe();
+  } catch { /* best effort */ }
+}
+
 // Riparazione silenziosa, da chiamare all'avvio dell'app (e quando il service
 // worker segnala un pushsubscriptionchange). Tre scenari, tutti visti su
 // iPhone e tutti indistinguibili per l'utente ("le notifiche non arrivano

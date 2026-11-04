@@ -238,7 +238,7 @@ describe("useSyncedDispatch — fallimenti di persistenza", () => {
     // A-1 dell'audit del 1 settembre ha dato un rollback a tutte le mutazioni
     // sui task (era 1 entry su 8), e A-1 del 2 settembre ha chiuso le ultime
     // due del registro senza (ADD_NOTICE, ADD_COMMENT — vedi
-    // docs/AUDIT_ARCHITETTURA_SICUREZZA_2026-09-02.md). Le cinque voci di
+    // docs/archivio/audit/AUDIT_ARCHITETTURA_SICUREZZA_2026-09-02.md). Le cinque voci di
     // categorie/template restano senza per scelta dichiarata (B-3 dello
     // stesso audit: tabelle di configurazione, scritte dai soli admin, senza
     // sottoscrizione realtime concorrente): ADD_CATEGORY è quindi l'azione

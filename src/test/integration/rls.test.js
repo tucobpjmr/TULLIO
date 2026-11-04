@@ -1,4 +1,4 @@
-// M-4 (docs/AUDIT_ARCHITETTURA_2026-08.md) — la matrice di autorizzazione è
+// M-4 (docs/archivio/audit/AUDIT_ARCHITETTURA_2026-08.md) — la matrice di autorizzazione è
 // scritta DUE volte dal 6 agosto: in lib/permissions.js (client) e nelle
 // policy/funzioni private.* (database). persistenceGuards.test.js verifica
 // che client e registry di persistenza concordino fra loro, ma nessun test
@@ -663,6 +663,158 @@ suite("RLS: la matrice di autorizzazione è applicata dal database, non solo dal
       // controprova che il gate nuovo non ha chiuso fuori il chiamante che
       // la CI usa davvero.
       expect(data).toBe(1);
+    });
+  });
+  // M-1/M-2 dell'audit del 4 novembre · «confronta e scrivi». `Tasks.update`
+  // con `attesi` mette i valori visti da chi scrive nella WHERE della stessa
+  // UPDATE (eq su testo, letterale `{…}` sugli assegnatari uuid[], `is null`).
+  // I test unitari verificano la FORMA della query; questo verifica che
+  // PostgREST e Postgres la leggano come previsto: con un valore atteso
+  // superato la UPDATE tocca zero righe, con quello giusto una.
+  describe("tasks — la UPDATE confrontata tocca la riga solo se i valori attesi reggono", () => {
+    let driver, taskId;
+    beforeAll(async () => {
+      driver = await accedi(process.env.RLS_TEST_DRIVER_EMAIL, process.env.RLS_TEST_DRIVER_PASSWORD);
+      const { data, error } = await driver.client.from("tasks").insert({
+        title: "sonda confronto", category: "transfer", status: "todo",
+        created_by: driver.userId, assignees: [driver.userId], due_date: null,
+      }).select().single();
+      if (error) throw new Error(`setup sonda confronto: ${error.message}`);
+      taskId = data.id;
+    });
+    afterAll(async () => {
+      if (taskId) await driver.client.from("tasks").delete().eq("id", taskId);
+    });
+
+    it("con gli assegnatari superati (qualcuno l'ha già presa) non scrive", async () => {
+      const { data, error } = await driver.client.from("tasks")
+        .update({ status: "inprogress" }).eq("id", taskId)
+        .eq("assignees", "{}").is("due_date", null).select();
+      expect(error).toBeNull();
+      expect(data).toEqual([]);
+    });
+
+    it("con i valori attesi giusti scrive, una riga", async () => {
+      const { data, error } = await driver.client.from("tasks")
+        .update({ status: "inprogress" }).eq("id", taskId)
+        .eq("assignees", `{"${driver.userId}"}`).eq("status", "todo").is("due_date", null).select();
+      expect(error).toBeNull();
+      expect(data).toHaveLength(1);
+      expect(data[0].status).toBe("inprogress");
+    });
+  });
+
+  // M-5 dell'analisi del 4 novembre, che proponeva di cancellare la riga del
+  // task PRIMA dei suoi file. Il commento su `purgeTasks` (lib/api/task.js)
+  // dice perché non si può: `task_files_storage_delete` lascia cancellare un
+  // oggetto a chi l'ha caricato oppure se la riga di `tasks` esiste ancora.
+  // Questo blocco lo lega al database: senza la riga, il file di un collega
+  // resta dov'è.
+  describe("storage task-files — senza la riga del task, il file di un collega non si cancella", () => {
+    let driver, junior, taskId;
+    const percorso = () => `${taskId}/sonda-${Date.now()}.txt`;
+    let path;
+    beforeAll(async () => {
+      driver = await accedi(process.env.RLS_TEST_DRIVER_EMAIL, process.env.RLS_TEST_DRIVER_PASSWORD);
+      junior = await accedi(process.env.RLS_TEST_JUNIOR_EMAIL, process.env.RLS_TEST_JUNIOR_PASSWORD);
+      const { data, error } = await driver.client.from("tasks").insert({
+        title: "sonda purge", category: "transfer", status: "todo",
+        created_by: driver.userId, assignees: [driver.userId, junior.userId],
+      }).select().single();
+      if (error) throw new Error(`setup sonda purge: ${error.message}`);
+      taskId = data.id;
+      path = percorso();
+      const up = await junior.client.storage.from("task-files")
+        .upload(path, new Blob(["sonda"], { type: "text/plain" }));
+      if (up.error) throw new Error(`upload sonda: ${up.error.message}`);
+    });
+    afterAll(async () => {
+      if (path) await junior?.client.storage.from("task-files").remove([path]);
+      if (taskId) await driver?.client.from("tasks").delete().eq("id", taskId);
+    });
+
+    it("con la riga presente il collega assegnatario può cancellarlo (controprova)", async () => {
+      // Non lo cancella davvero: verifica solo che la policy lo vedrebbe.
+      const { data, error } = await driver.client.storage.from("task-files").list(taskId);
+      expect(error).toBeNull();
+      expect(data.length).toBeGreaterThan(0);
+    });
+
+    it("cancellata la riga, la remove del collega non tocca il file", async () => {
+      await driver.client.from("tasks").delete().eq("id", taskId);
+      const { data, error } = await driver.client.storage.from("task-files").remove([path]);
+      expect(error).toBeNull();
+      expect(data).toEqual([]);
+      taskId = null;
+    });
+  });
+
+  // M-3 dell'audit del 4 novembre. Presenza e «sta scrivendo» sono canali
+  // PRIVATI (lib/realtime.js) e l'ingresso lo decidono le policy su
+  // `realtime.messages` (migrazione 20261104181351): presenza a ogni utente
+  // attivo, «sta scrivendo» ai soli partecipanti della conversazione.
+  describe("realtime — i canali privati li apre solo chi le policy ammettono", () => {
+    const aggancio = (client, topic) => new Promise((risolvi) => {
+      const canale = client.channel(topic, { config: { private: true } });
+      const fine = (esito) => { client.removeChannel(canale); risolvi(esito); };
+      const timer = setTimeout(() => fine("TIMEOUT"), 10000);
+      canale.subscribe((stato) => {
+        if (stato === "SUBSCRIBED" || stato === "CHANNEL_ERROR") { clearTimeout(timer); fine(stato); }
+      });
+    });
+
+    it("un utente attivo entra nella presenza dell'agenzia", async () => {
+      const { client } = await accedi(process.env.RLS_TEST_JUNIOR_EMAIL, process.env.RLS_TEST_JUNIOR_PASSWORD);
+      expect(await aggancio(client, "presenza:agenzia")).toBe("SUBSCRIBED");
+    });
+
+    it("nessuno entra nel «sta scrivendo» di una conversazione di cui non fa parte", async () => {
+      const { client } = await accedi(process.env.RLS_TEST_JUNIOR_EMAIL, process.env.RLS_TEST_JUNIOR_PASSWORD);
+      expect(await aggancio(client, "typing:00000000-0000-4000-8000-000000000000")).toBe("CHANNEL_ERROR");
+    });
+  });
+
+  // A-1 dell'audit del 4 novembre. Il logout cancella la sottoscrizione push
+  // con `removeByEndpoint` (filtro sul solo endpoint) e «Esci da tutti i
+  // dispositivi» con `removeAllForUser`: i commenti in lib/push.js e in
+  // lib/api/notifiche.js dicono che è la RLS a limitare la DELETE alle righe
+  // dell'utente, e che senza JWT la DELETE non tocca nulla. Questo blocco li
+  // lega al database: lo stesso endpoint registrato da un altro utente non
+  // si cancella, e la propria riga sì.
+  describe("push_subscriptions — al logout ognuno cancella solo le proprie", () => {
+    const ENDPOINT = `https://push.example.invalid/rls-${Date.now()}`;
+    let driver, junior;
+    beforeAll(async () => {
+      driver = await accedi(process.env.RLS_TEST_DRIVER_EMAIL, process.env.RLS_TEST_DRIVER_PASSWORD);
+      junior = await accedi(process.env.RLS_TEST_JUNIOR_EMAIL, process.env.RLS_TEST_JUNIOR_PASSWORD);
+      const { error } = await driver.client.from("push_subscriptions").insert({
+        user_id: driver.userId, endpoint: ENDPOINT, p256dh: "p", auth: "a",
+      });
+      if (error) throw new Error(`sonda push_subscriptions non creata: ${error.message}`);
+    });
+    afterAll(async () => {
+      await driver?.client.from("push_subscriptions").delete().eq("endpoint", ENDPOINT);
+    });
+
+    it("la DELETE per endpoint di un altro utente non tocca la riga", async () => {
+      const { count, error } = await junior.client.from("push_subscriptions")
+        .delete({ count: "exact" }).eq("endpoint", ENDPOINT);
+      expect(error).toBeNull();
+      expect(count).toBe(0);
+    });
+
+    it("nemmeno nominando l'utente: removeAllForUser vale solo per sé", async () => {
+      const { count, error } = await junior.client.from("push_subscriptions")
+        .delete({ count: "exact" }).eq("user_id", driver.userId);
+      expect(error).toBeNull();
+      expect(count).toBe(0);
+    });
+
+    it("il proprietario la cancella per endpoint, come fa il logout", async () => {
+      const { count, error } = await driver.client.from("push_subscriptions")
+        .delete({ count: "exact" }).eq("endpoint", ENDPOINT);
+      expect(error).toBeNull();
+      expect(count).toBe(1);
     });
   });
 });

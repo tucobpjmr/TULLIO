@@ -52,7 +52,7 @@ const STILE_INLINE_COSTANTE = {
     + 'importa il namespace: `stiliComuni.rowCenterGap8`, vedi '
     + 'VIETATO_COMMON_NOMINATO) e passalo per nome. Un oggetto letterale nel '
     + 'JSX è nuovo a ogni render — vedi M-1 in '
-    + 'docs/AUDIT_ARCHITETTURA_2026-08-12.md.',
+    + 'docs/archivio/audit/AUDIT_ARCHITETTURA_2026-08-12.md.',
 };
 
 // A-2 dell'audit del 16 agosto è nato da un oggetto letterale scritto nel JSX
@@ -80,7 +80,7 @@ const VIETATO_CONTEXT_VALUE_LETTERALE = {
     + 'è cambiato, e nessun memo/useMemo a valle può saltare il lavoro. '
     + 'Costruiscilo con useMemo (dipendenze quelle che cambiano davvero) o, se '
     + 'è davvero costante, come const di modulo — vedi A-2 in '
-    + 'docs/AUDIT_ARCHITETTURA_2026-08-16.md.',
+    + 'docs/archivio/audit/AUDIT_ARCHITETTURA_2026-08-16.md.',
 };
 
 // A-2 dell'audit del 2 settembre. `jsx-a11y/no-static-element-interactions`
@@ -180,7 +180,7 @@ const VIETATE_ENTITA_DELLO_STATE = {
 // stesso modulo (ListeViaggio.jsx, già lazy in VoyageDesk.jsx). Un import
 // statico rimette quei moduli nel chunk eager senza che nessun test se ne
 // accorga: è passato in review due volte prima di essere misurato a mano
-// decodificando le sourcemap (docs/AUDIT_PERFORMANCE_2026-08.md, P2-1). La
+// decodificando le sourcemap (docs/archivio/audit/AUDIT_PERFORMANCE_2026-08.md, P2-1). La
 // regola non vieta il componente, vieta la forma statica: `import()`
 // dinamico non è un ImportDeclaration e resta permesso.
 const VIETATI_IMPORT_LISTE_EAGER = {
@@ -199,7 +199,7 @@ const VIETATI_IMPORT_LISTE_EAGER = {
     'ClienteListePanel/ArchivedListe/ChatPanel si importano con lazy(() => import(...)) ' +
     '(vedi ClienteDetailPanel.jsx/Archive.jsx/VoyageDesk.jsx): un import statico li rimette nel ' +
     'chunk eager insieme a listeStyles.jsx e liste/listeApi.js, che ListeViaggio.jsx ' +
-    'tiene già fuori (docs/AUDIT_PERFORMANCE_2026-08.md, P2-1; ST-12). Le funzioni ' +
+    'tiene già fuori (docs/archivio/audit/AUDIT_PERFORMANCE_2026-08.md, P2-1; ST-12). Le funzioni ' +
     'pure della chat che servono fuori dal pannello (getUnreadCount per il badge) ' +
     'si importano da chat/chatFormat.js, che non trascina il pannello.',
 };
@@ -208,7 +208,7 @@ const VIETATI_IMPORT_LISTE_EAGER = {
 // irraggiungibili (quindi fuori dal bundle) in produzione. L'unico punto
 // d'ingresso ammesso è state/demoState.js, che lo chiama sempre dentro
 // `if (import.meta.env.DEV && …)` — il guard che permette al bundler di
-// eliminare il ramo (docs/AUDIT_PERFORMANCE_2026-08.md, P2-2). Import diretti
+// eliminare il ramo (docs/archivio/audit/AUDIT_PERFORMANCE_2026-08.md, P2-2). Import diretti
 // altrove bypassano quel guard e mockData.js torna nel bundle di produzione,
 // invisibile finché qualcuno non rilegge le sourcemap.
 const VIETATO_MOCKDATA_DIRETTO = {
@@ -227,7 +227,7 @@ const VIETATO_MOCKDATA_DIRETTO = {
 // la cartella dei moduli condivisi, quel confine era una CONVENZIONE e non una
 // struttura: era esattamente il posto da cui Topbar/ricerca, ClientiView e
 // Archive l'avevano raggiunto la prima volta, assemblando query sulle tabelle
-// di un modulo altrui (ST-6 di docs/AUDIT_STRUTTURA_2026-08-10.md).
+// di un modulo altrui (ST-6 di docs/archivio/audit/AUDIT_STRUTTURA_2026-08-10.md).
 //
 // Ora il file sta accanto ai suoi consumatori e questa regola dice la stessa
 // cosa al linter. Come per appGlobals, il problema non era scrivere la facciata
@@ -297,7 +297,7 @@ const VIETATO_DISPATCH_PROP = {
     '`dispatch` non si passa come prop: si legge con useDispatch() da '
     + 'src/state/DispatchContext.jsx. La sua identità è stabile per contratto '
     + '(hooks/useSyncedDispatch.js), quindi il contesto non costa un render in '
-    + 'più — vedi M-2 in docs/AUDIT_ARCHITETTURA_2026-08-25.md. Nei test si '
+    + 'più — vedi M-2 in docs/archivio/audit/AUDIT_ARCHITETTURA_2026-08-25.md. Nei test si '
     + 'passa a renderWithAppData(ui, { dispatch }) o a withDispatch(ui, dispatch).',
 };
 

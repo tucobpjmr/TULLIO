@@ -3,7 +3,7 @@
 Stato al 7 agosto 2026. Progetto Supabase `vmxvnxsqfisucugcpqlc` (tullio), 103
 migrazioni nel repo.
 
-> **Revisione del 7 agosto 2026 (A-3 di `docs/AUDIT_ARCHITETTURA_2026-08.md`).**
+> **Revisione del 7 agosto 2026 (A-3 di `docs/archivio/audit/AUDIT_ARCHITETTURA_2026-08.md`).**
 > La stesura precedente di questo documento (4 agosto) affermava due cose non
 > più vere: che la CSP fosse Report-Only (§5, §8 — **blocca** dal 6 agosto) e
 > che il vincolo del Junior Agent non fosse applicato dal database (§4 — **lo
@@ -199,6 +199,32 @@ Le due Edge Function che toccano Storage — `delete-user` e `delete-account`,
 entrambe per rimuovere `<user_id>/avatar.jpg` — passano dal client
 `SUPABASE_SERVICE_ROLE_KEY` e **bypassano la RLS**: è ciò che permette a chi
 cancella il proprio account di ripulire l'avatar anche da disattivato.
+
+### Realtime: presenza e «sta scrivendo» sono canali privati (✅ live dal 4 novembre 2026)
+
+Fino al 4 novembre `presenza:agenzia` e `typing:<conversazione>` erano canali
+**pubblici**: Realtime non valuta policy su un canale pubblico, quindi con la
+sola chiave anon si leggeva chi era collegato e si poteva pubblicare un «sta
+scrivendo» a nome di altri (M-3 dell'analisi di quel giorno). Ora il client li
+apre con `private: true` (`src/lib/realtime.js`) e l'ingresso lo decidono
+quattro policy su `realtime.messages` (migrazione `20261104181351`):
+
+| Canale | Chi entra |
+|---|---|
+| `presenza:agenzia` (estensione `presence`) | utenti autenticati **e** attivi (`private.is_active_user()`) |
+| `typing:<id>` (estensione `broadcast`) | i soli **partecipanti** della conversazione, attivi |
+
+Verificate con un dry-run transazionale prima di applicarle: utente attivo
+ammesso su presenza e sulla propria conversazione; rifiutati conversazione
+altrui, topic malformato, estensione sbagliata e ruolo `anon`. Il caso
+eseguibile sta in `src/test/integration/rls.test.js`.
+
+⚠️ **«Allow public access» resta acceso nelle impostazioni Realtime.** I canali
+`postgres_changes` (task, commenti, avvisi, clienti, utenti, chat, notifiche,
+liste) sono pubblici e protetti dalla RLS delle loro tabelle; spegnerlo li
+fermerebbe tutti finché non diventano privati con una policy sul loro topic.
+Per questo rilievo non serve: un canale privato e uno pubblico con lo stesso
+nome sono canali **distinti** e Realtime non passa messaggi fra loro.
 
 ### Gerarchia degli helper (📄)
 
@@ -591,7 +617,7 @@ e nelle policy RLS (§4). È esattamente la configurazione a rischio di
 divergenza silenziosa che il registry di persistenza (`persistence.js`) esiste
 per evitare in un altro strato.
 
-**M-4 (`docs/AUDIT_ARCHITETTURA_2026-08.md`), risolto il 7 agosto:**
+**M-4 (`docs/archivio/audit/AUDIT_ARCHITETTURA_2026-08.md`), risolto il 7 agosto:**
 `src/test/integration/rls.test.js` attraversa il confine che gli altri quattro
 file non attraversano — apre una connessione autenticata con il token di un
 `driver`, di un `agent` con `seniority='junior'` e di un utente `pending`, e

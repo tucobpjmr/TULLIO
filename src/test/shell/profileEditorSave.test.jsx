@@ -30,7 +30,12 @@ vi.mock("../../auth/AuthContext.jsx", () => ({
 }));
 
 const { ProfileEditor } = await import("../../components/shell/ProfileEditor.jsx");
-const { withDispatch } = await import("../helpers/appData.jsx");
+// Con i provider dell'app e non il solo DispatchProvider: la sezione
+// «Sicurezza account» chiede conferma prima di uscire se ci sono modifiche
+// offline non inviate (M-4 del 4 novembre), quindi usa useConfirm/useAppData
+// come qualunque modale montata dentro VoyageDesk.
+const { withAppData, DEMO_APP_CTX } = await import("../helpers/appData.jsx");
+const withDispatch = (ui, dispatch) => withAppData(ui, { ...DEMO_APP_CTX, dispatch });
 
 const MEMBER = { id: "marco", name: "Marco", role: "manager", color: "#0F2044", avatar: "M" };
 

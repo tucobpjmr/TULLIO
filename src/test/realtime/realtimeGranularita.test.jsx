@@ -345,7 +345,7 @@ describe("useAppHydration — un commento non ricarica i task", () => {
     expect(TaskThreadsAPI.comments).not.toHaveBeenCalled();
     expect(dispatch).toHaveBeenCalledWith({
       type: "MERGE_TASK_ROW",
-      payload: { eventType: "UPDATE", row: expect.objectContaining({ id: "t1", title: "Aggiornato da un altro agente" }) },
+      payload: { eventType: "UPDATE", id: "t1", row: expect.objectContaining({ id: "t1", title: "Aggiornato da un altro agente" }) },
     });
   });
 
@@ -447,7 +447,7 @@ describe("useAppHydration — un evento su notices applica la riga, non ricarica
     expect(NoticesAPI.list).not.toHaveBeenCalled();
     expect(dispatch).toHaveBeenCalledWith({
       type: "MERGE_NOTICE_ROW",
-      payload: { eventType: "UPDATE", row: expect.objectContaining({ id: "n1", text: "Riunione spostata", pinned: true }) },
+      payload: { eventType: "UPDATE", id: "n1", row: expect.objectContaining({ id: "n1", text: "Riunione spostata", pinned: true }) },
     });
   });
 
@@ -495,7 +495,7 @@ describe("useAppHydration — un evento su clients applica la riga, non ricarica
     expect(ClientsAPI.list).not.toHaveBeenCalled();
     expect(dispatch).toHaveBeenCalledWith({
       type: "MERGE_CLIENT_ROW",
-      payload: { eventType: "UPDATE", row: expect.objectContaining({ id: "c1", name: "Rossi Mario", city: "Milano" }) },
+      payload: { eventType: "UPDATE", id: "c1", row: expect.objectContaining({ id: "c1", name: "Rossi Mario", city: "Milano" }) },
     });
   });
 
@@ -512,7 +512,7 @@ describe("useAppHydration — un evento su clients applica la riga, non ricarica
     expect(ClientsAPI.list).not.toHaveBeenCalled();
     expect(dispatch).toHaveBeenCalledWith({
       type: "MERGE_CLIENT_ROW",
-      payload: { eventType: "INSERT", row: expect.objectContaining({ id: "c2", name: "Bianchi Ada" }) },
+      payload: { eventType: "INSERT", id: "c2", row: expect.objectContaining({ id: "c2", name: "Bianchi Ada" }) },
     });
   });
 

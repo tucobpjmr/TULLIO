@@ -11,7 +11,7 @@
 // risposta ignota finché qualcuno non la esegue.
 //
 // ─── PERCHÉ MISURA `layoutColumns` E NON PIÙ `expandRecurring` (A-3) ─────────
-// Questo script è nato per rispondere a P2-4 (docs/AUDIT_PERFORMANCE_2026-08.md):
+// Questo script è nato per rispondere a P2-4 (docs/archivio/audit/AUDIT_PERFORMANCE_2026-08.md):
 // «`expandRecurring` chiamata tre volte per render invece di una è un difetto
 // certo, ma quanto costa a 248 task nessuno lo sapeva». La misura c'era, il
 // rilievo è stato chiuso, e il numero è finito in un audit.

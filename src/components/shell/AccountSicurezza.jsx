@@ -29,6 +29,7 @@ import { PasswordField } from "../ui/PasswordField.jsx";
 import { PASSWORD_MIN, passwordValida } from "../../lib/validators.js";
 import * as stiliComuni from "../../styles/common.js";
 import { ESITO_PRONTO, accountIniziale, accountReducer } from "./accountSicurezzaReducer.js";
+import { useConfermaUscita } from "./useConfermaUscita.js";
 import {
   boxF125Danger, colGap10Mt10, colGap10Mt102, inputWFull, mt2, row, rowCenterGap8,
   rowCenterGap82, rowCenterGap8Neutral, txtF11Muted2, txtF12Muted, txtF13Text,
@@ -36,6 +37,7 @@ import {
 
 export function AccountSicurezza() {
   const { session, updatePassword, deleteAccount, signOutOvunque } = useAuth();
+  const confermaUscita = useConfermaUscita();
   const montato = useIsMounted();
   const [stato, accountDispatch] = useReducer(accountReducer, accountIniziale);
   const nuovaPwdId = useId();
@@ -66,6 +68,7 @@ export function AccountSicurezza() {
   };
 
   const escoOvunque = async () => {
+    if (!(await confermaUscita())) return;
     accountDispatch({ type: "SIGNOUT_ESITO", esito: { fase: "invio", testo: null } });
     const { error } = await signOutOvunque();
     if (!montato()) return;

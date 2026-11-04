@@ -10,7 +10,7 @@
 // che esce comunque dal caricando con il profilo caricato.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, act, renderHook } from "@testing-library/react";
-import { AuthProvider, useAuth } from "../../auth/AuthContext.jsx";
+import { AuthProvider, useAuth, REVOCA_PUSH_TIMEOUT_MS } from "../../auth/AuthContext.jsx";
 
 const ME = { id: "u1", name: "Tullio", role: "admin", photo_url: null, pending: false };
 const SESSION = { user: { id: "u1" }, access_token: "tok" };
@@ -20,6 +20,14 @@ vi.mock("../../lib/api.js", () => ({
   // B-4 dell'audit del 5 settembre: serve allo spy del describe qui sotto.
   svuotaCacheUrl: vi.fn(),
 }));
+
+// A-1 dell'audit del 4 novembre: il logout revoca le push del dispositivo.
+// `vi.hoisted` perché la factory di vi.mock gira prima degli import.
+const { revocaPushAlLogout } = vi.hoisted(() => ({ revocaPushAlLogout: vi.fn(async () => {}) }));
+vi.mock("../../lib/push.js", () => ({ revocaPushAlLogout }));
+// M-4: il logout svuota la coda offline di chi esce.
+const { svuotaScrittureDi } = vi.hoisted(() => ({ svuotaScrittureDi: vi.fn(async () => {}) }));
+vi.mock("../../state/codaDispositivo.js", () => ({ svuotaScrittureDi }));
 
 // getSession/onAuthStateChange passano da lib/supabaseAuth.js (B-2 dell'audit
 // del 30 agosto): AuthContext non tocca più il client pieno per l'auth.
@@ -213,5 +221,143 @@ describe("AuthContext — B-4, le signed URL non sopravvivono al logout", () => 
 
     const { svuotaCacheUrl } = await import("../../lib/api.js");
     expect(svuotaCacheUrl).not.toHaveBeenCalled();
+  });
+});
+
+// ─── A-1 dell'audit del 4 novembre · il logout revoca le push ──────────────
+// Su un PC condiviso la sottoscrizione push restava dell'utente uscito: chi
+// entrava dopo riceveva le sue notifiche, anteprime della chat comprese. Qui
+// si verifica che i tre punti d'uscita chiamino la revoca, che la chiamino
+// PRIMA del signOut (la DELETE su push_subscriptions passa dalla RLS e serve
+// il JWT) e che una revoca appesa non blocchi l'uscita.
+describe("AuthContext — A-1, le push non sopravvivono al logout", () => {
+  beforeEach(async () => {
+    const { __authState, supabaseAuth } = await import("../../lib/supabaseAuth.js");
+    __authState.session = SESSION;
+    supabaseAuth.signOut.mockClear();
+    revocaPushAlLogout.mockReset();
+    revocaPushAlLogout.mockImplementation(async () => {});
+    // Già in cache prima dell'azione: l'import dinamico in AuthContext si
+    // risolve allora in un giro di microtask, anche sotto i timer finti.
+    await import("../../lib/push.js");
+  });
+
+  const montaAuth = async () => {
+    const rendered = renderHook(() => useAuth(), {
+      wrapper: ({ children }) => <AuthProvider>{children}</AuthProvider>,
+    });
+    await waitFor(() => expect(rendered.result.current.caricando).toBe(false));
+    return rendered;
+  };
+
+  const primaDelSignOut = async () => {
+    const { supabaseAuth } = await import("../../lib/supabaseAuth.js");
+    expect(revocaPushAlLogout.mock.invocationCallOrder[0])
+      .toBeLessThan(supabaseAuth.signOut.mock.invocationCallOrder[0]);
+  };
+
+  it("signOut() revoca le push di questo dispositivo, prima di uscire", async () => {
+    const { result } = await montaAuth();
+    await act(async () => { await result.current.signOut(); });
+
+    expect(revocaPushAlLogout).toHaveBeenCalledWith("u1", { ovunque: false });
+    await primaDelSignOut();
+  });
+
+  it("signOutOvunque() revoca le push su tutti i dispositivi, prima di uscire", async () => {
+    const { result } = await montaAuth();
+    await act(async () => { await result.current.signOutOvunque(); });
+
+    expect(revocaPushAlLogout).toHaveBeenCalledWith("u1", { ovunque: true });
+    await primaDelSignOut();
+  });
+
+  it("deleteAccount() riuscito revoca le push; fallito no", async () => {
+    const { Users } = await import("../../lib/api.js");
+    const { result } = await montaAuth();
+
+    Users.deleteAccount.mockResolvedValueOnce({ error: { message: "denied" } });
+    await act(async () => { await result.current.deleteAccount(); });
+    expect(revocaPushAlLogout).not.toHaveBeenCalled();
+
+    await act(async () => { await result.current.deleteAccount(); });
+    expect(revocaPushAlLogout).toHaveBeenCalledTimes(1);
+  });
+
+  it("una revoca che fallisce non impedisce l'uscita", async () => {
+    revocaPushAlLogout.mockRejectedValueOnce(new Error("rete"));
+    const { supabaseAuth } = await import("../../lib/supabaseAuth.js");
+    const { result } = await montaAuth();
+
+    let esito;
+    await act(async () => { esito = await result.current.signOut(); });
+    expect(supabaseAuth.signOut).toHaveBeenCalledTimes(1);
+    expect(esito).toEqual({ error: null });
+  });
+
+  it("senza rete la revoca appesa non blocca l'uscita oltre il tetto di tempo", async () => {
+    revocaPushAlLogout.mockImplementationOnce(() => new Promise(() => {}));
+    const { supabaseAuth } = await import("../../lib/supabaseAuth.js");
+    const { result } = await montaAuth();
+
+    vi.useFakeTimers();
+    try {
+      let finito = false;
+      await act(async () => {
+        const uscita = result.current.signOut().then(() => { finito = true; });
+        await vi.advanceTimersByTimeAsync(REVOCA_PUSH_TIMEOUT_MS - 1);
+        expect(finito).toBe(false);
+        await vi.advanceTimersByTimeAsync(1);
+        await uscita;
+      });
+      expect(finito).toBe(true);
+      expect(supabaseAuth.signOut).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+// ─── M-4 dell'audit del 4 novembre · la coda offline non sopravvive al logout
+describe("AuthContext — M-4, le scritture in attesa di chi esce si tolgono", () => {
+  beforeEach(async () => {
+    const { __authState, supabaseAuth } = await import("../../lib/supabaseAuth.js");
+    __authState.session = SESSION;
+    supabaseAuth.signOut.mockClear();
+    svuotaScrittureDi.mockClear();
+    revocaPushAlLogout.mockReset();
+    revocaPushAlLogout.mockImplementation(async () => {});
+    await import("../../state/codaDispositivo.js");
+    await import("../../lib/push.js");
+  });
+
+  const montaAuth = async () => {
+    const rendered = renderHook(() => useAuth(), {
+      wrapper: ({ children }) => <AuthProvider>{children}</AuthProvider>,
+    });
+    await waitFor(() => expect(rendered.result.current.caricando).toBe(false));
+    return rendered;
+  };
+
+  it.each([["signOut"], ["signOutOvunque"]])("%s() svuota la coda di chi esce, prima di uscire", async (uscita) => {
+    const { supabaseAuth } = await import("../../lib/supabaseAuth.js");
+    const { result } = await montaAuth();
+    await act(async () => { await result.current[uscita](); });
+
+    expect(svuotaScrittureDi).toHaveBeenCalledWith("u1");
+    expect(svuotaScrittureDi.mock.invocationCallOrder[0])
+      .toBeLessThan(supabaseAuth.signOut.mock.invocationCallOrder[0]);
+  });
+
+  it("deleteAccount() riuscito la svuota; fallito no", async () => {
+    const { Users } = await import("../../lib/api.js");
+    const { result } = await montaAuth();
+
+    Users.deleteAccount.mockResolvedValueOnce({ error: { message: "denied" } });
+    await act(async () => { await result.current.deleteAccount(); });
+    expect(svuotaScrittureDi).not.toHaveBeenCalled();
+
+    await act(async () => { await result.current.deleteAccount(); });
+    expect(svuotaScrittureDi).toHaveBeenCalledWith("u1");
   });
 });

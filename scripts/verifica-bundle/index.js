@@ -6,7 +6,7 @@
 // qualunque interazione) superano una soglia.
 //
 // Nasce da un guasto ripetuto tre volte, non uno: P2-1/2/3 in
-// docs/AUDIT_PERFORMANCE_2026-08.md erano lo stesso difetto — un import
+// docs/archivio/audit/AUDIT_PERFORMANCE_2026-08.md erano lo stesso difetto — un import
 // statico che scavalca un lazy() già deciso altrove (ClienteListePanel via
 // ClienteDetailPanel, ArchivedListe via Archive.jsx, mockData.js importato
 // fuori dal guard DEV) — misurato a mano decodificando le sourcemap perché

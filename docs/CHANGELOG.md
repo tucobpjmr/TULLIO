@@ -1,5 +1,29 @@
 # CHANGELOG — VoyageDesk
 
+## 4 novembre — logout e bozza del pannello task (A-1, A-2)
+
+**A-1 · Le push non sopravvivono più al logout.** Uscire non toccava le push:
+la riga su `push_subscriptions` restava dell'utente uscito, e su un PC
+condiviso chi entrava dopo riceveva le sue notifiche, anteprime della chat
+comprese. Ora `signOut`, `signOutOvunque` e `deleteAccount` riuscito chiamano
+`revocaPushAlLogout` (`src/lib/push.js`) **prima** del signOut, perché la DELETE
+passa dalla RLS e serve il JWT: toglie la riga del dispositivo (o tutte quelle
+dell'utente con «Esci da tutti i dispositivi»), revoca la sottoscrizione del
+browser anche se la DELETE fallisce e cancella l'intenzione salvata, così
+`syncPushSubscription` non ri-sottoscrive in silenzio l'utente successivo.
+Tetto di 5 secondi: senza rete il logout non resta appeso. Dopo il login le
+push vanno riattivate dal toggle, ed è voluto.
+
+**A-2 · Il pannello task non cancella più le modifiche dei colleghi.** La bozza
+dei campi testo di `TaskSlideOver` si riallineava solo cambiando task: se un
+collega modificava un campo, bastava entrare e uscire dallo stesso campo
+perché il commit al blur riscrivesse il valore vecchio, senza avviso. Ora si
+salvano solo i campi davvero modificati, quelli non toccati seguono il
+realtime, e un campo resta «toccato» fino a salvataggio riuscito — così un
+errore non fa perdere il testo scritto. ⚠️ Non risolve il conflitto vero (due
+persone che scrivono lo stesso campo insieme): lì vince ancora l'ultimo che
+salva, ed è il rilievo M-1 dell'analisi.
+
 ## 10 settembre (ii) — i tre rilievi di priorità bassa
 
 > La coda **bassa** rimasta dopo i cinque di priorità media. Sono tre cose che

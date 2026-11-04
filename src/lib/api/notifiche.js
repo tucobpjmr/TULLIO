@@ -116,6 +116,14 @@ export const Push = {
     const supabase = await getSupabase();
     return supabase.from('push_subscriptions').delete().eq('endpoint', endpoint);
   },
+  // Tutte le sottoscrizioni dell'utente, su ogni dispositivo: serve a «Esci da
+  // tutti i dispositivi» (A-1, audit del 4 novembre). Il filtro su user_id è
+  // esplicito: la query dice da sé quali righe tocca, senza affidarlo alla RLS
+  // (il caso è comunque in src/test/integration/rls.test.js).
+  removeAllForUser: async (userId) => {
+    const supabase = await getSupabase();
+    return supabase.from('push_subscriptions').delete().eq('user_id', userId);
+  },
   // Notifica di prova a se stessi: l'insert su notifications è riservato ai
   // trigger (nessuna policy di INSERT), quindi passa da una RPC security
   // definer (migration 20260731_push_test_and_ios_fixes).

@@ -665,4 +665,47 @@ suite("RLS: la matrice di autorizzazione è applicata dal database, non solo dal
       expect(data).toBe(1);
     });
   });
+  // A-1 dell'audit del 4 novembre. Il logout cancella la sottoscrizione push
+  // con `removeByEndpoint` (filtro sul solo endpoint) e «Esci da tutti i
+  // dispositivi» con `removeAllForUser`: i commenti in lib/push.js e in
+  // lib/api/notifiche.js dicono che è la RLS a limitare la DELETE alle righe
+  // dell'utente, e che senza JWT la DELETE non tocca nulla. Questo blocco li
+  // lega al database: lo stesso endpoint registrato da un altro utente non
+  // si cancella, e la propria riga sì.
+  describe("push_subscriptions — al logout ognuno cancella solo le proprie", () => {
+    const ENDPOINT = `https://push.example.invalid/rls-${Date.now()}`;
+    let driver, junior;
+    beforeAll(async () => {
+      driver = await accedi(process.env.RLS_TEST_DRIVER_EMAIL, process.env.RLS_TEST_DRIVER_PASSWORD);
+      junior = await accedi(process.env.RLS_TEST_JUNIOR_EMAIL, process.env.RLS_TEST_JUNIOR_PASSWORD);
+      const { error } = await driver.client.from("push_subscriptions").insert({
+        user_id: driver.userId, endpoint: ENDPOINT, p256dh: "p", auth: "a",
+      });
+      if (error) throw new Error(`sonda push_subscriptions non creata: ${error.message}`);
+    });
+    afterAll(async () => {
+      await driver?.client.from("push_subscriptions").delete().eq("endpoint", ENDPOINT);
+    });
+
+    it("la DELETE per endpoint di un altro utente non tocca la riga", async () => {
+      const { count, error } = await junior.client.from("push_subscriptions")
+        .delete({ count: "exact" }).eq("endpoint", ENDPOINT);
+      expect(error).toBeNull();
+      expect(count).toBe(0);
+    });
+
+    it("nemmeno nominando l'utente: removeAllForUser vale solo per sé", async () => {
+      const { count, error } = await junior.client.from("push_subscriptions")
+        .delete({ count: "exact" }).eq("user_id", driver.userId);
+      expect(error).toBeNull();
+      expect(count).toBe(0);
+    });
+
+    it("il proprietario la cancella per endpoint, come fa il logout", async () => {
+      const { count, error } = await driver.client.from("push_subscriptions")
+        .delete({ count: "exact" }).eq("endpoint", ENDPOINT);
+      expect(error).toBeNull();
+      expect(count).toBe(1);
+    });
+  });
 });

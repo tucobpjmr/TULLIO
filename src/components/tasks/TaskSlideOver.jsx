@@ -8,7 +8,7 @@
 // digitato — che finché stava qui faceva ri-renderizzare l'intero pannello a
 // ogni carattere; TaskAttachments.jsx e TaskHistoryPanel.jsx erano già fuori e
 // si caricano da sé i propri dati.
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useViewport } from "../ui/Viewport.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
@@ -35,6 +35,9 @@ import {
 import { useDispatch } from "../../state/DispatchContext.jsx";
 import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
 
+// I campi testo con bozza locale (commit al blur). Vedi A-2 più sotto.
+const CAMPI_BOZZA = ["title", "client", "praticaRef", "contact", "description"];
+
 export const TaskSlideOver = ({ task }) => {
   const dispatch = useDispatch();
   const conferma = useConfirm();
@@ -52,21 +55,56 @@ export const TaskSlideOver = ({ task }) => {
   // né un round-trip DB per carattere). I select/data persistono subito.
   const [draft, setDraft] = useState({ title: "", client: "", praticaRef: "", contact: "", description: "" });
 
-  // Risincronizza la bozza quando si apre un task diverso. NON dipende dall'intero
-  // `task` per non sovrascrivere quanto si sta digitando dopo un dispatch (es. il
-  // cambio di status aggiorna `task` ma deve lasciare intatto il testo in corso).
+  // ─── A-2 dell'audit del 4 novembre · i campi TOCCATI ──────────────────────
+  // La bozza si riallineava solo all'apertura di un task diverso. Se intanto un
+  // collega cambiava un campo (arriva via realtime in `task`), la bozza restava
+  // col valore vecchio, e bastava entrare e uscire dal campo — o chiudere il
+  // pannello col cursore dentro — perché `commitText` vedesse bozza ≠ task e
+  // RISCRIVESSE il vecchio valore sopra quello del collega, senza avvisare.
+  //
+  // Ora si tiene traccia dei campi che l'utente ha davvero modificato: solo
+  // quelli si salvano al blur, e solo quelli NON si riallineano quando `task`
+  // cambia da fuori — così il testo che si sta digitando resta intatto (era la
+  // ragione per cui l'effetto dipendeva solo da `task?.id`).
+  //
+  // Mappa campo → numero di modifiche, e non un insieme: un campo esce dai
+  // «toccati» solo a salvataggio RIUSCITO e solo se nel frattempo non si è
+  // digitato altro. Così un salvataggio fallito lascia il testo nel campo
+  // (il rollback non lo cancella), e un salvataggio lento non fa dimenticare
+  // ciò che si è scritto mentre era in volo.
+  const toccati = useRef(new Map());
+  const idBozza = useRef(null);
+  // Valori primitivi e non `task`: l'oggetto cambia identità a ogni modifica
+  // (stato, assegnatari…), mentre qui conta solo che cambi un campo con bozza.
+  const {
+    id: taskId = null, title: tTitolo, client: tCliente, praticaRef: tPratica,
+    contact: tContatto, description: tDescrizione,
+  } = task ?? {};
   useEffect(() => {
-    setDraft({
-      title: task?.title || "",
-      client: task?.client || "",
-      praticaRef: task?.praticaRef || "",
-      contact: task?.contact || "",
-      description: task?.description || "",
+    if (idBozza.current !== taskId) {
+      idBozza.current = taskId;
+      toccati.current = new Map();
+    }
+    const dalTask = {
+      title: tTitolo, client: tCliente, praticaRef: tPratica,
+      contact: tContatto, description: tDescrizione,
+    };
+    setDraft(d => {
+      let cambiata = false;
+      const next = { ...d };
+      for (const campo of CAMPI_BOZZA) {
+        if (toccati.current.has(campo)) continue;
+        const valore = dalTask[campo] || "";
+        if (next[campo] !== valore) { next[campo] = valore; cambiata = true; }
+      }
+      return cambiata ? next : d;
     });
-    // Volutamente solo task?.id: ri-sincronizzare a ogni cambio dei campi
-    // sovrascriverebbe il testo che l'utente sta digitando dopo un dispatch.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task?.id]);
+  }, [taskId, tTitolo, tCliente, tPratica, tContatto, tDescrizione]);
+
+  const scriviBozza = (campo, valore) => {
+    toccati.current.set(campo, (toccati.current.get(campo) ?? 0) + 1);
+    setDraft(d => ({ ...d, [campo]: valore }));
+  };
 
   // Calcolati PRIMA dell'early return: `useClientSuggestions` è un hook, e un
   // hook dopo un return condizionale cambierebbe l'ordine delle chiamate fra i
@@ -92,28 +130,42 @@ export const TaskSlideOver = ({ task }) => {
   const updateField = (field, value) =>
     dispatch({ type: "UPDATE_TASK", payload: { id: task.id, [field]: value } });
 
-  // Persiste un campo testo dalla bozza, solo se cambiato. `nullable` → stringa
-  // vuota diventa null (client/praticaRef). Il titolo è obbligatorio: se svuotato
-  // si ripristina il valore corrente.
-  const commitText = (field, { nullable = false } = {}) => {
+  // Persiste un campo testo dalla bozza, solo se l'utente l'ha modificato e il
+  // valore è diverso. `nullable` → stringa vuota diventa null (client/praticaRef).
+  // Il titolo è obbligatorio: se svuotato si ripristina il valore corrente.
+  const commitText = async (field, { nullable = false } = {}) => {
+    // Un campo mai toccato non si scrive (A-2): la bozza potrebbe essere più
+    // vecchia del task, e scriverla cancellerebbe la modifica di un collega.
+    const versione = toccati.current.get(field);
+    if (versione === undefined) return;
     const trimmed = (draft[field] || "").trim();
-    if (field === "title" && !trimmed) { setDraft(d => ({ ...d, title: task.title || "" })); return; }
+    if (field === "title" && !trimmed) {
+      toccati.current.delete(field);
+      setDraft(d => ({ ...d, title: task.title || "" }));
+      return;
+    }
     const next = nullable ? (trimmed || null) : trimmed;
     const curr = task[field] ?? (nullable ? null : "");
-    if (next === curr) return;
-    updateField(field, next);
+    if (next === curr) { toccati.current.delete(field); return; }
+    const esito = await updateField(field, next);
+    if (!esito?.error && toccati.current.get(field) === versione) toccati.current.delete(field);
   };
 
   const pickClient = (c) => {
     const name = c.name;
     cli.close();
+    // La scelta è già un salvataggio: il campo non è più «in modifica».
+    toccati.current.delete("client");
     if (name !== (task.client ?? null)) updateField("client", name);
     // Eredita i contatti dall'anagrafica solo se il campo è ancora vuoto: non
     // sovrascrive un contatto già digitato a mano o già presente sul task.
     const contact = clientContact(c);
     const shouldFillContact = contact && !draft.contact.trim() && !task.contact;
     setDraft(d => ({ ...d, client: name, contact: shouldFillContact ? contact : d.contact }));
-    if (shouldFillContact) updateField("contact", contact);
+    if (shouldFillContact) {
+      toccati.current.delete("contact");
+      updateField("contact", contact);
+    }
   };
 
   const handleStatusChange = (e) => {
@@ -170,7 +222,7 @@ export const TaskSlideOver = ({ task }) => {
               <input
                 className="playfair"
                 value={draft.title}
-                onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
+                onChange={e => scriviBozza("title", e.target.value)}
                 onBlur={() => commitText("title")}
                 onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
                 placeholder="Titolo del task"
@@ -258,7 +310,7 @@ export const TaskSlideOver = ({ task }) => {
                 <>
                   <input
                     value={draft.client}
-                    onChange={e => setDraft(d => ({ ...d, client: e.target.value }))}
+                    onChange={e => scriviBozza("client", e.target.value)}
                     {...cli.inputProps}
                     // L'onBlur del suggeritore va CHIAMATO, non sostituito:
                     // qui serve anche persistere il campo.
@@ -283,7 +335,7 @@ export const TaskSlideOver = ({ task }) => {
               {editable ? (
                 <input
                   value={draft.praticaRef}
-                  onChange={e => setDraft(d => ({ ...d, praticaRef: e.target.value }))}
+                  onChange={e => scriviBozza("praticaRef", e.target.value)}
                   onBlur={() => commitText("praticaRef", { nullable: true })}
                   placeholder="es. PR-2026-001"
                   style={fieldStyle}
@@ -299,7 +351,7 @@ export const TaskSlideOver = ({ task }) => {
               {editable ? (
                 <input
                   value={draft.contact}
-                  onChange={e => setDraft(d => ({ ...d, contact: e.target.value }))}
+                  onChange={e => scriviBozza("contact", e.target.value)}
                   onBlur={() => commitText("contact", { nullable: true })}
                   placeholder="Telefono, email…"
                   style={fieldStyle}
@@ -320,7 +372,7 @@ export const TaskSlideOver = ({ task }) => {
             {editable ? (
               <textarea
                 value={draft.description}
-                onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
+                onChange={e => scriviBozza("description", e.target.value)}
                 onBlur={() => commitText("description")}
                 rows={4}
                 placeholder="Dettagli del task…"

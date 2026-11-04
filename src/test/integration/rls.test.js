@@ -682,8 +682,11 @@ suite("RLS: la matrice di autorizzazione è applicata dal database, non solo dal
       if (error) throw new Error(`setup sonda confronto: ${error.message}`);
       taskId = data.id;
     });
+    // Nel cestino e non cancellata: `tasks_delete` la concede solo agli admin,
+    // e la DELETE del driver verrebbe filtrata in silenzio lasciando la sonda
+    // fra le task attive dello staging.
     afterAll(async () => {
-      if (taskId) await driver.client.from("tasks").delete().eq("id", taskId);
+      if (taskId) await driver.client.from("tasks").update({ deleted_at: new Date().toISOString() }).eq("id", taskId);
     });
 
     it("con gli assegnatari superati (qualcuno l'ha già presa) non scrive", async () => {
@@ -707,13 +710,17 @@ suite("RLS: la matrice di autorizzazione è applicata dal database, non solo dal
   // M-5 dell'analisi del 4 novembre, che proponeva di cancellare la riga del
   // task PRIMA dei suoi file. Il commento su `purgeTasks` (lib/api/task.js)
   // dice perché non si può: `task_files_storage_delete` lascia cancellare un
-  // oggetto a chi l'ha caricato oppure se la riga di `tasks` esiste ancora.
-  // Questo blocco lo lega al database: senza la riga, il file di un collega
-  // resta dov'è.
-  describe("storage task-files — senza la riga del task, il file di un collega non si cancella", () => {
-    let driver, junior, taskId;
-    const percorso = () => `${taskId}/sonda-${Date.now()}.txt`;
-    let path;
+  // oggetto a chi l'ha caricato OPPURE se esiste ancora la riga di `tasks`.
+  //
+  // Con gli utenti dello staging si verifica la metà costruibile: un collega
+  // che NON ha caricato il file lo cancella solo passando dalla riga del task.
+  // L'altra metà — «senza la riga, nemmeno lui» — richiede di cancellare il
+  // task, e `tasks_delete` lo concede solo agli admin: lo staging non ha un
+  // account admin di prova. Il primo tentativo (4 novembre) cancellava il task
+  // col driver, la DELETE veniva filtrata in silenzio e il test misurava altro;
+  // il secondo caso qui sotto tiene fermo proprio quel presupposto.
+  describe("storage task-files — il file di un collega si cancella passando dalla riga del task", () => {
+    let driver, junior, taskId, path;
     beforeAll(async () => {
       driver = await accedi(process.env.RLS_TEST_DRIVER_EMAIL, process.env.RLS_TEST_DRIVER_PASSWORD);
       junior = await accedi(process.env.RLS_TEST_JUNIOR_EMAIL, process.env.RLS_TEST_JUNIOR_PASSWORD);
@@ -723,56 +730,36 @@ suite("RLS: la matrice di autorizzazione è applicata dal database, non solo dal
       }).select().single();
       if (error) throw new Error(`setup sonda purge: ${error.message}`);
       taskId = data.id;
-      path = percorso();
+      path = `${taskId}/sonda-${Date.now()}.txt`;
       const up = await junior.client.storage.from("task-files")
         .upload(path, new Blob(["sonda"], { type: "text/plain" }));
       if (up.error) throw new Error(`upload sonda: ${up.error.message}`);
     });
     afterAll(async () => {
       if (path) await junior?.client.storage.from("task-files").remove([path]);
-      if (taskId) await driver?.client.from("tasks").delete().eq("id", taskId);
+      if (taskId) await driver?.client.from("tasks").update({ deleted_at: new Date().toISOString() }).eq("id", taskId);
     });
 
-    it("con la riga presente il collega assegnatario può cancellarlo (controprova)", async () => {
-      // Non lo cancella davvero: verifica solo che la policy lo vedrebbe.
-      const { data, error } = await driver.client.storage.from("task-files").list(taskId);
-      expect(error).toBeNull();
-      expect(data.length).toBeGreaterThan(0);
-    });
-
-    it("cancellata la riga, la remove del collega non tocca il file", async () => {
-      await driver.client.from("tasks").delete().eq("id", taskId);
+    it("chi non l'ha caricato lo cancella finché la riga del task c'è", async () => {
+      // Il driver non è il proprietario dell'oggetto (l'ha caricato il
+      // junior): passa solo per il ramo `exists (select … from tasks …)`.
       const { data, error } = await driver.client.storage.from("task-files").remove([path]);
       expect(error).toBeNull();
-      expect(data).toEqual([]);
-      taskId = null;
+      expect(data).toHaveLength(1);
+      path = null;
+    });
+
+    it("la riga del task la cancella solo un admin: da driver la DELETE non tocca niente", async () => {
+      const { count, error } = await driver.client.from("tasks")
+        .delete({ count: "exact" }).eq("id", taskId);
+      expect(error).toBeNull();
+      expect(count).toBe(0);
     });
   });
 
-  // M-3 dell'audit del 4 novembre. Presenza e «sta scrivendo» sono canali
-  // PRIVATI (lib/realtime.js) e l'ingresso lo decidono le policy su
-  // `realtime.messages` (migrazione 20261104181351): presenza a ogni utente
-  // attivo, «sta scrivendo» ai soli partecipanti della conversazione.
-  describe("realtime — i canali privati li apre solo chi le policy ammettono", () => {
-    const aggancio = (client, topic) => new Promise((risolvi) => {
-      const canale = client.channel(topic, { config: { private: true } });
-      const fine = (esito) => { client.removeChannel(canale); risolvi(esito); };
-      const timer = setTimeout(() => fine("TIMEOUT"), 10000);
-      canale.subscribe((stato) => {
-        if (stato === "SUBSCRIBED" || stato === "CHANNEL_ERROR") { clearTimeout(timer); fine(stato); }
-      });
-    });
-
-    it("un utente attivo entra nella presenza dell'agenzia", async () => {
-      const { client } = await accedi(process.env.RLS_TEST_JUNIOR_EMAIL, process.env.RLS_TEST_JUNIOR_PASSWORD);
-      expect(await aggancio(client, "presenza:agenzia")).toBe("SUBSCRIBED");
-    });
-
-    it("nessuno entra nel «sta scrivendo» di una conversazione di cui non fa parte", async () => {
-      const { client } = await accedi(process.env.RLS_TEST_JUNIOR_EMAIL, process.env.RLS_TEST_JUNIOR_PASSWORD);
-      expect(await aggancio(client, "typing:00000000-0000-4000-8000-000000000000")).toBe("CHANNEL_ERROR");
-    });
-  });
+  // I casi sui canali Realtime privati (M-3 del 4 novembre) stanno in
+  // realtimeCanali.test.js: hanno bisogno dell'ambiente `node`, perché sotto
+  // jsdom il WebSocket nativo di Node non riesce ad aprire la connessione.
 
   // A-1 dell'audit del 4 novembre. Il logout cancella la sottoscrizione push
   // con `removeByEndpoint` (filtro sul solo endpoint) e «Esci da tutti i

@@ -217,7 +217,8 @@ quattro policy su `realtime.messages` (migrazione `20261104181351`):
 Verificate con un dry-run transazionale prima di applicarle: utente attivo
 ammesso su presenza e sulla propria conversazione; rifiutati conversazione
 altrui, topic malformato, estensione sbagliata e ruolo `anon`. Il caso
-eseguibile sta in `src/test/integration/rls.test.js`.
+eseguibile sta in `src/test/integration/realtimeCanali.test.js` (ambiente
+`node`: sotto jsdom il WebSocket nativo di Node non si apre).
 
 ⚠️ **«Allow public access» resta acceso nelle impostazioni Realtime.** I canali
 `postgres_changes` (task, commenti, avvisi, clienti, utenti, chat, notifiche,

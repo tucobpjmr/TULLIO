@@ -1,5 +1,20 @@
 # CHANGELOG — VoyageDesk
 
+## 6 novembre — la presenza si riapre
+
+**M-3 (seguito) · `presenza:agenzia` respingeva tutti.** Per entrare in un
+canale privato Realtime chiede la lettura `broadcast` sul topic, e la
+`20261104181351` concedeva solo `presence`: dal deploy di #257 i pallini
+«online» non si accendevano. Migrazione `20261106101314`, applicata su staging
+e produzione e registrata in `schema_migrations`: la lettura ammette anche
+`broadcast`, la scrittura resta sulla sola `presence`. Il caso che l'ha visto è
+`src/test/integration/realtimeCanali.test.js` (Verifica RLS).
+
+**Test di integrazione, dopo la prima esecuzione sullo staging.** I casi
+realtime hanno un file loro in ambiente `node` (sotto jsdom il WebSocket non si
+apre); i casi sullo storage di `rls.test.js` seguono la policy vera (solo un
+admin cancella la riga di un task).
+
 ## 4 novembre (ii) — i rilievi di priorità media (M-1…M-8)
 
 **M-1/M-2 · Confronta e scrivi sui task.** UPDATE_TASK e MOVE_TASK portano i

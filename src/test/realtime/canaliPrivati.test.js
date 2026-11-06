@@ -3,10 +3,10 @@
 //
 // Su un canale pubblico Realtime non valuta alcuna policy: con la sola chiave
 // anon (nel bundle) si leggeva chi è collegato e si poteva pubblicare un «sta
-// scrivendo» a nome di altri. Le policy su `realtime.messages` (migrazione
-// 20261104181351) valgono solo se il client apre il canale con
+// scrivendo» a nome di altri. Le policy su `realtime.messages` (migrazioni
+// 20261104181351 e 20261106101314) valgono solo se il client apre il canale con
 // `private: true`: è la metà che questo file tiene ferma. L'altra metà —
-// cosa le policy concedono — sta in src/test/integration/rls.test.js.
+// cosa le policy concedono — sta in src/test/integration/realtimeCanali.test.js.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../../lib/clientId.js", () => ({ getClientId: () => "origine" }));

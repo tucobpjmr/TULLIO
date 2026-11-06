@@ -50,6 +50,8 @@ vi.mock("../../lib/supabaseAuth.js", () => {
     // B-4 dell'audit del 5 settembre: signOut/signOutOvunque/deleteAccount lo
     // chiamano prima di svuotare la cache delle signed URL.
     signOut: vi.fn(async () => ({ error: null })),
+    // A-3 dell'analisi del 6 novembre: cambiaPassword e updatePassword.
+    updateUser: vi.fn(async () => ({ data: { user: { id: "u1" } }, error: null })),
   };
   return { supabaseAuth, default: supabaseAuth, __authState: state };
 });
@@ -461,5 +463,65 @@ describe("AuthContext — B-2, TOKEN_REFRESHED non ricarica e non sostituisce la
     const altra = { user: { id: "u2" }, access_token: "tok2" };
     await emetti("SIGNED_IN", altra);
     expect(result.current.session).toBe(altra);
+  });
+});
+
+// ─── A-3 dell'analisi del 6 novembre · la password attuale arriva a GoTrue ──
+// Il controllo lo fa il server (opzione «Require current password when
+// changing password»): qui si verifica che il client la MANDI, nel campo che
+// GoTrue legge, e che il recupero password continui a non mandarla.
+describe("AuthContext — A-3, le operazioni irreversibili portano la password", () => {
+  beforeEach(async () => {
+    const { __authState, supabaseAuth } = await import("../../lib/supabaseAuth.js");
+    __authState.session = SESSION;
+    supabaseAuth.updateUser.mockClear();
+    const { Users } = await import("../../lib/api.js");
+    Users.deleteAccount.mockClear();
+  });
+
+  const montaAuth = async () => {
+    const rendered = renderHook(() => useAuth(), {
+      wrapper: ({ children }) => <AuthProvider>{children}</AuthProvider>,
+    });
+    await waitFor(() => expect(rendered.result.current.caricando).toBe(false));
+    return rendered;
+  };
+
+  it("cambiaPassword manda la password attuale come current_password", async () => {
+    const { supabaseAuth } = await import("../../lib/supabaseAuth.js");
+    const { result } = await montaAuth();
+    let esito;
+    await act(async () => { esito = await result.current.cambiaPassword("Vecchia1234567", "Nuova12345678"); });
+    // `current_password`, con l'underscore: supabase-js 2.108 mette gli
+    // attributi nel corpo così come sono, e GoTrue legge quel nome.
+    expect(supabaseAuth.updateUser).toHaveBeenCalledWith({ password: "Nuova12345678", current_password: "Vecchia1234567" });
+    expect(esito.error).toBeNull();
+  });
+
+  it("il rifiuto di GoTrue torna in italiano, con il codice originale accanto", async () => {
+    const { supabaseAuth } = await import("../../lib/supabaseAuth.js");
+    supabaseAuth.updateUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: { code: "current_password_invalid", message: "Current password required when setting new password." },
+    });
+    const { result } = await montaAuth();
+    let esito;
+    await act(async () => { esito = await result.current.cambiaPassword("sbagliata", "Nuova12345678"); });
+    expect(esito.error.message).toBe("La password attuale non è corretta.");
+    expect(esito.error.code).toBe("current_password_invalid");
+  });
+
+  it("updatePassword (recupero e invito) NON manda current_password: lì non esiste", async () => {
+    const { supabaseAuth } = await import("../../lib/supabaseAuth.js");
+    const { result } = await montaAuth();
+    await act(async () => { await result.current.updatePassword("Nuova12345678"); });
+    expect(supabaseAuth.updateUser).toHaveBeenCalledWith({ password: "Nuova12345678" });
+  });
+
+  it("deleteAccount consegna la password al data layer", async () => {
+    const { Users } = await import("../../lib/api.js");
+    const { result } = await montaAuth();
+    await act(async () => { await result.current.deleteAccount("LaMiaPassword1"); });
+    expect(Users.deleteAccount).toHaveBeenCalledWith("LaMiaPassword1");
   });
 });

@@ -384,7 +384,21 @@ Due regole che è facile leggere male:
   fra i due ruoli non passa da `permissions.js`.
 - **Junior Agent vede la coda globale ma non può prenderla.** `canViewTask`
   concede, `canEditTask` nega. In UI il bottone "Prendi in carico" è sostituito
-  da "Chiedi a un Senior".
+  da "Chiedi a un Senior". ⚠️ **Fino al 6 novembre era vero solo nel client**
+  (A-2 dell'analisi di quel giorno): il ramo coda globale di `tasks_update`
+  usava `can_view_global_queue()`, che non guarda la seniority, e un Junior
+  con il proprio token modificava qualunque task non assegnato. Dalla
+  migrazione `20261106170100` l'UPDATE passa da
+  `private.can_take_global_queue()` (admin, manager, agent senior); lettura e
+  commenti restano su `can_view_global_queue()`. Seguito aperto: allegati
+  (`task_files_insert/_delete` e storage).
+- **`created_by` e `created_at` di un task non si modificano** (A-1 dello
+  stesso giorno, migrazione `20261106170000`). Prima il WITH CHECK
+  `created_by = auth.uid()` lasciava a un assegnatario la possibilità di farsi
+  autore e tenere l'accesso dopo una riassegnazione. Lo rifiuta il trigger
+  `trg_tasks_campi_immutabili`, che lascia passare solo chi non è un ruolo
+  dell'API (la cascata `ON DELETE SET NULL` della FK, service_role, le
+  migrazioni). Casi in `src/test/integration/rls.test.js`.
 
 ### Lato database (📄 + ✅, corretto il 7 agosto — vedi nota di revisione in testa al documento)
 
@@ -437,7 +451,7 @@ stessa migrazione — altrimenti un Junior si sarebbe promosso Senior con un
 |----------|-----------|
 | `invite-user` | token valido + `requireActiveAdmin`, altrimenti 401/403; ruolo richiesto filtrato su whitelist |
 | `delete-user` | token valido + `requireActiveAdmin`, altrimenti 401/403 |
-| `delete-account` | solo token valido — corretto: è self-service sul proprio account |
+| `delete-account` | token valido **+ password del chiamante**, verificata qui con `signInWithPassword` (A-3, 6 novembre): 400 senza, 403 se sbagliata. Niente gate admin: è self-service sul proprio account |
 | `send-push` | 401 senza autorizzazione; i segreti via `get_push_secrets()`, solo `service_role` |
 
 > 🔴 **Revisione dell'11 agosto 2026 (C-1 di `docs/AUDIT_ARCHITETTURA_2026-08-11.md`).**
@@ -479,6 +493,31 @@ stessa migrazione — altrimenti un Junior si sarebbe promosso Senior con un
 > interno. La correzione strutturale è accompagnare la disattivazione a un
 > `auth.admin.updateUserById(id, { ban_duration })`, com'è già per
 > `delete-account`: suggerimento strategico n. 3 dell'audit dell'11 agosto.
+
+> **Il ciclo di vita dell'account (A-3 e M-3 dell'analisi del 6 novembre).**
+> In agenzia i PC sono condivisi, quindi una sessione lasciata aperta è il
+> rischio più concreto. Prima bastava a fare due cose: cambiare la password,
+> cioè prendersi l'account, ed eliminarlo digitando «ELIMINA». Ora entrambe
+> chiedono la password attuale, e **a verificarla è il server, non il client**:
+>
+> - **Cambio password** → GoTrue, con l'opzione **«Require current password
+>   when changing password»** di Supabase Auth. ⚠️ È un'impostazione della
+>   dashboard, non del repository, e va accesa su **staging e produzione**.
+>   Il client (`AuthContext.cambiaPassword`) manda `current_password`. Da sola
+>   la richiesta non protegge niente: senza l'opzione GoTrue ignora il campo.
+>   La verifica la fa `src/test/integration/account.test.js` sullo staging.
+>   Il recupero password e il primo accesso da invito ne sono esclusi da
+>   GoTrue stesso (sessione di recovery, utente senza password).
+> - **Elimina account** → `delete-account` legge `password` dal corpo e la
+>   verifica PRIMA del ban, dietro il limite di 5 richieste l'ora, che fa
+>   anche da freno ai tentativi a forza bruta.
+>
+> Dopo l'eliminazione, in `auth.users` non resta niente che identifichi la
+> persona. L'email diventa `eliminato+<id>@invalid.invalid`, e quella vera
+> torna libera per un nuovo invito (punto 2 di M-5 del 31 agosto). I
+> metadati si svuotano chiave per chiave. È la stessa chiamata a GoTrue del
+> ban, quindi va a buon fine tutta o niente. «Esci da tutti i dispositivi»
+> resta senza password: toglie l'accesso, non lo dà a nessuno.
 
 ---
 

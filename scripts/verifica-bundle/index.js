@@ -26,7 +26,7 @@
 //   npm run build && npm run verifica:bundle
 //
 // Uscita: 0 sotto soglia, 1 sopra (o se dist/ manca — build prima).
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -231,6 +231,27 @@ function gzipDi(href) {
   return gzipSync(readFileSync(percorso)).length;
 }
 
+// ─── M-1/M-2 dell'analisi del 6 novembre · L'ID DI BUILD NEI TRE PUNTI ────
+// Il plugin `versioneBuild` (vite.config.js) scrive lo stesso id in
+// `dist/version.json`, nel nome della cache di `dist/sw.js` e nel bundle. Se
+// uno dei tre manca, l'avviso «versione nuova» tace (o compare sempre) e il
+// service worker torna a non ripulire la cache, senza che nulla lo segnali.
+// Sta qui perché è l'unico controllo che gira su `dist/`.
+function verificaIdBuild() {
+  const percorsoVersione = join(DIST, 'version.json');
+  if (!existsSync(percorsoVersione)) return 'manca dist/version.json (plugin versioneBuild assente?)';
+  const { build } = JSON.parse(readFileSync(percorsoVersione, 'utf8'));
+  if (typeof build !== 'string' || !build) return 'dist/version.json non contiene un id di build';
+  const sw = readFileSync(join(DIST, 'sw.js'), 'utf8');
+  if (sw.includes('__BUILD_ID__')) return 'dist/sw.js contiene ancora il segnaposto __BUILD_ID__';
+  if (!sw.includes(`'vd-guscio-${build}'`)) return `il nome della cache in dist/sw.js non porta l'id ${build}`;
+  const cartellaAsset = join(DIST, 'assets');
+  const nelBundle = readdirSync(cartellaAsset).filter((f) => f.endsWith('.js'))
+    .some((f) => readFileSync(join(cartellaAsset, f), 'utf8').includes(build));
+  if (!nelBundle) return `nessun chunk in dist/assets contiene l'id ${build}`;
+  return null;
+}
+
 function main() {
   if (!existsSync(INDEX_HTML)) {
     console.error(`verifica:bundle: ${INDEX_HTML} non esiste — esegui "npm run build" prima.`);
@@ -306,6 +327,12 @@ function main() {
     );
     process.exit(1);
   }
+  const erroreId = verificaIdBuild();
+  if (erroreId) {
+    console.error(`\nverifica:bundle: id di build non concorde — ${erroreId}.`);
+    process.exit(1);
+  }
+  console.log('\nverifica:bundle — id di build concorde in version.json, sw.js e bundle.');
   console.log('\nverifica:bundle: OK.');
 }
 

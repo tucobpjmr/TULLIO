@@ -508,6 +508,120 @@ suite("RLS: la matrice di autorizzazione è applicata dal database, non solo dal
       await junior.client.from("tasks").delete().eq("id", altrui.id);
     });
   });
+
+  // A-1 dell'analisi del 6 novembre — migrazione 20261106170000. Il WITH CHECK
+  // di `tasks_update` accettava `created_by = auth.uid()`, e il grant UPDATE
+  // copriva la colonna: un assegnatario poteva riscriversi come autore (e
+  // tenere l'accesso dopo una riassegnazione) o cedere la paternità a un altro.
+  // Ora lo rifiuta il trigger `trg_tasks_campi_immutabili`, con un errore e non
+  // con zero righe: è un trigger, non un filtro della RLS.
+  //
+  // La pulizia è un soft-delete del creatore: `tasks_delete` è riservata agli
+  // admin, e lo staging non ne ha uno fra le identità di prova.
+  describe("created_by non si riscrive — lo blocca il database, non il client", () => {
+    let driver, junior, taskId;
+
+    beforeAll(async () => {
+      driver = await accedi(
+        process.env.RLS_TEST_DRIVER_EMAIL, process.env.RLS_TEST_DRIVER_PASSWORD);
+      junior = await accedi(
+        process.env.RLS_TEST_JUNIOR_EMAIL, process.env.RLS_TEST_JUNIOR_PASSWORD);
+      const { data, error } = await driver.client.from("tasks").insert({
+        title: "sonda rls created_by", category: "transfer", status: "todo",
+        created_by: driver.userId, assignees: [driver.userId],
+      }).select().single();
+      if (error) throw new Error(`setup sonda created_by: ${error.message}`);
+      taskId = data.id;
+    });
+
+    afterAll(async () => {
+      if (taskId) {
+        await driver.client.from("tasks")
+          .update({ deleted_at: new Date().toISOString() }).eq("id", taskId);
+      }
+    });
+
+    it("l'assegnatario non può cedere (o prendersi) la paternità", async () => {
+      const { error } = await driver.client.from("tasks")
+        .update({ created_by: junior.userId }).eq("id", taskId);
+      expect(error).toBeTruthy();
+      expect(error.code).toBe("42501");
+    });
+
+    it("le altre modifiche dello stesso utente sullo stesso task passano", async () => {
+      // Controllo positivo: senza, il caso sopra passerebbe anche se la riga
+      // fosse diventata intoccabile per qualunque altra ragione.
+      const { count, error } = await driver.client.from("tasks")
+        .update({ title: "sonda rls created_by (modificata)" }, { count: "exact" })
+        .eq("id", taskId);
+      expect(error).toBeNull();
+      expect(count).toBe(1);
+    });
+  });
+
+  // A-2 dell'analisi del 6 novembre — migrazione 20261106170100. La matrice
+  // (docs/SICUREZZA.md) dice «Junior: modifica solo i task assegnati»;
+  // `tasks_update` usava `can_view_global_queue()`, che non guarda la
+  // seniority, quindi un Junior con il proprio token modificava (e si
+  // prendeva) qualunque task della coda globale. Ora il ramo coda globale
+  // dell'UPDATE passa da `can_take_global_queue()`.
+  describe("Coda globale — il Junior la vede ma non la modifica", () => {
+    let driver, junior, taskId;
+
+    beforeAll(async () => {
+      driver = await accedi(
+        process.env.RLS_TEST_DRIVER_EMAIL, process.env.RLS_TEST_DRIVER_PASSWORD);
+      junior = await accedi(
+        process.env.RLS_TEST_JUNIOR_EMAIL, process.env.RLS_TEST_JUNIOR_PASSWORD);
+      // Creata dal driver e senza assegnatari: per il junior non è né propria
+      // né creata da lui, quindi l'unico ramo che può concedergliela è quello
+      // della coda globale.
+      const { data, error } = await driver.client.from("tasks").insert({
+        title: "sonda rls coda globale", category: "transfer", status: "todo",
+        created_by: driver.userId, assignees: [],
+      }).select().single();
+      if (error) throw new Error(`setup sonda coda globale: ${error.message}`);
+      taskId = data.id;
+    });
+
+    afterAll(async () => {
+      if (taskId) {
+        await driver.client.from("tasks")
+          .update({ deleted_at: new Date().toISOString() }).eq("id", taskId);
+      }
+    });
+
+    it("il junior vede il task in coda globale", async () => {
+      const { data, error } = await junior.client.from("tasks").select("id").eq("id", taskId);
+      expect(error).toBeNull();
+      expect(data).toHaveLength(1);
+    });
+
+    it("ma non lo modifica", async () => {
+      // Una UPDATE rifiutata dalla RLS non solleva: filtra. Il verdetto è il
+      // conteggio (lib/esitoScrittura.js).
+      const { count, error } = await junior.client.from("tasks")
+        .update({ title: "modificata dal junior" }, { count: "exact" }).eq("id", taskId);
+      expect(error).toBeNull();
+      expect(count).toBe(0);
+    });
+
+    it("e non se lo prende in carico", async () => {
+      const { count, error } = await junior.client.from("tasks")
+        .update({ assignees: [junior.userId] }, { count: "exact" }).eq("id", taskId);
+      expect(error).toBeNull();
+      expect(count).toBe(0);
+    });
+
+    it("chi l'ha creato lo modifica ancora", async () => {
+      // Controllo positivo: lo zero sopra è la policy, non una riga sparita.
+      const { count, error } = await driver.client.from("tasks")
+        .update({ title: "sonda rls coda globale (modificata)" }, { count: "exact" })
+        .eq("id", taskId);
+      expect(error).toBeNull();
+      expect(count).toBe(1);
+    });
+  });
   // M-3 dell'audit sicurezza del 26 agosto — reso ESEGUIBILE.
   //
   // `messages_update` lascia passare in USING e in CHECK OGNI partecipante su

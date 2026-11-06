@@ -21,8 +21,15 @@
 // Peggio del caso offline, non uguale: lì le scritture falliscono e almeno
 // producono un toast; qui le scritture continuano a funzionare e l'app sembra
 // viva mentre due agenti guardano la stessa lista e vedono saldi diversi.
+//
+// ─── M-2 dell'analisi del 6 novembre · LA QUARTA CONDIZIONE ──────────────
+// «È uscita una versione nuova» (hooks/useNuovaVersione.js). È l'ultima per
+// priorità: le altre tre dicono che i dati a schermo sono fermi, questa che il
+// CODICE lo è. E non compare mentre la coda offline sta ancora inviando:
+// prima si svuota la coda, poi si propone di ricaricare.
 import { useOnlineStatus } from "../../hooks/useOnlineStatus.js";
 import { useFreschezzaRealtime } from "../../hooks/useFreschezzaRealtime.js";
+import { useNuovaVersione } from "../../hooks/useNuovaVersione.js";
 import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
@@ -44,6 +51,15 @@ const rowCenterGap10Avviso = {
   boxShadow: "0 2px 8px rgba(200,131,42,0.35)",
 };
 
+// Navy e non oro né rosso: non è un guasto e non c'è niente da aspettare, è
+// un'informazione. Il navy è una superficie scura in entrambi i temi, quindi
+// l'inchiostro bianco di `rowCenterGap10` resta leggibile anche al buio.
+const rowCenterGap10Versione = {
+  ...rowCenterGap10,
+  background: "var(--navy)",
+  boxShadow: "0 2px 8px rgba(15,32,68,0.35)",
+};
+
 const btnStriscia = {
   background: "rgba(255,255,255,0.18)", color: "#fff",
   border: "1px solid rgba(255,255,255,0.5)", borderRadius: 6,
@@ -61,6 +77,7 @@ const btnStriscia = {
 export function OfflineBanner({ inAttesa = 0 }) {
   const online = useOnlineStatus();
   const freschezzaDegradata = useFreschezzaRealtime();
+  const nuovaVersione = useNuovaVersione();
   // «N modifiche in attesa» compare in ENTRAMBE le strisce e anche da sola:
   // la coda è una condizione che dura, esattamente come le altre due, e
   // dirla una volta in un toast che sparisce sarebbe l'errore che il
@@ -104,7 +121,22 @@ export function OfflineBanner({ inAttesa = 0 }) {
     );
   }
 
-  if (!freschezzaDegradata) return null;
+  if (!freschezzaDegradata) {
+    if (!nuovaVersione) return null;
+    return (
+      <div role="status" aria-live="polite" style={rowCenterGap10Versione}>
+        <span style={stiliComuni.txtF15} aria-hidden="true">✨</span>
+        <span>
+          <strong>È disponibile una versione nuova di VoyageDesk.</strong>{" "}
+          Ricarica quando hai finito quello che stai scrivendo: le modifiche
+          già salvate restano.
+        </span>
+        <button onClick={() => window.location.reload()} style={btnStriscia}>
+          Ricarica
+        </button>
+      </div>
+    );
+  }
 
   // `polite` e non `assertive`: qui non c'è niente di urgente da interrompere —
   // l'utente può continuare a lavorare, e le sue scritture arrivano. Ciò che

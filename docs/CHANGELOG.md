@@ -1,5 +1,134 @@
 # CHANGELOG — VoyageDesk
 
+## 6 novembre (iv) — analisi del 6 novembre: A-3 e M-3, il ciclo di vita dell'account
+
+**A-3 · Le operazioni irreversibili chiedono la password attuale** (riprende
+M-5 del 31 agosto, aperto da allora). Su un PC condiviso una sessione lasciata
+aperta bastava a cambiare la password, cioè a prendersi l'account, o a
+eliminarlo con «ELIMINA».
+- *Cambio password*: nuovo campo «PASSWORD ATTUALE». `AuthContext.cambiaPassword`
+  manda `current_password` a GoTrue, che la verifica con l'opzione «Require
+  current password when changing password». ⚠️ **L'opzione va accesa nella
+  dashboard di Supabase Auth**, su staging e produzione: senza, GoTrue ignora
+  il campo. `updatePassword` resta per il recupero e per l'invito, dove una
+  password attuale non c'è (e GoTrue li esclude da sé). I rifiuti tornano in
+  italiano (`lib/erroriCambioPassword.js`).
+- *Elimina account*: oltre a «ELIMINA» serve la password. La Edge Function
+  `delete-account` la verifica lato server con `signInWithPassword` su un
+  client anonimo, prima del ban e dietro il limite di 5 richieste l'ora:
+  400 senza password, 403 se sbagliata. La verifica sta in
+  `delete-account/riautenticazione.ts`, eseguibile da Vitest.
+
+**M-3 · Niente dati personali in `auth.users` dopo l'eliminazione.** Prima
+email e `user_metadata` (nome, ruolo, colore, capacità, chi ha invitato)
+restavano lì. Ora il ban viaggia nella stessa chiamata a GoTrue che sostituisce
+l'email con `eliminato+<id>@invalid.invalid`, aggiornata anche in
+`auth.identities`, e azzera ogni chiave dei metadati presente. È una
+transazione sola: o tutto o niente. L'indirizzo vero torna invitabile.
+Verificato in produzione, in sola lettura: `auth.identities` porta solo
+email, `sub` e i due flag di verifica, e il registro di audit di GoTrue è
+vuoto.
+
+**Difetto trovato durante il lavoro:** dal commit `093e42d` i due campi
+password del profilo passavano a `PasswordField` una prop `inputWFull` che il
+componente non conosce. Finiva sull'`<input>` come attributo, e i campi
+restavano senza stile. Ora la prop è `inputStyle`, e un test lo fissa.
+
+Test: 35 nuovi casi unitari (UI, AuthContext, traduzione degli errori, Edge
+Function eseguita e cablata) e 2 di integrazione sullo staging, che non
+cambiano mai la password (la «nuova» è quella attuale). Controlli negativi:
+togliendo ciascuna protezione fallisce il test che la riguarda (5 su 5).
+Nessun caso automatico di eliminazione: se sullo staging girasse ancora la
+funzione vecchia, eliminerebbe davvero l'utente di prova.
+
+✅ **`delete-account` distribuita sullo staging** (v4, `verify_jwt` invariato).
+Provata su un utente usa-e-getta creato per l'occasione. Le chiamate sono
+partite da dentro lo staging con `pg_net`, perché da questo ambiente l'host
+non è raggiungibile:
+
+| Richiesta | Esito |
+|---|---|
+| senza password | 400, account intatto |
+| password sbagliata | 403 «Password non corretta.», account intatto |
+| password giusta | 200: ban di 10 anni, email `eliminato+<id>@invalid.invalid` anche in `auth.identities`, metadati `{}`, profilo «Utente eliminato», contatti cancellati, audit senza residui, email vera di nuovo libera |
+
+La sessione aperta per la verifica si è chiusa. Resta quella del chiamante,
+che il ban non lascia rinnovare. Alla fine l'utente di prova e tutto ciò che
+ha lasciato (profilo, identità, sessioni, audit, contatore del limite,
+risposte HTTP) sono stati cancellati.
+
+✅ **Opzione «Require current password when changing password» accesa
+sullo staging** il 6 novembre. `rls.yml`, lanciato a mano sul ramo, ha dato
+44 test su 45 passati. Il caso mancante ha trovato un errore mio, non del
+server: GoTrue rifiuta davvero la password attuale sbagliata, ma il codice è
+`current_password_invalid`. Io l'avevo dedotto dal NOME della costante
+(`ErrorCodeCurrentPasswordMismatch`) invece che dal suo valore. Il messaggio
+italiano non sarebbe mai comparso. Corretti la mappa e i test. Rilanciato
+sul commit corretto: 45 su 45.
+
+⚠️ **Da fare:** accendere la stessa opzione in produzione. Poi
+distribuire `delete-account` in produzione SUBITO DOPO il merge, non prima:
+la funzione nuova senza il client nuovo rifiuta ogni eliminazione per
+password mancante.
+
+## 6 novembre (iii) — analisi del 6 novembre: A-1, A-2, M-1, M-2
+
+**A-1 · `created_by` e `created_at` dei task non si riscrivono.** Il WITH
+CHECK di `tasks_update` accettava `created_by = auth.uid()` e il grant UPDATE
+copriva la colonna: un assegnatario poteva farsi autore (e tenere l'accesso
+dopo una riassegnazione) o cedere la paternità. Migrazione `20261106170000`:
+trigger `trg_tasks_campi_immutabili`, che rifiuta il cambio ai ruoli dell'API
+e lascia passare la cascata `ON DELETE SET NULL` della FK (eseguita come
+proprietario della tabella).
+
+**A-2 · Il Junior vede la coda globale, non la modifica.** Il ramo coda
+globale di `tasks_update` usava `can_view_global_queue()`, che non guarda la
+seniority. Migrazione `20261106170100`: nuova `private.can_take_global_queue()`
+(admin, manager, agent senior) in USING e WITH CHECK. Lettura e commenti
+invariati. ⚠️ Seguito aperto: `task_files_insert/_delete` e le policy storage
+degli allegati usano ancora `can_view_global_queue()`.
+
+Entrambe provate su un Postgres locale (PGlite) con lo schema minimo di
+produzione: 15 verifiche, prima e dopo, idempotenza compresa. I casi in
+`rls.test.js` le legano allo staging. ✅ **Applicate su staging** il 6
+novembre, registrate in `schema_migrations` con la versione del file e il
+testo in `statements` (md5 uguale al file). Prima, una prova a vuoto
+impersonando i due utenti di prova (junior e driver), in una transazione
+annullata: junior che modifica / si prende la coda globale 1 → 0, junior che
+cede la paternità 1 → `42501`; invariati la lettura, i propri task e la
+`created_by = NULL` eseguita come proprietario (il percorso della cascata).
+Stessi esiti rifatti sullo stato reale dopo l'applicazione; advisor senza
+avvisi nuovi. ✅ **Applicate in produzione** il 6 novembre, con la stessa
+procedura e lo stesso controllo md5. In produzione non c'è nessun agent
+Junior: la prova a vuoto ne ha reso Junior uno Senior DENTRO la transazione
+annullata. ⚠️ Serve farlo con i claims di un admin, perché
+`users_block_privileged_self_update` riporta `seniority` al valore di prima
+senza errore. Al primo tentativo la prova girava quindi su un Senior e
+sembrava riuscita. Esiti identici a staging, più due casi che a staging
+mancavano: un agent Senior modifica e prende la coda (1 → 1). Rifatta sullo
+stato reale dopo l'applicazione; nessun residuo (task, storico, notifiche,
+audit) e nessun avviso nuovo degli advisor.
+
+**M-1 · Una cache del service worker per build.** Il nome era fisso
+(`vd-guscio-v1`) e `sw.js` non cambiava fra i deploy: nessun worker nuovo,
+nessuna pulizia, e da offline si apriva l'HTML del giorno d'installazione. Ora
+il plugin `versioneBuild` (vite.config.js) scrive l'id di build nel nome della
+cache, e ogni navigazione riuscita aggiorna la copia di `/`. ⚠️ **Trovato in
+corso d'opera:** gli asset non entravano MAI in cache — `res.clone()` stava
+dentro il `.then` di `caches.open`, quando la pagina aveva già letto il corpo,
+e sollevava. Da offline si apriva l'HTML senza i suoi script, cioè una pagina
+bianca: il guscio offline di M-1 del 5 settembre non ha mai funzionato. Provato
+in Chromium (`vite preview`): prima 9 asset serviti dal worker e 0 in cache,
+pagina bianca offline; dopo 13 voci in cache e schermata di login offline, e
+dopo un secondo build la cache precedente sparisce.
+
+**M-2 · «È disponibile una versione nuova».** `hooks/useNuovaVersione.js`
+rilegge `/version.json` ogni 5 minuti, al ritorno in primo piano e al ritorno
+della rete; se l'id è diverso da quello compilato, `OfflineBanner` mostra una
+striscia con «Ricarica». Priorità più bassa delle altre tre, e mai mentre la
+coda offline sta inviando. `verifica:bundle` controlla che l'id coincida in
+`version.json`, `sw.js` e bundle. Test: `src/test/shell/nuovaVersione.test.jsx`.
+
 ## 6 novembre (ii) — i rilievi di priorità bassa (B-1…B-8)
 
 **B-1 · La demo è un flag, non una deduzione.** `useSupabase` era

@@ -28,8 +28,13 @@ scrivevano `true` due volte); entrambi falliscono senza la correzione.
 **B-4 · Versioni fissate nelle Edge Function.** `@supabase/supabase-js` e
 `@supabase/functions-js` a **2.108.0**, la stessa del lockfile del frontend
 (`jsr:` e `npm:`). `src/test/edge/versioniFissate.test.js` lo tiene vero.
-⚠️ Le funzioni deployate restano sulla versione risolta al loro ultimo
-deploy: la nuova vale dal prossimo.
+✅ Rideployate lo stesso giorno: le quattro funzioni admin su staging e poi
+in produzione (stessi hash del bundle nei due progetti), più `send-push` in
+produzione. Prova d'avvio via `pg_net` con la chiave anonima: tutte 401 senza
+scritture. ⚠️ `send-push` in produzione era ferma al 1° agosto e non aveva
+`secretValido` (confronto del segreto a tempo costante), che il repo ha dal
+29 agosto: è arrivato con questo deploy. Stesso esito per segreti giusti e
+sbagliati.
 
 **B-5 · Il tarball di xlsx sta nel repository.** `vendor/xlsx-0.20.3.tgz`,
 con `package.json` che punta lì. L'integrità nel lockfile non cambia (sha512

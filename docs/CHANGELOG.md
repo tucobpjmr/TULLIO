@@ -1,5 +1,46 @@
 # CHANGELOG — VoyageDesk
 
+## 6 novembre (iv) — analisi del 6 novembre: A-3 e M-3, il ciclo di vita dell'account
+
+**A-3 · Le operazioni irreversibili chiedono la password attuale** (riprende
+M-5 del 31 agosto, aperto da allora). Su un PC condiviso una sessione lasciata
+aperta bastava a cambiare la password, cioè a prendersi l'account, o a
+eliminarlo con «ELIMINA».
+- *Cambio password*: nuovo campo «PASSWORD ATTUALE». `AuthContext.cambiaPassword`
+  manda `current_password` a GoTrue, che la verifica con l'opzione «Require
+  current password when changing password». ⚠️ **L'opzione va accesa nella
+  dashboard di Supabase Auth**, su staging e produzione: senza, GoTrue ignora
+  il campo. `updatePassword` resta per il recupero e per l'invito, dove una
+  password attuale non c'è (e GoTrue li esclude da sé). I rifiuti tornano in
+  italiano (`lib/erroriCambioPassword.js`).
+- *Elimina account*: oltre a «ELIMINA» serve la password. La Edge Function
+  `delete-account` la verifica lato server con `signInWithPassword` su un
+  client anonimo, prima del ban e dietro il limite di 5 richieste l'ora:
+  400 senza password, 403 se sbagliata. La verifica sta in
+  `delete-account/riautenticazione.ts`, eseguibile da Vitest.
+
+**M-3 · Niente dati personali in `auth.users` dopo l'eliminazione.** Prima
+email e `user_metadata` (nome, ruolo, colore, capacità, chi ha invitato)
+restavano lì. Ora il ban viaggia nella stessa chiamata a GoTrue che sostituisce
+l'email con `eliminato+<id>@invalid.invalid`, aggiornata anche in
+`auth.identities`, e azzera ogni chiave dei metadati presente. È una
+transazione sola: o tutto o niente. L'indirizzo vero torna invitabile.
+Verificato in produzione, in sola lettura: `auth.identities` porta solo
+email, `sub` e i due flag di verifica, e il registro di audit di GoTrue è
+vuoto.
+
+**Difetto trovato durante il lavoro:** dal commit `093e42d` i due campi
+password del profilo passavano a `PasswordField` una prop `inputWFull` che il
+componente non conosce. Finiva sull'`<input>` come attributo, e i campi
+restavano senza stile. Ora la prop è `inputStyle`, e un test lo fissa.
+
+Test: 35 nuovi casi unitari (UI, AuthContext, traduzione degli errori, Edge
+Function eseguita e cablata) e 2 di integrazione sullo staging, che non
+cambiano mai la password (la «nuova» è quella attuale). Controlli negativi:
+togliendo ciascuna protezione fallisce il test che la riguarda (5 su 5).
+Nessun caso automatico di eliminazione: se sullo staging girasse ancora la
+funzione vecchia, eliminerebbe davvero l'utente di prova.
+
 ## 6 novembre (iii) — analisi del 6 novembre: A-1, A-2, M-1, M-2
 
 **A-1 · `created_by` e `created_at` dei task non si riscrivono.** Il WITH

@@ -16,12 +16,22 @@
 // bannato), e su public.users nome/avatar/colore/foto vengono sostituiti con
 // un profilo anonimo — la riga resta per non spezzare le FK di
 // commenti/messaggi/task già preservati di proposito.
+//
+// A-3 e M-3 dell'analisi del 6 novembre (vedi riautenticazione.ts):
+// - la richiesta porta la PASSWORD del chiamante, verificata qui prima di
+//   tutto il resto. Un token valido da solo non basta più: è quello che una
+//   sessione dimenticata aperta su un PC condiviso regala a chiunque.
+// - il ban arriva insieme all'anonimizzazione di `auth.users`: l'email
+//   diventa un indirizzo `.invalid` (così quella vera torna invitabile) e
+//   i metadati si svuotano. È UNA chiamata a GoTrue, che la applica in una
+//   transazione: o tutto o niente, come prima il solo ban.
 import "jsr:@supabase/functions-js@2.108.0/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2.108.0";
 import { corsHeaders } from "../_shared/cors.ts";
 import { entroLimite } from "../_shared/rateLimit.ts";
 import { erroreInterno } from "../_shared/erroreInterno.ts";
 import { registraAudit } from "../_shared/audit.ts";
+import { emailAnonima, metadatiAzzerati, verificaPassword } from "./riautenticazione.ts";
 
 Deno.serve(async (req: Request) => {
   const cors = corsHeaders(req);
@@ -56,17 +66,45 @@ Deno.serve(async (req: Request) => {
     // autenticato — non serve essere admin — quindi un tetto per chiamante
     // conta comunque: cinque all'ora tollerano un retry dopo un errore di
     // rete senza permettere a un token rubato di martellare la funzione.
+    // A-3: il limite precede la verifica della password, e ne è il freno a
+    // forza bruta. Con cinque tentativi l'ora chi trova la sessione aperta
+    // non può provare password a ripetizione.
     if (!(await entroLimite(adminClient, `delete-account:${user.id}`, 60, 5))) {
       return json({ error: "Troppe richieste in poco tempo: riprova più tardi" }, 429);
     }
+
+    // Un corpo assente o non JSON vale «password mancante» (400), non un
+    // guasto (500): è una richiesta incompleta, non un errore del server.
+    const corpo = await req.json().catch(() => null) as { password?: unknown } | null;
+    const password = typeof corpo?.password === "string" ? corpo.password : "";
+    if (!password) return json({ error: "Per eliminare l'account serve la tua password." }, 400);
+    if (!user.email) {
+      return json({ error: "Questo account non ha un'email: chiedi a un amministratore di eliminarlo." }, 400);
+    }
+
+    const verifica = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+    const { esito, errore } = await verificaPassword(verifica, user.id, user.email, password);
+    if (esito === "sbagliata") return json({ error: "Password non corretta." }, 403);
+    if (esito === "troppi_tentativi") return json({ error: "Troppi tentativi: riprova più tardi." }, 429);
+    if (esito === "guasto") return json(erroreInterno("delete-account/verifica", errore), 500);
 
     // Ban PRIMA di toccare public.users: è l'operazione critica (blocca ogni
     // login futuro). Se fallisce usciamo subito, senza aver ancora modificato
     // nulla — prima l'ordine inverso lasciava active=false in public.users
     // mentre l'account restava loggabile (stato incoerente).
     // 10 anni (87600h); i dati (commenti/messaggi) restano, cascade-safe.
+    // M-3: nella stessa scrittura email e metadati di `auth.users` smettono di
+    // identificare la persona. GoTrue aggiorna anche l'email dell'identità
+    // `email` in `auth.identities`, che in produzione non porta altro.
     const { error: banErr } = await adminClient.auth.admin.updateUserById(user.id, {
       ban_duration: "87600h",
+      email: emailAnonima(user.id),
+      email_confirm: true,
+      user_metadata: metadatiAzzerati(user.user_metadata),
     });
     if (banErr) return json(erroreInterno("delete-account/ban", banErr), 500);
 

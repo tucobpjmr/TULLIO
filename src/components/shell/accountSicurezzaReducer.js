@@ -16,12 +16,17 @@
 // che non apparteneva a questa macchina — è il freno al doppio invio del
 // SALVATAGGIO DEL PROFILO, cioè dell'altra metà della modale. È tornata a
 // `ProfileEditor` come `useState`, dove si legge accanto a ciò che protegge.
+//
+// A-3 dell'analisi del 6 novembre: entrambe le operazioni irreversibili
+// chiedono la password attuale (`bozza.attuale`, `elim.password`). Come il
+// resto della bozza, si svuota quando la fisarmonica si apre o si chiude: una
+// password scritta non deve restare nello stato di una sezione chiusa.
 export const ESITO_PRONTO = { fase: "pronto", testo: null };
-const BOZZA_PWD = { nuova: "", conferma: "" };
+const BOZZA_PWD = { attuale: "", nuova: "", conferma: "" };
 
 export const accountIniziale = {
   pwd: { aperta: false, rivela: false, bozza: BOZZA_PWD, esito: ESITO_PRONTO },
-  elim: { aperta: false, conferma: "", esito: ESITO_PRONTO },
+  elim: { aperta: false, conferma: "", password: "", rivela: false, esito: ESITO_PRONTO },
   signOut: { esito: ESITO_PRONTO },
 };
 
@@ -43,9 +48,13 @@ export function accountReducer(s, a) {
     case "PWD_SUCCESSO":
       return { ...s, pwd: { ...s.pwd, esito: { fase: "ok", testo: "Password aggiornata." }, bozza: BOZZA_PWD } };
     case "TOGGLE_ELIM":
-      return { ...s, elim: { ...s.elim, aperta: !s.elim.aperta, conferma: "", esito: ESITO_PRONTO } };
+      return { ...s, elim: { ...s.elim, aperta: !s.elim.aperta, conferma: "", password: "", esito: ESITO_PRONTO } };
     case "SET_CONFERMA_ELIM":
       return { ...s, elim: { ...s.elim, conferma: a.valore } };
+    case "SET_PASSWORD_ELIM":
+      return { ...s, elim: { ...s.elim, password: a.valore } };
+    case "TOGGLE_RIVELA_ELIM":
+      return { ...s, elim: { ...s.elim, rivela: !s.elim.rivela } };
     case "ELIM_ESITO":
       return { ...s, elim: { ...s.elim, esito: a.esito } };
     case "SIGNOUT_ESITO":

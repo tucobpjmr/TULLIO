@@ -22,6 +22,17 @@
 // sola: lì lo smontaggio è l'esito NORMALE. Per `signOutOvunque()` invece il
 // guard serve davvero su QUESTA scheda, perché la modale non sparisce finché
 // `onAuthStateChange` non aggiorna `session`.
+//
+// A-3 dell'analisi del 6 novembre (riprende M-5 del 31 agosto). Le due
+// operazioni irreversibili, cambiare la password ed eliminare l'account,
+// chiedono la password ATTUALE. In agenzia i PC sono condivisi: una sessione
+// lasciata aperta bastava a prendersi l'account (password nuova) o a
+// cancellarlo («ELIMINA» e basta). ⚠️ Il campo qui è solo la metà visibile:
+// la verifica la fanno GoTrue (cambio password, con l'opzione «Require current
+// password when changing password» attiva) e la Edge Function `delete-account`.
+// Un controllo solo qui lo salterebbe chiunque chiami l'API con il token.
+// «Esci da tutti i dispositivi» resta senza password: toglie l'accesso e non
+// lo dà a nessuno.
 import { useId, useReducer } from "react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { useIsMounted } from "../../hooks/useIsMounted.js";
@@ -36,18 +47,24 @@ import {
 } from "./profileEditorStyles.js";
 
 export function AccountSicurezza() {
-  const { session, updatePassword, deleteAccount, signOutOvunque } = useAuth();
+  const { session, cambiaPassword, deleteAccount, signOutOvunque } = useAuth();
   const confermaUscita = useConfermaUscita();
   const montato = useIsMounted();
   const [stato, accountDispatch] = useReducer(accountReducer, accountIniziale);
+  const attualePwdId = useId();
   const nuovaPwdId = useId();
   const confermaPwdId = useId();
   const confermaElimId = useId();
+  const passwordElimId = useId();
 
   const pwdInVolo = stato.pwd.esito.fase === "invio";
   const elimInVolo = stato.elim.esito.fase === "invio";
 
-  const cambiaPassword = async () => {
+  const aggiornaPassword = async () => {
+    if (!stato.pwd.bozza.attuale) {
+      accountDispatch({ type: "PWD_ESITO", esito: { fase: "errore", testo: "Inserisci la password attuale." } });
+      return;
+    }
     const errPassword = passwordValida()(stato.pwd.bozza.nuova);
     if (errPassword) {
       accountDispatch({ type: "PWD_ESITO", esito: { fase: "errore", testo: errPassword } });
@@ -58,7 +75,7 @@ export function AccountSicurezza() {
       return;
     }
     accountDispatch({ type: "PWD_ESITO", esito: { fase: "invio", testo: null } });
-    const { error } = await updatePassword(stato.pwd.bozza.nuova);
+    const { error } = await cambiaPassword(stato.pwd.bozza.attuale, stato.pwd.bozza.nuova);
     if (!montato()) return;
     if (error) {
       accountDispatch({ type: "PWD_ESITO", esito: { fase: "errore", testo: error.message || "Cambio password non riuscito." } });
@@ -79,8 +96,12 @@ export function AccountSicurezza() {
 
   const eliminaAccount = async () => {
     if (stato.elim.conferma !== "ELIMINA") return;
+    if (!stato.elim.password) {
+      accountDispatch({ type: "ELIM_ESITO", esito: { fase: "errore", testo: "Inserisci la tua password per confermare." } });
+      return;
+    }
     accountDispatch({ type: "ELIM_ESITO", esito: { fase: "invio", testo: null } });
-    const { error } = await deleteAccount();
+    const { error } = await deleteAccount(stato.elim.password);
     if (!montato()) return;
     accountDispatch({ type: "ELIM_ESITO", esito: error
       ? { fase: "errore", testo: error.message || "Eliminazione non riuscita." }
@@ -106,10 +127,22 @@ export function AccountSicurezza() {
           {stato.pwd.aperta && (
             <div style={colGap10Mt10}>
               <div>
+                <label className="vd-field-label" htmlFor={attualePwdId}>PASSWORD ATTUALE</label>
+                <PasswordField
+                  id={attualePwdId}
+                  inputStyle={inputWFull} autoComplete="current-password"
+                  value={stato.pwd.bozza.attuale} onChange={e => accountDispatch({ type: "SET_PWD_CAMPO", campo: "attuale", valore: e.target.value })}
+                  placeholder="La password con cui sei entrato"
+                  show={stato.pwd.rivela} onToggle={() => accountDispatch({ type: "TOGGLE_RIVELA_PWD" })}
+                  onFocus={e => e.target.style.borderColor = "var(--gold)"}
+                  onBlur={e => e.target.style.borderColor = "var(--border)"}
+                />
+              </div>
+              <div>
                 <label className="vd-field-label" htmlFor={nuovaPwdId}>NUOVA PASSWORD</label>
                 <PasswordField
                   id={nuovaPwdId}
-                  inputWFull={inputWFull} autoComplete="new-password"
+                  inputStyle={inputWFull} autoComplete="new-password"
                   value={stato.pwd.bozza.nuova} onChange={e => accountDispatch({ type: "SET_PWD_CAMPO", campo: "nuova", valore: e.target.value })}
                   placeholder={`Minimo ${PASSWORD_MIN} caratteri, con maiuscole, minuscole e cifre`}
                   show={stato.pwd.rivela} onToggle={() => accountDispatch({ type: "TOGGLE_RIVELA_PWD" })}
@@ -121,13 +154,13 @@ export function AccountSicurezza() {
                 <label className="vd-field-label" htmlFor={confermaPwdId}>CONFERMA PASSWORD</label>
                 <PasswordField
                   id={confermaPwdId}
-                  inputWFull={inputWFull} autoComplete="new-password"
+                  inputStyle={inputWFull} autoComplete="new-password"
                   value={stato.pwd.bozza.conferma} onChange={e => accountDispatch({ type: "SET_PWD_CAMPO", campo: "conferma", valore: e.target.value })}
                   placeholder="Ripeti la password"
                   show={stato.pwd.rivela} onToggle={() => accountDispatch({ type: "TOGGLE_RIVELA_PWD" })}
                   onFocus={e => e.target.style.borderColor = "var(--gold)"}
                   onBlur={e => e.target.style.borderColor = "var(--border)"}
-                  onKeyDown={e => { if (e.key === "Enter") cambiaPassword(); }}
+                  onKeyDown={e => { if (e.key === "Enter") aggiornaPassword(); }}
                 />
               </div>
               {/* Un messaggio da mostrare c'è solo nelle fasi terminali: la
@@ -143,7 +176,7 @@ export function AccountSicurezza() {
               )}
               <div style={row}>
                 <button
-                  onClick={cambiaPassword}
+                  onClick={aggiornaPassword}
                   disabled={pwdInVolo || !stato.pwd.bozza.nuova}
                   style={{
                     background: pwdInVolo || !stato.pwd.bozza.nuova ? "var(--surface3)" : "var(--navy)",
@@ -193,7 +226,8 @@ export function AccountSicurezza() {
             <div style={colGap10Mt102}>
               <p style={txtF13Text}>
                 Questa azione <strong>disabilita permanentemente</strong> il tuo account e impedisce futuri accessi.
-                I tuoi messaggi e commenti vengono conservati. L'operazione è irreversibile.
+                Nome, email e foto vengono cancellati; i tuoi messaggi e commenti restano, a nome
+                di «Utente eliminato». L'operazione è irreversibile.
               </p>
               <div>
                 <label className="vd-field-label" htmlFor={confermaElimId}>DIGITA &quot;ELIMINA&quot; PER CONFERMARE</label>
@@ -203,6 +237,19 @@ export function AccountSicurezza() {
                   placeholder="ELIMINA" style={{ ...inputWFull, borderColor: "rgba(192,57,43,0.4)" }}
                   onFocus={e => e.target.style.borderColor = "var(--danger)"}
                   onBlur={e => e.target.style.borderColor = "rgba(192,57,43,0.4)"}
+                />
+              </div>
+              <div>
+                <label className="vd-field-label" htmlFor={passwordElimId}>LA TUA PASSWORD</label>
+                <PasswordField
+                  id={passwordElimId}
+                  inputStyle={inputWFull} autoComplete="current-password"
+                  value={stato.elim.password} onChange={e => accountDispatch({ type: "SET_PASSWORD_ELIM", valore: e.target.value })}
+                  placeholder="Per confermare che sei tu"
+                  show={stato.elim.rivela} onToggle={() => accountDispatch({ type: "TOGGLE_RIVELA_ELIM" })}
+                  onFocus={e => e.target.style.borderColor = "var(--danger)"}
+                  onBlur={e => e.target.style.borderColor = "var(--border)"}
+                  onKeyDown={e => { if (e.key === "Enter") eliminaAccount(); }}
                 />
               </div>
               {stato.elim.esito.testo && (

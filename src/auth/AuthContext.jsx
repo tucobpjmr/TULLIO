@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { supabaseAuth } from '../lib/supabaseAuth.js';
 import { toDbRole } from '../lib/taskConstants.js';
+import { messaggioCambioPassword } from '../lib/erroriCambioPassword.js';
 
 const AuthContext = createContext(null);
 
@@ -392,9 +393,26 @@ export function AuthProvider({ children }) {
 
   // Aggiorna la password dell'utente nella sessione di recovery, poi esce
   // dalla modalità recovery così l'app monta normalmente.
+  // ⛔ Solo per il recupero e il primo accesso da invito (UpdatePasswordScreen):
+  // lì una password attuale non c'è, e GoTrue lo sa — la sessione di recovery
+  // e l'utente senza password sono esclusi dal controllo. Dal profilo si
+  // passa da `cambiaPassword`.
   const updatePassword = useCallback(async (password) => {
     const res = await supabaseAuth.updateUser({ password });
     if (!res.error) { setRecovery(false); setRecoveryKind(null); }
+    return res;
+  }, []);
+
+  // A-3 dell'analisi del 6 novembre. Il cambio password dal profilo chiede la
+  // password ATTUALE: su un PC condiviso una sessione lasciata aperta bastava
+  // a cambiarla, cioè a prendersi l'account. Il controllo vero lo fa GoTrue
+  // (opzione «Require current password when changing password» di Supabase
+  // Auth): un controllo qui lo salterebbe chiunque chiami l'API con il token.
+  // `current_password` con l'underscore: supabase-js 2.108 passa gli
+  // attributi così come sono nel corpo della PUT.
+  const cambiaPassword = useCallback(async (attuale, nuova) => {
+    const res = await supabaseAuth.updateUser({ password: nuova, current_password: attuale });
+    if (res.error) return { ...res, error: { ...res.error, message: messaggioCambioPassword(res.error) } };
     return res;
   }, []);
 
@@ -414,9 +432,11 @@ export function AuthProvider({ children }) {
   // questa funzione è comunque raggiungibile solo da ProfileEditor, dentro
   // VoyageDesk già autenticato — qui l'import dinamico costa un `await` in
   // più, non un secondo download: il chunk è già in cache a quel punto.
-  const deleteAccount = useCallback(async () => {
+  // A-3 dell'analisi del 6 novembre: senza la password del chiamante la Edge
+  // Function non elimina niente (la verifica è sua, non di questo file).
+  const deleteAccount = useCallback(async (password) => {
     const { Users: UsersAPI } = await import('../lib/api.js');
-    const result = await UsersAPI.deleteAccount();
+    const result = await UsersAPI.deleteAccount(password);
     if (!result.error) {
       // Le righe su push_subscriptions le cancella già la Edge Function
       // delete-account; qui serve revocare la sottoscrizione del browser e
@@ -455,6 +475,7 @@ export function AuthProvider({ children }) {
     resetPassword,
     resendConfirmation,
     updatePassword,
+    cambiaPassword,
     deleteAccount,
     signOut,
     signOutOvunque,
@@ -462,7 +483,7 @@ export function AuthProvider({ children }) {
     retryInit,
   }), [
     session, profile, team, caricando, authError, recovery, recoveryKind,
-    signIn, resetPassword, resendConfirmation, updatePassword, deleteAccount, signOut, signOutOvunque, refreshTeam, retryInit,
+    signIn, resetPassword, resendConfirmation, updatePassword, cambiaPassword, deleteAccount, signOut, signOutOvunque, refreshTeam, retryInit,
   ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

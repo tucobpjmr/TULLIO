@@ -451,7 +451,7 @@ stessa migrazione — altrimenti un Junior si sarebbe promosso Senior con un
 |----------|-----------|
 | `invite-user` | token valido + `requireActiveAdmin`, altrimenti 401/403; ruolo richiesto filtrato su whitelist |
 | `delete-user` | token valido + `requireActiveAdmin`, altrimenti 401/403 |
-| `delete-account` | solo token valido — corretto: è self-service sul proprio account |
+| `delete-account` | token valido **+ password del chiamante**, verificata qui con `signInWithPassword` (A-3, 6 novembre): 400 senza, 403 se sbagliata. Niente gate admin: è self-service sul proprio account |
 | `send-push` | 401 senza autorizzazione; i segreti via `get_push_secrets()`, solo `service_role` |
 
 > 🔴 **Revisione dell'11 agosto 2026 (C-1 di `docs/AUDIT_ARCHITETTURA_2026-08-11.md`).**
@@ -493,6 +493,31 @@ stessa migrazione — altrimenti un Junior si sarebbe promosso Senior con un
 > interno. La correzione strutturale è accompagnare la disattivazione a un
 > `auth.admin.updateUserById(id, { ban_duration })`, com'è già per
 > `delete-account`: suggerimento strategico n. 3 dell'audit dell'11 agosto.
+
+> **Il ciclo di vita dell'account (A-3 e M-3 dell'analisi del 6 novembre).**
+> In agenzia i PC sono condivisi, quindi una sessione lasciata aperta è il
+> rischio più concreto. Prima bastava a fare due cose: cambiare la password,
+> cioè prendersi l'account, ed eliminarlo digitando «ELIMINA». Ora entrambe
+> chiedono la password attuale, e **a verificarla è il server, non il client**:
+>
+> - **Cambio password** → GoTrue, con l'opzione **«Require current password
+>   when changing password»** di Supabase Auth. ⚠️ È un'impostazione della
+>   dashboard, non del repository, e va accesa su **staging e produzione**.
+>   Il client (`AuthContext.cambiaPassword`) manda `current_password`. Da sola
+>   la richiesta non protegge niente: senza l'opzione GoTrue ignora il campo.
+>   La verifica la fa `src/test/integration/account.test.js` sullo staging.
+>   Il recupero password e il primo accesso da invito ne sono esclusi da
+>   GoTrue stesso (sessione di recovery, utente senza password).
+> - **Elimina account** → `delete-account` legge `password` dal corpo e la
+>   verifica PRIMA del ban, dietro il limite di 5 richieste l'ora, che fa
+>   anche da freno ai tentativi a forza bruta.
+>
+> Dopo l'eliminazione, in `auth.users` non resta niente che identifichi la
+> persona. L'email diventa `eliminato+<id>@invalid.invalid`, e quella vera
+> torna libera per un nuovo invito (punto 2 di M-5 del 31 agosto). I
+> metadati si svuotano chiave per chiave. È la stessa chiamata a GoTrue del
+> ban, quindi va a buon fine tutta o niente. «Esci da tutti i dispositivi»
+> resta senza password: toglie l'accesso, non lo dà a nessuno.
 
 ---
 

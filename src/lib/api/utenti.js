@@ -186,7 +186,9 @@ export const Users = {
   // Self-service account deletion (Block 4). Calls the delete-account Edge
   // Function (verify_jwt) which bans the user for 10 years + sets active=false.
   // Does NOT hard-delete: preserves comments/messages (FK ON DELETE CASCADE safety).
-  deleteAccount: () => invokeFn('delete-account', {}, 'Eliminazione non riuscita.'),
+  // A-3 dell'analisi del 6 novembre: la password viaggia fino alla funzione,
+  // che la verifica lato server. Senza, risponde 400 e non elimina niente.
+  deleteAccount: (password) => invokeFn('delete-account', { password }, 'Eliminazione non riuscita.'),
   // Eliminazione DEFINITIVA di un utente da parte di un admin (Block 3).
   // Chiama la Edge Function 'delete-user' (verify_jwt) che hard-elimina la
   // riga auth.users: la FK CASCADE ripulisce public.users e user_contacts.

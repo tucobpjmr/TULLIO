@@ -27,8 +27,16 @@ annullata: junior che modifica / si prende la coda globale 1 → 0, junior che
 cede la paternità 1 → `42501`; invariati la lettura, i propri task e la
 `created_by = NULL` eseguita come proprietario (il percorso della cascata).
 Stessi esiti rifatti sullo stato reale dopo l'applicazione; advisor senza
-avvisi nuovi. ⚠️ **Produzione: da fare**, prima del merge (`rls.yml` gira sul
-push in `main`).
+avvisi nuovi. ✅ **Applicate in produzione** il 6 novembre, con la stessa
+procedura e lo stesso controllo md5. In produzione non c'è nessun agent
+Junior: la prova a vuoto ne ha reso Junior uno Senior DENTRO la transazione
+annullata. ⚠️ Serve farlo con i claims di un admin, perché
+`users_block_privileged_self_update` riporta `seniority` al valore di prima
+senza errore. Al primo tentativo la prova girava quindi su un Senior e
+sembrava riuscita. Esiti identici a staging, più due casi che a staging
+mancavano: un agent Senior modifica e prende la coda (1 → 1). Rifatta sullo
+stato reale dopo l'applicazione; nessun residuo (task, storico, notifiche,
+audit) e nessun avviso nuovo degli advisor.
 
 **M-1 · Una cache del service worker per build.** Il nome era fisso
 (`vd-guscio-v1`) e `sw.js` non cambiava fra i deploy: nessun worker nuovo,

@@ -19,9 +19,16 @@ degli allegati usano ancora `can_view_global_queue()`.
 
 Entrambe provate su un Postgres locale (PGlite) con lo schema minimo di
 produzione: 15 verifiche, prima e dopo, idempotenza compresa. I casi in
-`rls.test.js` le legano allo staging. ⚠️ **Non ancora applicate**: vanno su
-staging e produzione seguendo `MIGRAZIONI_SUPABASE.md`, prima del merge
-(`rls.yml` gira sul push in `main`).
+`rls.test.js` le legano allo staging. ✅ **Applicate su staging** il 6
+novembre, registrate in `schema_migrations` con la versione del file e il
+testo in `statements` (md5 uguale al file). Prima, una prova a vuoto
+impersonando i due utenti di prova (junior e driver), in una transazione
+annullata: junior che modifica / si prende la coda globale 1 → 0, junior che
+cede la paternità 1 → `42501`; invariati la lettura, i propri task e la
+`created_by = NULL` eseguita come proprietario (il percorso della cascata).
+Stessi esiti rifatti sullo stato reale dopo l'applicazione; advisor senza
+avvisi nuovi. ⚠️ **Produzione: da fare**, prima del merge (`rls.yml` gira sul
+push in `main`).
 
 **M-1 · Una cache del service worker per build.** Il nome era fisso
 (`vd-guscio-v1`) e `sw.js` non cambiava fra i deploy: nessun worker nuovo,

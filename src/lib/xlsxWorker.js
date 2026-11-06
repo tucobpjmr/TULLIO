@@ -8,11 +8,14 @@
 // pacchetto portava due vulnerabilità note:
 //   • GHSA-4r6h-8v6p-xvw6 (CVE-2023-30533) Prototype Pollution — fix in 0.19.3+
 //   • GHSA-5pgg-2g8v-p4x9 (CVE-2024-22363) ReDoS                — fix in 0.20.2+
-// Il fix DEFINITIVO è ora applicato: `xlsx@0.20.3` installato da
-// `npm install --save https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`
-// (l'unico modo di ottenerlo, dato che SheetJS ha lasciato il registry npm).
-// `package-lock.json` pinna l'URL del tarball, quindi `npm ci` non deve
-// ricontattare il CDN.
+// Il fix DEFINITIVO è ora applicato: `xlsx@0.20.3`, il tarball pubblicato da
+// SheetJS su `cdn.sheetjs.com` (l'unico modo di ottenerlo, dato che SheetJS ha
+// lasciato il registry npm). Dal 6 novembre (B-5 dell'analisi del 4) il
+// tarball sta nel repository, `vendor/xlsx-0.20.3.tgz`, e `package.json` punta
+// lì: prima il lockfile pinnava l'URL del CDN e `npm ci` lo ricontattava a ogni
+// installazione — dove quell'host è bloccato (CI, ambienti di sviluppo) falliva
+// l'installazione INTERA, non solo xlsx. L'integrità nel lockfile è la stessa
+// del tarball del CDN (sha512 verificato prima del commit).
 //
 // La difesa resta comunque `withPrototypePollutionGuard`, che confronta i
 // descrittori dei prototipi prima e dopo il parse — non un ripiego in attesa

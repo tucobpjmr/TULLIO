@@ -18,7 +18,7 @@
 // public.users arriva il CASCADE, che il trigger di delete cattura, ma non il
 // fatto che sia stata una decisione amministrativa), e `set-user-active`
 // tocca la sessione in GoTrue, dove il database non arriva affatto.
-import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import type { SupabaseClient } from "jsr:@supabase/supabase-js@2.108.0";
 
 /**
  * Best-effort e MAI bloccante. Un'operazione distruttiva già andata a buon fine

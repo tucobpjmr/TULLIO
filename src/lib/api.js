@@ -28,6 +28,13 @@
 // Il beneficio dello split è quindi tutto interno: 40+ importatori non
 // cambiano una riga, e chi apre il data layer per una singola entità legge il
 // modulo di quella entità invece di scorrere le altre dodici.
+//
+// ⚠️ `lib/api/liste.js` NON passa da qui (B-7 dell'analisi del 4 novembre). È
+// il data layer del modulo Liste viaggio, arrivato in questa cartella da
+// `components/liste/listeApi.js`: sta accanto ai fratelli, ma da questa porta
+// passano le entità del core e le liste non lo sono. Lo importa solo
+// `components/liste/**` — VIETATO_LISTEAPI_DA_FUORI in eslint.config.js — e il
+// core le raggiunge dalla facciata `components/liste/listeModuleApi.js`.
 
 export { Users } from './api/utenti.js';
 export { Tasks, TaskThreads, Comments } from './api/task.js';

@@ -123,7 +123,7 @@ function schemaDaiFile() {
 // ── Nessuna eccezione dichiarata ────────────────────────────────────────────
 // Fino al 16 agosto qui c'erano tre eccezioni — liste_viaggio, movimenti_lista,
 // lista_beneficiari — perché tutte le scritture del modulo Liste sono RPC
-// (src/components/liste/listeApi.js) e nessuna trasportava l'origine. Chiuse
+// (oggi src/lib/api/liste.js) e nessuna trasportava l'origine. Chiuse
 // dal suggerimento strategico n.3 dello stesso audit (migrazione
 // 20260816110000_p_origin_modulo_liste): tredici delle sedici RPC del modulo
 // hanno guadagnato `p_origin uuid DEFAULT NULL` (drop+create, non create or

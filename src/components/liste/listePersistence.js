@@ -50,7 +50,7 @@
 // L'esecutore è useListeWrite(), in fondo a questo file.
 
 import { useCallback } from "react";
-import { ListeAPI } from "./listeApi.js";
+import { ListeAPI } from "../../lib/api/liste.js";
 import { isAdmin, canImportBackup } from "../../lib/permissions.js";
 // A-1 (audit di architettura del 15 agosto), residuo concreto. «È andata
 // bene» non è `!res.error`: una scrittura che la RLS rifiuta risponde 2xx

@@ -53,7 +53,7 @@ vi.mock("../../lib/supabase", () => ({
   getSupabase: () => Promise.resolve({ from: fakeFrom }),
 }));
 
-const { ListeAPI } = await import("../../components/liste/listeApi.js");
+const { ListeAPI } = await import("../../lib/api/liste.js");
 
 // Le parti di primo livello di una select PostgREST: si divide sulle virgole
 // fuori da ogni parentesi, altrimenti `lista_beneficiari(client_id,

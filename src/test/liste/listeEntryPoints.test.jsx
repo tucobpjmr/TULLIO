@@ -36,7 +36,7 @@ vi.mock("../../lib/supabase", () => ({ supabase: {}, default: {} }));
 
 // Il pannello liste della scheda cliente interroga Supabase al mount: mockiamo
 // il layer dati, qui interessa la navigazione, non le query.
-vi.mock("../../components/liste/listeApi.js", async (importOriginal) => {
+vi.mock("../../lib/api/liste.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
@@ -119,7 +119,7 @@ describe("Scheda cliente — tab Liste viaggio", () => {
   });
 
   it("il tab Liste viaggio carica le liste del solo cliente selezionato", async () => {
-    const { ListeAPI } = await import("../../components/liste/listeApi.js");
+    const { ListeAPI } = await import("../../lib/api/liste.js");
     openCliente("marco");
     fireEvent.click(screen.getByRole("button", { name: "Liste viaggio" }));
 

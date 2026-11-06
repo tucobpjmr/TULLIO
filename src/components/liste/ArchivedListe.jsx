@@ -10,7 +10,7 @@
 // Ora l'Archivio monta questo componente per composizione e non sa nulla di
 // come le liste vengano lette.
 import { useCallback, useEffect, useState } from "react";
-import { ListeAPI } from "./listeApi.js";
+import { ListeAPI } from "../../lib/api/liste.js";
 import { eur, fmtDate, saldoClass } from "./listeFormato.js";
 import { useListeWrite } from "./listePersistence.js";
 import { PERIOD_OPTIONS, filterByPeriod, thStyle, chipStyle } from "../tasks/archiveFilters.js";

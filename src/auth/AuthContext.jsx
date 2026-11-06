@@ -174,6 +174,13 @@ export function AuthProvider({ children }) {
           // vuoto, cosa che si risolve al tentativo successivo.
           if (meError || !me) throw meError || new Error('Profilo non trovato');
           if (allError) throw allError;
+          // B-1 dell'analisi del 4 novembre: la propria riga di `users` è
+          // sempre leggibile (policy `users_select_self_o_attivo`), quindi un
+          // team che non contiene chi ha fatto login è una risposta
+          // incoerente, non un'agenzia vuota. Rientra nel retry come il
+          // profilo mancante; se persiste, AuthGate mostra l'errore invece di
+          // montare un'app senza persistenza.
+          if (!all?.some((u) => u.id === userId)) throw new Error('Team vuoto o incompleto');
           return { me, all, contacts };
         }, 'caricaProfilo');
         const myContacts = { email: contacts?.email ?? null, phone: contacts?.phone ?? null };
@@ -192,7 +199,8 @@ export function AuthProvider({ children }) {
 
     caricamentoInVoloRef.current = { key, promise };
     // Libera lo slot a fine caricamento così una richiesta successiva (es.
-    // TOKEN_REFRESHED, o un retry esplicito dell'utente) riparte da capo.
+    // USER_UPDATED, o un retry esplicito dell'utente) riparte da capo.
+    // TOKEN_REFRESHED non arriva più fin qui (B-2, vedi onAuthStateChange).
     promise.finally(() => {
       if (caricamentoInVoloRef.current?.promise === promise) caricamentoInVoloRef.current = null;
     });
@@ -242,12 +250,24 @@ export function AuthProvider({ children }) {
     // pratica solo con un refresh manuale — che a volte vinceva il race sul
     // lock e quindi "funzionava". setTimeout(0) rimanda il lavoro a dopo il
     // ritorno del callback: il lock si libera subito e caricaProfilo procede.
-    const { data: sub } = supabaseAuth.onAuthStateChange((_event, s) => {
-      if (_event === 'PASSWORD_RECOVERY') {
+    const { data: sub } = supabaseAuth.onAuthStateChange((evento, s) => {
+      if (evento === 'PASSWORD_RECOVERY') {
         setRecovery(true);
         setRecoveryKind(prev => prev ?? 'recovery');
       }
-      setSession(s);
+      // ─── B-2 dell'analisi del 4 novembre ─────────────────────────────────
+      // gotrue emette TOKEN_REFRESHED a ogni rinnovo del token (circa ogni
+      // ora, e al ritorno in primo piano di una scheda rimasta ferma). Prima
+      // ogni evento faceva due cose: un oggetto `session` nuovo — quindi un
+      // value nuovo del contesto e un giro di render di tutto ciò che legge
+      // useAuth() — e un caricaProfilo completo (tre query) per un utente che
+      // non era cambiato. Ora la session si sostituisce solo quando cambia
+      // CHI è collegato (login, logout, cambio account): nessun consumatore
+      // legge il token da qui — le richieste lo prendono dal client
+      // (lib/supabase.js), che lo ha sempre fresco.
+      setSession(prev => ((prev?.user?.id ?? null) === (s?.user?.id ?? null) ? prev : s));
+      // Il rinnovo del token non cambia né il profilo né il team.
+      if (evento === 'TOKEN_REFRESHED') return;
       setTimeout(() => {
         if (!mounted) return;
         caricaProfilo(s?.user?.id).finally(() => {

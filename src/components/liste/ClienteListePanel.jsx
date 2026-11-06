@@ -7,7 +7,7 @@
 // significherebbe due copie della stessa UI da tenere allineate, e la scheda
 // cliente non è il contesto in cui si registra un movimento.
 import { useMemo, useState } from "react";
-import { ListeAPI } from "./listeApi.js";
+import { ListeAPI } from "../../lib/api/liste.js";
 import { fmtDate, intestazioneLista, sommaImporti } from "./listeFormato.js";
 import { SaldoNascosto, propsRigaApribile } from "./SaldoNascosto.jsx";
 import { useListeWrite } from "./listePersistence.js";

@@ -18,7 +18,7 @@ import { describe, it, expect, vi } from "vitest";
 // affatto) e i due data layer sono spie che nessuno chiama.
 vi.mock("../../lib/supabase", () => ({ supabase: {}, default: {} }));
 vi.mock("../../lib/api.js", () => new Proxy({}, { get: () => new Proxy({}, { get: () => vi.fn() }) }));
-vi.mock("../../components/liste/listeApi.js", () => ({
+vi.mock("../../lib/api/liste.js", () => ({
   ListeAPI: new Proxy({}, { get: () => vi.fn() }),
 }));
 

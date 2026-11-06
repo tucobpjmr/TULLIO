@@ -27,8 +27,12 @@
 // finché qualcuno la ricordava in review; ora è struttura, e la violazione —
 // che si è presentata solo per distrazione, copiando l'import dal vicino — si
 // ferma prima del commit.
+//
+// Dal 6 novembre (B-7 dell'analisi del 4) il file è `lib/api/liste.js`, con il
+// resto del data layer. A tenerlo privato era già la regola, non la cartella:
+// la regola ha cambiato percorso insieme a lui, e il confine è lo stesso.
 
-import { ListeAPI } from "./listeApi.js";
+import { ListeAPI } from "../../lib/api/liste.js";
 import { beneficiariNomi, intestazioneLista } from "./listeFormato.js";
 
 // Formattazione dei nomi di una lista (intestatario e beneficiari): pure, ma

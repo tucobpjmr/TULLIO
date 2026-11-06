@@ -9,7 +9,7 @@
 // la ricerca che il CORE fa sulle liste, su oggetti già ottenuti dalla
 // facciata `components/liste/listeModuleApi.js`. Per questo `indicizzaListe`
 // riceve l'estrattore dei cointestatari come ARGOMENTO invece di importarlo:
-// così questo modulo non conosce né `listeApi.js` (che gli sarebbe vietato) né
+// così questo modulo non conosce né `lib/api/liste.js` (che gli sarebbe vietato) né
 // la facciata, e resta verificabile senza toccare il modulo Liste.
 import { indicizza, matchIndice, terminiRicerca } from "./searchUtils.js";
 

@@ -156,16 +156,26 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     makeInitialState
   );
 
-  // Modalità DB: attiva solo se AuthContext ha fornito un team reale.
-  // Senza, l'app resta sui mock (dev/preview senza login).
-  const useSupabase = Array.isArray(initialTeam) && initialTeam.length > 0;
+  // ─── B-1 dell'analisi del 4 novembre · la demo è un FLAG, non una deduzione ──
+  // Era `useSupabase = initialTeam.length > 0`: la modalità si DEDUCEVA dal
+  // team, quindi un team arrivato vuoto (RLS, risposta parziale a freddo)
+  // spegneva in silenzio la persistenza — l'app girava, ogni modifica restava
+  // in memoria e spariva al reload, anche in produzione. Ora la demo è una
+  // decisione esplicita: solo in sviluppo e solo senza utente loggato.
+  // AuthGate monta l'app soltanto con una session e un profilo, e le passa
+  // `profile.id`: un `initialCurrentUserId` assente vuol dire «nessuna
+  // session», cioè i test che montano `<VoyageDesk />` nudo. Un team vuoto con
+  // una session valida non arriva fin qui: AuthGate mostra un errore.
+  const modalitaDemo = import.meta.env.DEV && !initialCurrentUserId;
+  const useSupabase = !modalitaDemo;
 
   // Conversazioni/messaggi demo per useChatData sotto: stessa tecnica di
   // reducer.js/makeInitialState. `import.meta.env.DEV` collassa a `false` in
   // produzione, quindi il ramo — e con esso demoState()/mockData.js — esce
-  // dal bundle invece di restare solo irraggiungibile.
+  // dal bundle invece di restare solo irraggiungibile. Il DEV resta scritto
+  // nell'`if` di proposito: è la costante che il bundler sa piegare.
   let demo = null;
-  if (import.meta.env.DEV && !useSupabase) demo = demoState();
+  if (import.meta.env.DEV && modalitaDemo) demo = demoState();
 
   // M-2 dell'audit del 10 settembre · la coda delle scritture offline. Sta qui,
   // prima di `dispatch`, perché è `dispatch` a doverla ricevere: quando una

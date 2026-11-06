@@ -17,7 +17,7 @@ import { useListeData } from "./useListeData.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
 import { useClientiCompleti } from "../../state/ClientiCompletiContext.jsx";
-import { ListeAPI } from "./listeApi.js";
+import { ListeAPI } from "../../lib/api/liste.js";
 import { useListeWrite } from "./listePersistence.js";
 import { useStrumentiDati } from "./useStrumentiDati.js";
 import { overlayIniziale, overlayReducer } from "./listeReducers.js";

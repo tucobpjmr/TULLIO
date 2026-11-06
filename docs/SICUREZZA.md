@@ -207,12 +207,23 @@ Fino al 4 novembre `presenza:agenzia` e `typing:<conversazione>` erano canali
 sola chiave anon si leggeva chi era collegato e si poteva pubblicare un «sta
 scrivendo» a nome di altri (M-3 dell'analisi di quel giorno). Ora il client li
 apre con `private: true` (`src/lib/realtime.js`) e l'ingresso lo decidono
-quattro policy su `realtime.messages` (migrazione `20261104181351`):
+quattro policy su `realtime.messages` (migrazioni `20261104181351` e
+`20261106101314`):
 
 | Canale | Chi entra |
 |---|---|
-| `presenza:agenzia` (estensione `presence`) | utenti autenticati **e** attivi (`private.is_active_user()`) |
+| `presenza:agenzia` (lettura `presence` + `broadcast`, scrittura `presence`) | utenti autenticati **e** attivi (`private.is_active_user()`) |
 | `typing:<id>` (estensione `broadcast`) | i soli **partecipanti** della conversazione, attivi |
+
+⚠️ **Per entrare in un canale privato Realtime controlla la lettura
+`broadcast` sul topic**, anche quando il canale serve solo alla presenza. La
+prima migrazione concedeva su `presenza:agenzia` la sola `presence`, e un utente
+attivo veniva respinto («You do not have permissions to read from this Channel
+topic»): i pallini «online» non si accendevano per nessuno. Lo ha visto
+`realtimeCanali.test.js` sullo staging il 4 novembre; la `20261106101314`
+(applicata il 6 novembre su staging e produzione) aggiunge `broadcast` alla
+sola lettura. Su quel topic nessuno può pubblicare broadcast: la scrittura
+resta sulla sola `presence`.
 
 Verificate con un dry-run transazionale prima di applicarle: utente attivo
 ammesso su presenza e sulla propria conversazione; rifiutati conversazione

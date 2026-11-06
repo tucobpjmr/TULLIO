@@ -2,8 +2,10 @@
 //
 // M-3 dell'audit del 4 novembre · presenza e «sta scrivendo» sono canali
 // Realtime PRIVATI (src/lib/realtime.js), e l'ingresso lo decidono le policy
-// su `realtime.messages` (migrazione 20261104181351): presenza a ogni utente
-// attivo, «sta scrivendo» ai soli partecipanti della conversazione.
+// su `realtime.messages` (migrazioni 20261104181351 e 20261106101314):
+// presenza a ogni utente attivo, «sta scrivendo» ai soli partecipanti della
+// conversazione. Il primo caso è quello che ha trovato il buco della prima
+// migrazione: l'ingresso chiede la lettura `broadcast`, anche sulla presenza.
 //
 // Perché un file a parte da rls.test.js, e perché `node`. La prima esecuzione
 // (4 novembre, Verifica RLS dopo il merge di #257) li aveva dentro rls.test.js,

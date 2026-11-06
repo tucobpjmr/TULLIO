@@ -195,7 +195,10 @@ const CANALE_PRESENZA = 'presenza:agenzia';
 // collegato o pubblicare un «sta scrivendo» a nome di altri. Con `private: true`
 // l'ingresso passa dalle policy su `realtime.messages` della migrazione
 // 20261104181351: presenza solo per utenti attivi, «sta scrivendo» solo per i
-// partecipanti della conversazione. Un canale privato e uno pubblico con lo
+// partecipanti della conversazione. ⚠️ Per ENTRARE in un canale privato
+// Realtime chiede la lettura `broadcast` sul topic, anche se il canale serve
+// solo alla presenza: senza, `presenza:agenzia` restava chiuso a tutti
+// (corretto dalla 20261106101314). Un canale privato e uno pubblico con lo
 // stesso nome sono distinti, quindi chi entra nel pubblico non vede niente.
 // ⛔ Non togliere `private` per «far funzionare» un canale che non si aggancia:
 // la causa è una policy che manca, e senza `private` tornerebbe aperto a tutti.

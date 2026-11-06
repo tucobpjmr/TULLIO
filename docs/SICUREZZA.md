@@ -384,7 +384,21 @@ Due regole che è facile leggere male:
   fra i due ruoli non passa da `permissions.js`.
 - **Junior Agent vede la coda globale ma non può prenderla.** `canViewTask`
   concede, `canEditTask` nega. In UI il bottone "Prendi in carico" è sostituito
-  da "Chiedi a un Senior".
+  da "Chiedi a un Senior". ⚠️ **Fino al 6 novembre era vero solo nel client**
+  (A-2 dell'analisi di quel giorno): il ramo coda globale di `tasks_update`
+  usava `can_view_global_queue()`, che non guarda la seniority, e un Junior
+  con il proprio token modificava qualunque task non assegnato. Dalla
+  migrazione `20261106170100` l'UPDATE passa da
+  `private.can_take_global_queue()` (admin, manager, agent senior); lettura e
+  commenti restano su `can_view_global_queue()`. Seguito aperto: allegati
+  (`task_files_insert/_delete` e storage).
+- **`created_by` e `created_at` di un task non si modificano** (A-1 dello
+  stesso giorno, migrazione `20261106170000`). Prima il WITH CHECK
+  `created_by = auth.uid()` lasciava a un assegnatario la possibilità di farsi
+  autore e tenere l'accesso dopo una riassegnazione. Lo rifiuta il trigger
+  `trg_tasks_campi_immutabili`, che lascia passare solo chi non è un ruolo
+  dell'API (la cascata `ON DELETE SET NULL` della FK, service_role, le
+  migrazioni). Casi in `src/test/integration/rls.test.js`.
 
 ### Lato database (📄 + ✅, corretto il 7 agosto — vedi nota di revisione in testa al documento)
 

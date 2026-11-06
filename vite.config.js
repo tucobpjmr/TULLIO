@@ -1,8 +1,44 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+// ─── M-1/M-2 dell'analisi del 6 novembre · UN ID PER BUILD ────────────────
+// Lo stesso id finisce in tre posti, e sono i tre che devono concordare:
+//   · nel bundle, come `import.meta.env.VITE_BUILD_ID` — la build in esecuzione;
+//   · in `dist/version.json` — la build in linea, che hooks/useNuovaVersione.js
+//     rilegge per dire «c'è una versione nuova, ricarica»;
+//   · in `dist/sw.js`, al posto di `__BUILD_ID__` — il nome della cache del
+//     service worker: i byte del worker cambiano a ogni deploy, quindi il
+//     browser ne installa uno nuovo e `activate` cancella la cache vecchia.
+// Solo in build (`apply`): in sviluppo e nei test l'id non esiste, e l'hook non
+// interroga niente. `verifica:bundle` controlla che i tre punti concordino.
+function versioneBuild() {
+  const build = Date.now().toString(36);
+  let cartella = 'dist';
+  return {
+    name: 'vd-versione-build',
+    apply: 'build',
+    config: () => ({ define: { 'import.meta.env.VITE_BUILD_ID': JSON.stringify(build) } }),
+    configResolved(cfg) { cartella = resolve(cfg.root, cfg.build.outDir); },
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build }) });
+    },
+    // `closeBundle` e non `generateBundle`: `public/` viene copiata nella
+    // cartella di output fuori dal grafo di Rollup, e qui c'è già.
+    closeBundle() {
+      const percorso = resolve(cartella, 'sw.js');
+      const testo = readFileSync(percorso, 'utf8');
+      if (!testo.includes('__BUILD_ID__')) {
+        throw new Error('[versioneBuild] dist/sw.js non contiene il segnaposto __BUILD_ID__');
+      }
+      writeFileSync(percorso, testo.replaceAll('__BUILD_ID__', build));
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), versioneBuild()],
   test: {
     environment: "jsdom",
     globals: true,

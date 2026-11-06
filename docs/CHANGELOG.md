@@ -1,5 +1,48 @@
 # CHANGELOG — VoyageDesk
 
+## 6 novembre (iii) — analisi del 6 novembre: A-1, A-2, M-1, M-2
+
+**A-1 · `created_by` e `created_at` dei task non si riscrivono.** Il WITH
+CHECK di `tasks_update` accettava `created_by = auth.uid()` e il grant UPDATE
+copriva la colonna: un assegnatario poteva farsi autore (e tenere l'accesso
+dopo una riassegnazione) o cedere la paternità. Migrazione `20261106170000`:
+trigger `trg_tasks_campi_immutabili`, che rifiuta il cambio ai ruoli dell'API
+e lascia passare la cascata `ON DELETE SET NULL` della FK (eseguita come
+proprietario della tabella).
+
+**A-2 · Il Junior vede la coda globale, non la modifica.** Il ramo coda
+globale di `tasks_update` usava `can_view_global_queue()`, che non guarda la
+seniority. Migrazione `20261106170100`: nuova `private.can_take_global_queue()`
+(admin, manager, agent senior) in USING e WITH CHECK. Lettura e commenti
+invariati. ⚠️ Seguito aperto: `task_files_insert/_delete` e le policy storage
+degli allegati usano ancora `can_view_global_queue()`.
+
+Entrambe provate su un Postgres locale (PGlite) con lo schema minimo di
+produzione: 15 verifiche, prima e dopo, idempotenza compresa. I casi in
+`rls.test.js` le legano allo staging. ⚠️ **Non ancora applicate**: vanno su
+staging e produzione seguendo `MIGRAZIONI_SUPABASE.md`, prima del merge
+(`rls.yml` gira sul push in `main`).
+
+**M-1 · Una cache del service worker per build.** Il nome era fisso
+(`vd-guscio-v1`) e `sw.js` non cambiava fra i deploy: nessun worker nuovo,
+nessuna pulizia, e da offline si apriva l'HTML del giorno d'installazione. Ora
+il plugin `versioneBuild` (vite.config.js) scrive l'id di build nel nome della
+cache, e ogni navigazione riuscita aggiorna la copia di `/`. ⚠️ **Trovato in
+corso d'opera:** gli asset non entravano MAI in cache — `res.clone()` stava
+dentro il `.then` di `caches.open`, quando la pagina aveva già letto il corpo,
+e sollevava. Da offline si apriva l'HTML senza i suoi script, cioè una pagina
+bianca: il guscio offline di M-1 del 5 settembre non ha mai funzionato. Provato
+in Chromium (`vite preview`): prima 9 asset serviti dal worker e 0 in cache,
+pagina bianca offline; dopo 13 voci in cache e schermata di login offline, e
+dopo un secondo build la cache precedente sparisce.
+
+**M-2 · «È disponibile una versione nuova».** `hooks/useNuovaVersione.js`
+rilegge `/version.json` ogni 5 minuti, al ritorno in primo piano e al ritorno
+della rete; se l'id è diverso da quello compilato, `OfflineBanner` mostra una
+striscia con «Ricarica». Priorità più bassa delle altre tre, e mai mentre la
+coda offline sta inviando. `verifica:bundle` controlla che l'id coincida in
+`version.json`, `sw.js` e bundle. Test: `src/test/shell/nuovaVersione.test.jsx`.
+
 ## 6 novembre (ii) — i rilievi di priorità bassa (B-1…B-8)
 
 **B-1 · La demo è un flag, non una deduzione.** `useSupabase` era

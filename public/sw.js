@@ -15,7 +15,17 @@
 // invece della schermata d'errore del browser — lo stesso messaggio che
 // l'app dà già quando la rete cade mentre è aperta, qui senza dipendere
 // dall'essere già aperta.
-const GUSCIO = 'vd-guscio-v1';
+//
+// ─── M-1 dell'analisi del 6 novembre · UNA CACHE PER BUILD ─────────────────
+// Il nome era la costante 'vd-guscio-v1', e `sw.js` non cambiava fra un deploy
+// e l'altro: il browser non installava mai un worker nuovo, quindi `activate`
+// non ripuliva niente e gli asset di ogni build restavano in cache per sempre.
+// Il segnaposto qui sotto lo sostituisce il build (plugin `versioneBuild` in
+// vite.config.js) con lo stesso id di `/version.json`: ogni deploy cambia i
+// byte di questo file, il browser installa il worker nuovo e `activate`
+// cancella la cache della build precedente. In sviluppo il segnaposto resta
+// tale, ed è innocuo.
+const GUSCIO = 'vd-guscio-__BUILD_ID__';
 
 // Precache del solo `/`: gli asset con hash entrano in cache alla prima
 // visita (stale-while-revalidate qui sotto) e cambiano nome a ogni deploy,
@@ -41,21 +51,47 @@ self.addEventListener('fetch', (e) => {
   // si apre" da "i dati sono vecchi e non te lo dico".
   if (url.origin !== self.location.origin) return;
 
+  // `/version.json` dice quale build è in linea (hooks/useNuovaVersione.js):
+  // una copia in cache risponderebbe sempre la versione vecchia, cioè il
+  // contrario di ciò per cui esiste.
+  if (url.pathname === '/version.json') return;
+
   // La navigazione: rete prima (un deploy nuovo deve arrivare subito), guscio
   // in cache come rete di sicurezza. `vercel.json` riscrive già ogni path su
   // `/`, quindi `/` è la risposta giusta per qualunque navigazione.
+  // M-1 del 6 novembre: ogni navigazione riuscita AGGIORNA la copia di `/`.
+  // Prima la si scriveva solo all'installazione, e da offline si apriva
+  // l'HTML di quel giorno, con gli script di quella build.
   if (request.mode === 'navigate') {
-    e.respondWith(fetch(request).catch(() => caches.match('/')));
+    e.respondWith(fetch(request).then((res) => {
+      // `redirected` resta fuori: Safari rifiuta una navigazione servita dal
+      // worker con una risposta che porta con sé un redirect.
+      if (res.ok && !res.redirected) {
+        const copia = res.clone();
+        caches.open(GUSCIO).then((c) => c.put('/', copia));
+      }
+      return res;
+    }).catch(() => caches.match('/')));
     return;
   }
 
   // Gli asset con hash nel nome (JS/CSS/font): cache prima, aggiornamento in
   // sottofondo. Il nome cambia a ogni build, quindi non c'è versione vecchia
   // da servire per sbaglio — è il contratto del filename hashing di Vite.
+  //
+  // ⚠️ M-1 del 6 novembre: la copia si fa SUBITO, non dentro il `.then` di
+  // `caches.open`. Lì arrivava quando la pagina aveva già letto il corpo di
+  // `res`, `clone()` sollevava «body already used» e la `put` non avveniva mai:
+  // in cache restava il solo `/`, e da offline la pagina si apriva bianca,
+  // senza i suoi script. Visto in Chromium: 9 asset passati dal worker, 0 in
+  // cache.
   e.respondWith(
     caches.match(request).then((hit) => {
       const rete = fetch(request).then((res) => {
-        if (res.ok) caches.open(GUSCIO).then((c) => c.put(request, res.clone()));
+        if (res.ok) {
+          const copia = res.clone();
+          caches.open(GUSCIO).then((c) => c.put(request, copia));
+        }
         return res;
       }).catch(() => hit);
       return hit || rete;

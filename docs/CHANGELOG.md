@@ -66,10 +66,27 @@ server: GoTrue rifiuta davvero la password attuale sbagliata, ma il codice è
 italiano non sarebbe mai comparso. Corretti la mappa e i test. Rilanciato
 sul commit corretto: 45 su 45.
 
-⚠️ **Da fare:** accendere la stessa opzione in produzione. Poi
-distribuire `delete-account` in produzione SUBITO DOPO il merge, non prima:
-la funzione nuova senza il client nuovo rifiuta ogni eliminazione per
-password mancante.
+✅ **In produzione il 6 novembre**, in quest'ordine:
+1. opzione accesa;
+2. merge della PR #260, con Vercel che pubblica l'app nuova
+   (`425b047`, deployment `READY`);
+3. `delete-account` distribuita (v7), solo a quel punto.
+
+L'ordine conta. La funzione nuova con l'app vecchia avrebbe rifiutato ogni
+eliminazione per password mancante. Il contenuto distribuito, riletto con
+`get_edge_function`, è quello del repo, compreso `riautenticazione.ts`.
+Sul push del merge in `main` sono verdi CI, E2E, Verifica RLS (anche
+`integration/account.test.js`) e Verifica RPC.
+
+⚠️ Fra l'accensione dell'opzione e il merge, il cambio password dell'app
+vecchia (che non manda la password attuale) è stato rifiutato. Il buco è
+durato pochi minuti. La prossima volta conviene accendere l'opzione subito
+DOPO il merge.
+
+In produzione non c'è una prova end-to-end, ed è una scelta. Un utente
+usa-e-getta creato lì manderebbe una notifica «nuovo utente in attesa» a
+ogni admin, cioè a persone vere. La prova completa è quella dello staging,
+fatta sullo stesso codice.
 
 ## 6 novembre (iii) — analisi del 6 novembre: A-1, A-2, M-1, M-2
 

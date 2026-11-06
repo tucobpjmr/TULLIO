@@ -10,7 +10,7 @@
 // divergono, restano uguali e sbagliati insieme. Qui è uno solo, e la parte
 // che decide è pura e testata.
 
-import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import type { SupabaseClient } from "jsr:@supabase/supabase-js@2.108.0";
 import {
   COLONNE_PROFILO_ADMIN,
   MSG_NON_AUTORIZZATO,

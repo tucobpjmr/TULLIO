@@ -14,6 +14,7 @@
 // anche i commenti, la descrizione e i due pannelli figli.
 import { useState } from "react";
 import { Avatar } from "../ui/Avatar.jsx";
+import { SalvatoInLinea } from "../ui/SalvatoInLinea.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
 import { conTastiera } from "../../lib/a11y.js";
 import { Z } from "../../styles/tokens.js";
@@ -29,8 +30,9 @@ import {
  * @param {boolean}  props.editable
  * @param {Function} props.getMember
  * @param {Function} props.onChange         riceve il nuovo elenco completo di id.
+ * @param {boolean}  [props.salvato]        accende «Salvato ✓» accanto all'etichetta (B-6).
  */
-export function TaskAssegnatari({ assegnati, disponibili, editable, getMember, onChange }) {
+export function TaskAssegnatari({ assegnati, disponibili, editable, getMember, onChange, salvato = false }) {
   const [apertoIlMenu, setApertoIlMenu] = useState(false);
 
   const aggiungi = (memberId) => {
@@ -42,7 +44,7 @@ export function TaskAssegnatari({ assegnati, disponibili, editable, getMember, o
 
   return (
     <div style={stiliComuni.relative}>
-      <div style={txtF11Bold}>ASSEGNATI</div>
+      <div style={txtF11Bold}>ASSEGNATI<SalvatoInLinea visibile={salvato} /></div>
       <div style={rowCenterGap6}>
         {assegnati.map(id => {
           const m = getMember(id);

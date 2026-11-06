@@ -83,6 +83,13 @@ export function AuthGate() {
   // Gate utenti non approvati: niente accesso all'app finché pending=true.
   if (profile.pending) return <PendingScreen />;
 
+  // B-1 dell'analisi del 4 novembre: con una session valida l'app gira SEMPRE
+  // sul database. Un team vuoto qui non deve diventare un'app che sembra
+  // funzionare e non salva niente: è un caricamento non riuscito, con Riprova.
+  // caricaProfilo lo rifiuta già alla fonte; questo ramo tiene vera la regola
+  // anche per chi un domani impostasse profilo e team per un'altra strada.
+  if (!team?.length) return <ProfileErrorScreen onRetry={refreshTeam} onSignOut={signOut} />;
+
   // La rete di sicurezza del `lazy()` (A-1: montare un lazy e dargli un
   // boundary è UN gesto solo). Qui è quello di PRIMO livello e non
   // ViewErrorBoundary/OverlayErrorBoundary come negli altri otto punti di

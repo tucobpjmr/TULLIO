@@ -14,7 +14,7 @@
 //
 // Libreria: jsr:@negrel/webpush — Web Push puro WebCrypto, pensato per Deno
 // (npm:web-push dipende da node:crypto e sul runtime edge è meno affidabile).
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.108.0";
 import * as webpush from "jsr:@negrel/webpush@0.5.0";
 
 const supabase = createClient(

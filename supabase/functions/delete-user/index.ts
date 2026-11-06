@@ -7,8 +7,8 @@
 // o invito da rifare): dopo la delete, Users.invite() non darà più
 // "già registrato" e l'invito potrà essere reinviato da zero.
 // verify_jwt:true → Supabase valida il JWT prima di eseguire il body.
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import "jsr:@supabase/functions-js@2.108.0/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2.108.0";
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireActiveAdmin } from "../_shared/requireActiveAdmin.ts";
 import { registraAudit } from "../_shared/audit.ts";

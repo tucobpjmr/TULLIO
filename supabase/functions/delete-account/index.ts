@@ -16,8 +16,8 @@
 // bannato), e su public.users nome/avatar/colore/foto vengono sostituiti con
 // un profilo anonimo — la riga resta per non spezzare le FK di
 // commenti/messaggi/task già preservati di proposito.
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import "jsr:@supabase/functions-js@2.108.0/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2.108.0";
 import { corsHeaders } from "../_shared/cors.ts";
 import { entroLimite } from "../_shared/rateLimit.ts";
 import { erroreInterno } from "../_shared/erroreInterno.ts";

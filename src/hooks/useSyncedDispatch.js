@@ -24,7 +24,7 @@
 
 import { useCallback, useRef } from "react";
 import { PERSISTENCE } from "../state/persistence.js";
-import { ADMIN_ONLY_ACTIONS } from "../state/reducer.js";
+import { ADMIN_ONLY_ACTIONS, reducer } from "../state/reducer.js";
 import { isAdmin } from "../lib/permissions.js";
 
 // C-1 dell'audit del 14 agosto (secondo passaggio): una scrittura respinta
@@ -51,16 +51,28 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true, coda = /
   // `dispatch` resta un'identità stabile. Con [state] nelle deps verrebbe
   // ricreato a ogni mutazione, rompendo la memoizzazione dei figli.
   //
-  // Assegnato in RENDER e non in useEffect: l'effetto gira dopo il commit,
-  // quindi fra due dispatch nello stesso handler il ref conserverebbe lo stato
-  // precedente al PRIMO. I guard non se ne accorgono (sono idempotenti), ma le
-  // entry che dal vecchio stato CALCOLANO il valore da scrivere — il
-  // `!curr.active` di TOGGLE_TEAM_MEMBER_ACTIVE, il `!prev.pinned` di
-  // TOGGLE_PIN_NOTICE — sceglierebbero sul valore sbagliato. Il ref non viene
-  // mai letto durante il render, solo dentro il callback: l'assegnazione non
-  // rende quindi questo componente impuro.
+  // ─── B-3 dell'analisi del 4 novembre · il ref avanza a OGNI dispatch ──────
+  // Il commento di prima diceva che assegnarlo in render bastava a dare al
+  // secondo di due dispatch nello stesso handler lo stato prodotto dal primo.
+  // Non era vero: React accorpa i due aggiornamenti e non renderizza in mezzo,
+  // quindi il secondo leggeva lo stato di PRIMA del primo — esattamente come
+  // con un useEffect. Le entry che dal vecchio stato CALCOLANO il valore da
+  // scrivere (il `!curr.active` di TOGGLE_TEAM_MEMBER_ACTIVE, il `!prev.pinned`
+  // di TOGGLE_PIN_NOTICE) sceglievano sul valore sbagliato, e un guard su una
+  // riga appena aggiunta (UPDATE_TASK dopo ADD_TASK) non la trovava.
+  //
+  // Ora `applica` manda l'azione al reducer di React e, nello stesso istante,
+  // fa avanzare il ref con lo STESSO reducer (è puro: state/reducer.js). Al
+  // render successivo l'assegnazione qui sotto lo riallinea allo stato vero,
+  // che a quel punto contiene le stesse azioni. Il ref non viene mai letto
+  // durante il render, solo dentro il callback: questo componente resta puro.
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  const applica = useCallback((azione) => {
+    rawDispatch(azione);
+    stateRef.current = reducer(stateRef.current, azione);
+  }, [rawDispatch]);
 
   return useCallback((action) => {
     if (!enabled) {
@@ -87,7 +99,7 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true, coda = /
       // due registry più le quattordici di ADMIN_ONLY_ACTIONS — invariante
       // pinnata da src/test/state/permessoNegatoContract.test.js, che è ciò
       // che rende sicuro il silenzio di useSalvataggio qui sotto.
-      rawDispatch(action);
+      applica(action);
       // A-1 dell'audit del 4 settembre. Qui c'era `{ error: null }`, cioè la
       // risposta di una scrittura RIUSCITA: chi attende l'esito — e attende
       // `useSalvataggio`, il modo in cui quindici form decidono se chiudersi —
@@ -104,7 +116,7 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true, coda = /
     }
 
     const toDispatch = spec?.normalize ? spec.normalize(action, s, uid) : action;
-    rawDispatch(toDispatch);
+    applica(toDispatch);
 
     if (!spec?.persist) return Promise.resolve({ error: null });
 
@@ -129,7 +141,7 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true, coda = /
     // React un campo che esiste solo per farsi rileggere da qui — e `s` è già
     // in mano a questo punto di chiamata, quindi non costa nulla.
     const ids = [].concat(spec.entityId?.(toDispatch, s, uid) ?? []).filter(Boolean);
-    if (ids.length) rawDispatch({ type: "MARK_PENDING_WRITE", payload: ids });
+    if (ids.length) applica({ type: "MARK_PENDING_WRITE", payload: ids });
 
     // Percorso d'errore condiviso: rollback dello stato ottimistico (se
     // previsto) e toast con il messaggio più comprensibile disponibile.
@@ -151,7 +163,7 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true, coda = /
       // mutazione quando la chiede l'utente e una compensazione quando la
       // chiede questo ramo d'errore. Il reducer lo legge in un punto solo (vedi
       // state/reducer.js): toast invariati e nessuna voce nel log attività.
-      if (undo) rawDispatch({ ...undo, meta: { ...undo.meta, compensazione: true } });
+      if (undo) applica({ ...undo, meta: { ...undo.meta, compensazione: true } });
       // B-2 (audit performance/UX del 16 agosto, secondo passaggio): l'UI
       // ottimistica accoda il successo nel reducer, cioè PRIMA che la scrittura
       // parta. Se fallisce, «Task aggiornato!» resta a schermo sopra
@@ -162,8 +174,8 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true, coda = /
       // quelle il cui successo era già stato accodato prima — restano scoperte.
       // Il ritiro va quindi fatto sempre, e DOPO il rollback per non essere
       // riportato indietro da lui.
-      rawDispatch({ type: "RETRACT_TOASTS", payload: action.type });
-      rawDispatch(toastErrore(testoErrore(spec, err, fallback)));
+      applica({ type: "RETRACT_TOASTS", payload: action.type });
+      applica(toastErrore(testoErrore(spec, err, fallback)));
       return { error: err };
     };
 
@@ -219,7 +231,7 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true, coda = /
       // della sessione. Lo smarcamento avviene DOPO il rollback dispatchato da
       // fail(), così nemmeno la compensazione può essere sovrascritta.
       .finally(() => {
-        if (ids.length) rawDispatch({ type: "UNMARK_PENDING_WRITE", payload: ids });
+        if (ids.length) applica({ type: "UNMARK_PENDING_WRITE", payload: ids });
       });
-  }, [enabled, rawDispatch, coda]);
+  }, [enabled, rawDispatch, applica, coda]);
 }

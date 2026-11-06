@@ -68,9 +68,10 @@ export default defineConfig({
       // dello 0,08 di rumore misurato qui sopra.
       //
       // La misura è stata presa in un ambiente in cui gli 8 test di `xlsx`
-      // NON girano (`cdn.sheetjs.com` è irraggiungibile dalla rete di
-      // sviluppo, A-1 del 5 settembre): in CI, dove girano, la copertura è
-      // quindi un filo PIÙ ALTA di così. Il margine è dalla parte giusta.
+      // NON girano (`cdn.sheetjs.com` era irraggiungibile dalla rete di
+      // sviluppo, A-1 del 5 settembre; dal 6 novembre il tarball è in
+      // `vendor/` e girano ovunque): la copertura vera è quindi un filo PIÙ
+      // ALTA di così. Il margine è dalla parte giusta.
       thresholds: {
         lines: 73,
         statements: 69,

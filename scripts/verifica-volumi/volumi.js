@@ -81,7 +81,7 @@ export const SOGLIE = [
       'di PostgREST; il backup invece la scarica intera, paginata.',
     rimedio:
       'Se superata, il backup del modulo Liste diventa una richiesta lunga: valuta un ' +
-      'export incrementale in ListeAPI.backupData (src/components/liste/listeApi.js).',
+      'export incrementale in ListeAPI.backupData (src/lib/api/liste.js).',
   },
 ];
 

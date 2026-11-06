@@ -318,9 +318,11 @@ function baseReducer(state, action) {
       // stesso spread una seconda volta, ma applicato a `state.selectedTask`
       // invece che alla riga di `tasks`: due sorgenti per lo stesso risultato,
       // che coincidevano solo finché l'istantanea del pannello era aggiornata.
+      // B-6 (4 nov.): `daCampo` è un campo del pannello, confermato da «Salvato ✓»
+      // accanto al campo e non da un toast (docs/CHANGELOG.md, 6 novembre).
       const toasts = action.swipe
         ? pushToast(state.toasts, { message: action.toastMessage || "Task aggiornato!", type: "success", undoable: true })
-        : pushToast(state.toasts, { message: "Task aggiornato!", type: "success" });
+        : action.daCampo ? state.toasts : pushToast(state.toasts, { message: "Task aggiornato!", type: "success" });
       const { id: _id, ...valoriSwipe } = action.payload; // M-1: vedi campiPrima
       const lastAction = action.swipe && prev
         ? { type: "UPDATE_TASK", taskId: action.payload.id, prevSnapshot: campiPrima(prev, valoriSwipe), valoriSwipe }
@@ -782,9 +784,9 @@ function reducer(state, action) {
   return next;
 }
 
-// Factory dell'initial state. Se `team` e/o `currentUserId` sono forniti (es.
-// da Supabase via AuthContext) costruisce lo state reale, altrimenti quello
-// demo sui mock.
+// Factory dell'initial state. Con `currentUserId` (l'utente loggato) lo state
+// reale; senza, e solo in sviluppo, quello demo sui mock. B-1 (4 nov.): la demo
+// non si deduce più dal team — un team vuoto è un errore, lo mostra AuthGate.
 //
 // È una funzione PURA: React la invoca come inizializzatore di useReducer e
 // può eseguirla più di una volta (StrictMode). Prima scriveva i globali di
@@ -792,25 +794,23 @@ function reducer(state, action) {
 // nulla da allineare fuori dallo state.
 /** @param {{team?: Array<object>, currentUserId?: string}} [iniziale] */
 function makeInitialState({ team, currentUserId } = {}) {
-  const hasRealTeam = Array.isArray(team) && team.length > 0;
   // Dati demo (team/task/avvisi fittizi): solo sviluppo e preview senza
   // login. `import.meta.env.DEV` è una costante `false` a build time, quindi
   // in produzione questo `if` non entra mai — il bundler esclude demoState()
   // e mockData.js dal bundle invece di lasciarli solo irraggiungibili
   // (stessa tecnica di SET_CURRENT_USER più sotto in questo file).
   let demo = null;
-  if (import.meta.env.DEV && !hasRealTeam) demo = demoState();
+  if (import.meta.env.DEV && !currentUserId) demo = demoState();
   return {
-    // Quando il team viene dal DB le task in-memory non hanno più assignees validi:
-    // partiamo da vuoto, le task reali arriveranno dal prossimo wire-up Supabase.
-    tasks: hasRealTeam ? [] : (demo?.tasks || []),
+    // Fuori dalla demo le task arrivano dall'idratazione: si parte da vuoto.
+    tasks: demo ? demo.tasks : [],
     // Spread per creare copie: lo state non deve condividere il riferimento con
     // gli array sorgente (altrimenti una mutazione esterna passerebbe inosservata
     // a React, che confronta per identità).
-    team: hasRealTeam ? [...team] : (demo ? [...demo.team] : []),
+    team: demo ? [...demo.team] : [...(Array.isArray(team) ? team : [])],
     categories: { ...INITIAL_CATEGORIES },
     agencyName: "VoyageDesk",
-    notices: hasRealTeam ? [] : (demo?.notices || []),
+    notices: demo ? demo.notices : [],
     clients: [],
     // Scritture partite e non ancora concluse: id → quante ne sono in volo.
     // Vuota all'avvio; la riempie e la svuota useSyncedDispatch attorno a

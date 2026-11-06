@@ -11,16 +11,17 @@
 // 255 righe EFFETTIVE (sotto ogni soglia) mentre chi lo apriva ne trovava 537.
 // È la stessa diagnosi di A-4 dell'audit del 23 agosto su `api.js`.
 //
-// ⚠️ NESSUN IMPORT DA `listeApi.js`, ed è il vincolo che decide cosa sta qui:
+// ⚠️ NESSUN IMPORT DAL DATA LAYER (`lib/api/liste.js`, ex `listeApi.js`), ed è il vincolo che decide cosa sta qui:
 // questo modulo non conosce Supabase, quindi si può leggere e verificare senza
 // il data layer. Per la stessa ragione `beneficiariNomi` e `intestazioneLista`
 // sono qui e non là — leggono la forma dell'embed, ma per DIRLA a schermo o in
 // un documento, ed è da qui che le prende anche `listeOrdinamento.js`, che di
 // query non ne fa nessuna.
 //
-// PERCHÉ STA IN `components/liste/` E NON IN `src/lib/`: vale parola per
-// parola ciò che ne dice `listeApi.js` (ST-6). È privato del modulo; il core
-// parla al modulo solo da `listeModuleApi.js`.
+// PERCHÉ STA IN `components/liste/` E NON IN `src/lib/`: è privato del modulo
+// (ST-6), come il suo data layer — che dal 6 novembre sta in `lib/api/liste.js`
+// ma resta chiuso al core dalla stessa regola ESLint. Il core parla al modulo
+// solo da `listeModuleApi.js`.
 import { dataNumerica } from "../../lib/dates.js";
 
 // Nomi dei soli cointestatari (non il titolare). Ordine di arrivo dalla query

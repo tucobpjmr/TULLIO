@@ -34,6 +34,8 @@ import {
 } from "./taskSlideOverStyles.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
+import { SalvatoInLinea } from "../ui/SalvatoInLinea.jsx";
+import { useCampiSalvati } from "./useCampiSalvati.js";
 
 // I campi testo con bozza locale (commit al blur). Vedi A-2 più sotto.
 const CAMPI_BOZZA = ["title", "client", "praticaRef", "contact", "description"];
@@ -112,6 +114,9 @@ export const TaskSlideOver = ({ task }) => {
   // quindi sale con lui.
   const editable = !!task && io.modificaTask(task);
   const cli = useClientSuggestions(clients, draft.client, { enabled: editable });
+  // B-6 dell'analisi del 4 novembre: «Salvato ✓» accanto al campo al posto
+  // del toast. Hook anche lui, quindi prima dell'early return.
+  const { salvato, segna } = useCampiSalvati();
 
   if (!task) return null;
 
@@ -127,8 +132,14 @@ export const TaskSlideOver = ({ task }) => {
     ? { [task.category]: categories[task.category] || { label: task.category, icon: "" }, ...availableCats }
     : availableCats;
 
-  const updateField = (field, value) =>
-    dispatch({ type: "UPDATE_TASK", payload: { id: task.id, [field]: value } });
+  // `daCampo`: niente toast di successo (B-6) — la conferma è «Salvato ✓»
+  // accanto al campo, accesa solo a esito noto e positivo. Un errore resta un
+  // toast, e il campo non dice «Salvato».
+  const updateField = async (field, value) => {
+    const esito = await dispatch({ type: "UPDATE_TASK", payload: { id: task.id, [field]: value }, daCampo: true });
+    if (!esito?.error) segna(field);
+    return esito;
+  };
 
   // Persiste un campo testo dalla bozza, solo se l'utente l'ha modificato e il
   // valore è diverso. `nullable` → stringa vuota diventa null (client/praticaRef).
@@ -168,9 +179,7 @@ export const TaskSlideOver = ({ task }) => {
     }
   };
 
-  const handleStatusChange = (e) => {
-    dispatch({ type: "UPDATE_TASK", payload: { id: task.id, status: e.target.value } });
-  };
+  const handleStatusChange = (e) => updateField("status", e.target.value);
 
   const handleDelete = async () => {
     const ok = await conferma({
@@ -219,15 +228,18 @@ export const TaskSlideOver = ({ task }) => {
               {isOverdue(task) && <span style={boxF11Bold}>⚠️ Scaduto</span>}
             </div>
             {editable ? (
-              <input
-                className="playfair"
-                value={draft.title}
-                onChange={e => scriviBozza("title", e.target.value)}
-                onBlur={() => commitText("title")}
-                onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                placeholder="Titolo del task"
-                style={boxF18Bold}
-              />
+              <>
+                <input
+                  className="playfair"
+                  value={draft.title}
+                  onChange={e => scriviBozza("title", e.target.value)}
+                  onBlur={() => commitText("title")}
+                  onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                  placeholder="Titolo del task"
+                  style={boxF18Bold}
+                />
+                <SalvatoInLinea visibile={salvato("title")} />
+              </>
             ) : (
               <div className="playfair" style={txtF18Bold}>{task.title}</div>
             )}
@@ -247,7 +259,7 @@ export const TaskSlideOver = ({ task }) => {
           {/* Status + Scadenza */}
           <div style={stiliComuni.grid2ColGap12}>
             <div>
-              <div style={labelStyle}>STATO</div>
+              <div style={labelStyle}>STATO<SalvatoInLinea visibile={salvato("status")} /></div>
               {editable ? (
                 <select value={task.status} onChange={handleStatusChange} style={{ ...fieldStyle, cursor: "pointer" }}>
                   {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
@@ -261,6 +273,7 @@ export const TaskSlideOver = ({ task }) => {
             <div>
               <div style={{ ...labelStyle, color: isOverdue(task) ? "var(--danger)" : "var(--text-muted)" }}>
                 SCADENZA {isOverdue(task) && "⚠️"}
+                <SalvatoInLinea visibile={salvato("dueDate")} />
               </div>
               {editable ? (
                 <DateTimePicker
@@ -281,13 +294,13 @@ export const TaskSlideOver = ({ task }) => {
           {editable && (
             <div style={stiliComuni.grid2ColGap12}>
               <div>
-                <div style={labelStyle}>CATEGORIA</div>
+                <div style={labelStyle}>CATEGORIA<SalvatoInLinea visibile={salvato("category")} /></div>
                 <select value={task.category || ""} onChange={e => updateField("category", e.target.value)} style={{ ...fieldStyle, cursor: "pointer" }}>
                   {Object.entries(catOptions).map(([k, v]) => <option key={k} value={k}>{v?.icon ? `${v.icon} ` : ""}{v?.label || k}</option>)}
                 </select>
               </div>
               <div>
-                <div style={labelStyle}>PRIORITÀ</div>
+                <div style={labelStyle}>PRIORITÀ<SalvatoInLinea visibile={salvato("priority")} /></div>
                 <select value={task.priority || ""} onChange={e => updateField("priority", e.target.value)} style={{ ...fieldStyle, cursor: "pointer" }}>
                   {Object.entries(PRIORITIES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                 </select>
@@ -303,9 +316,10 @@ export const TaskSlideOver = ({ task }) => {
               editable={editable}
               getMember={getMember}
               onChange={(next) => updateField("assignees", next)}
+              salvato={salvato("assignees")}
             />
             <div style={stiliComuni.relative}>
-              <div style={labelStyle}>CLIENTE</div>
+              <div style={labelStyle}>CLIENTE<SalvatoInLinea visibile={salvato("client")} /></div>
               {editable ? (
                 <>
                   <input
@@ -331,7 +345,7 @@ export const TaskSlideOver = ({ task }) => {
           {/* Pratica (n° libero) + Contatti */}
           <div style={stiliComuni.grid2ColGap12}>
             <div>
-              <div style={labelStyle}>N° PRATICA</div>
+              <div style={labelStyle}>N° PRATICA<SalvatoInLinea visibile={salvato("praticaRef")} /></div>
               {editable ? (
                 <input
                   value={draft.praticaRef}
@@ -347,7 +361,7 @@ export const TaskSlideOver = ({ task }) => {
               )}
             </div>
             <div>
-              <div style={labelStyle}>CONTATTI</div>
+              <div style={labelStyle}>CONTATTI<SalvatoInLinea visibile={salvato("contact")} /></div>
               {editable ? (
                 <input
                   value={draft.contact}
@@ -368,7 +382,7 @@ export const TaskSlideOver = ({ task }) => {
 
           {/* Description */}
           <div>
-            <div style={labelStyle}>DESCRIZIONE</div>
+            <div style={labelStyle}>DESCRIZIONE<SalvatoInLinea visibile={salvato("description")} /></div>
             {editable ? (
               <textarea
                 value={draft.description}

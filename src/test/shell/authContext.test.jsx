@@ -59,6 +59,8 @@ vi.mock("../../lib/supabaseAuth.js", () => {
 // profilo, ma non serve più esporre `.auth` qui. `from` è un vi.fn così un
 // test può verificare che NON venga mai chiamato sul percorso anonimo — è la
 // prova che il client pieno resta fuori da quel percorso, non solo un'ipotesi.
+// B-1: `rispostaTeam.righe` sostituisce la risposta della rubrica (null = [ME]).
+const { rispostaTeam } = vi.hoisted(() => ({ rispostaTeam: { righe: null } }));
 vi.mock("../../lib/supabase", () => {
   const from = vi.fn((table) => ({
     select: () => ({
@@ -66,7 +68,7 @@ vi.mock("../../lib/supabase", () => {
         single: () => Promise.resolve({ data: ME, error: null }),
         maybeSingle: () => Promise.resolve({ data: { email: "t@x.it", phone: null }, error: null }),
       }),
-      order: () => Promise.resolve({ data: [ME], error: null }),
+      order: () => Promise.resolve({ data: rispostaTeam.righe ?? [ME], error: null }),
       _table: table,
     }),
   }));
@@ -359,5 +361,105 @@ describe("AuthContext — M-4, le scritture in attesa di chi esce si tolgono", (
 
     await act(async () => { await result.current.deleteAccount(); });
     expect(svuotaScrittureDi).toHaveBeenCalledWith("u1");
+  });
+});
+
+// ─── B-1 dell'analisi del 4 novembre · un team vuoto è un errore ───────────
+// Prima un team arrivato vuoto faceva montare l'app in «modalità demo», cioè
+// senza persistenza: con una session valida ogni modifica restava in memoria.
+// Ora caricaProfilo lo tratta come una risposta incoerente (la propria riga è
+// sempre leggibile) e, dopo i retry, lo segnala con authError.
+describe("AuthContext — B-1, un team senza chi ha fatto login non monta l'app", () => {
+  beforeEach(async () => {
+    const { __authState } = await import("../../lib/supabaseAuth.js");
+    __authState.session = SESSION;
+    // In cache prima dei timer finti: l'import dinamico si risolve in microtask.
+    await import("../../lib/supabase");
+  });
+
+  it("team vuoto → authError, nessun profilo e nessun team", async () => {
+    rispostaTeam.righe = [];
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useAuth(), {
+        wrapper: ({ children }) => <AuthProvider>{children}</AuthProvider>,
+      });
+      // Tre tentativi con le loro pause (1,2 s + 2,4 s): 10 s li coprono.
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(result.current.caricando).toBe(false);
+      expect(result.current.authError?.message).toMatch(/Team vuoto/);
+      expect(result.current.profile).toBeNull();
+      expect(result.current.team).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+      rispostaTeam.righe = null;
+    }
+  });
+
+  it("controllo positivo: con la propria riga nel team il profilo si carica", async () => {
+    const { result } = renderHook(() => useAuth(), {
+      wrapper: ({ children }) => <AuthProvider>{children}</AuthProvider>,
+    });
+    await waitFor(() => expect(result.current.profile?.id).toBe("u1"));
+    expect(result.current.authError).toBeNull();
+    expect(result.current.team.map((u) => u.id)).toEqual(["u1"]);
+  });
+});
+
+// ─── B-2 dell'analisi del 4 novembre · il rinnovo del token è silenzioso ───
+// TOKEN_REFRESHED arriva circa ogni ora: non deve rileggere profilo e team né
+// cambiare l'identità di `session` (cioè del value del contesto). Un cambio
+// d'utente o il logout sì.
+describe("AuthContext — B-2, TOKEN_REFRESHED non ricarica e non sostituisce la session", () => {
+  beforeEach(async () => {
+    const { __authState } = await import("../../lib/supabaseAuth.js");
+    __authState.session = SESSION;
+    __authState.callback = null;
+  });
+
+  const montaAuth = async () => {
+    const { __authState } = await import("../../lib/supabaseAuth.js");
+    const rendered = renderHook(() => useAuth(), {
+      wrapper: ({ children }) => <AuthProvider>{children}</AuthProvider>,
+    });
+    await waitFor(() => expect(rendered.result.current.profile?.id).toBe("u1"));
+    await waitFor(() => expect(__authState.callback).toBeTypeOf("function"));
+    return { ...rendered, emetti: (evento, s) => act(async () => {
+      __authState.callback(evento, s);
+      await new Promise((r) => setTimeout(r, 0));
+    }) };
+  };
+
+  it("TOKEN_REFRESHED: nessuna query e stessa session", async () => {
+    const { result, emetti } = await montaAuth();
+    const { supabase } = await import("../../lib/supabase");
+    const sessionPrima = result.current.session;
+    supabase.from.mockClear();
+
+    await emetti("TOKEN_REFRESHED", { ...SESSION, access_token: "nuovo" });
+
+    expect(supabase.from).not.toHaveBeenCalled();
+    expect(result.current.session).toBe(sessionPrima);
+  });
+
+  it("stesso utente su un altro evento: la session resta la stessa", async () => {
+    const { result, emetti } = await montaAuth();
+    const sessionPrima = result.current.session;
+    await emetti("USER_UPDATED", { ...SESSION, access_token: "nuovo" });
+    expect(result.current.session).toBe(sessionPrima);
+  });
+
+  it("controllo positivo: il logout azzera la session", async () => {
+    const { result, emetti } = await montaAuth();
+    await emetti("SIGNED_OUT", null);
+    expect(result.current.session).toBeNull();
+    await waitFor(() => expect(result.current.profile).toBeNull());
+  });
+
+  it("controllo positivo: un utente diverso sostituisce la session", async () => {
+    const { result, emetti } = await montaAuth();
+    const altra = { user: { id: "u2" }, access_token: "tok2" };
+    await emetti("SIGNED_IN", altra);
+    expect(result.current.session).toBe(altra);
   });
 });

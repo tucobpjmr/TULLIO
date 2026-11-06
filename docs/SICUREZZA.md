@@ -1063,6 +1063,14 @@ Due cose che questa esecuzione ha stabilito, e che prima erano assunzioni:
 
 ## 10. Dipendenze: allow-list di `npm audit` (S-1, audit del 30 agosto)
 
+> ✅ **Aggiornamento.** Dal 4 settembre (A-4) `xlsx` è la **0.20.3**, che
+> corregge entrambe le CVE, e le due voci sono uscite dall'allow-list (vedi il
+> preambolo di `scripts/verifica-audit/index.js`). Dal 6 novembre (B-5
+> dell'analisi del 4) il tarball sta nel repository, `vendor/xlsx-0.20.3.tgz`:
+> `npm ci` non contatta più `cdn.sheetjs.com`, e l'integrità nel lockfile è
+> quella del tarball del CDN. Il resto della sezione descrive la situazione
+> del 30 agosto e il meccanismo, che resta.
+
 `xlsx@0.18.5` (§«Dipendenza esterna unica» in `docs/CLAUDE.md`) porta due CVE
 **high**: Prototype Pollution (`GHSA-4r6h-8v6p-xvw6`) e ReDoS
 (`GHSA-5pgg-2g8v-p4x9`). `npm audit` non ha **fix disponibile**: SheetJS ha

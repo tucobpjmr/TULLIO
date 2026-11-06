@@ -17,7 +17,7 @@
 // scritta.
 //
 // Vive in un file suo e non in `lib/api.js` per non accoppiare il modulo
-// Liste al data layer del core: `listeApi.js` importa da qui, non da lì.
+// Liste al data layer del core: `lib/api/liste.js` importa da qui, non da lì.
 
 // Righe per pagina. Coincide con il default di `db-max-rows` di proposito: è
 // la pagina più grande che il server può comunque consegnare.

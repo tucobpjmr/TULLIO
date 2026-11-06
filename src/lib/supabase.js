@@ -21,8 +21,8 @@
 // comunque una sessione valida per avere senso — nessuna query passa le
 // policy RLS senza). Chi resta sulla schermata di login non la scarica mai.
 //
-// COSA RESTA UGUALE PER CHI CHIAMA. `lib/api/*.js` (e lib/realtime.js,
-// components/liste/listeApi.js) fanno `const supabase = await getSupabase();`
+// COSA RESTA UGUALE PER CHI CHIAMA. `lib/api/*.js` (liste.js compreso) e
+// lib/realtime.js fanno `const supabase = await getSupabase();`
 // una volta per funzione esportata, poi usano `supabase` esattamente come
 // prima — sincrono per il resto del corpo. Nessun cambiamento nella FORMA
 // delle query, solo in COME si ottiene il client con cui farle.

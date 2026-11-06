@@ -18,8 +18,8 @@
 // `delete-account` (che banna per 10 anni prima di toccare `public.users`),
 // ma reversibile: alla riattivazione il ban si rimuove (`ban_duration:
 // "none"`, la convenzione GoTrue per "nessun ban").
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import "jsr:@supabase/functions-js@2.108.0/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2.108.0";
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireActiveAdmin } from "../_shared/requireActiveAdmin.ts";
 import { registraAudit } from "../_shared/audit.ts";

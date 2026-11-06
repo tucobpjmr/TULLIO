@@ -12,10 +12,9 @@
 // muore col worker invece di quello che tiene il token di sessione — e un
 // blocco da ReDoS si chiude con `terminate()` invece di congelare la UI.
 //
-// ⚠️ Il fix DEFINITIVO resta la migrazione al tarball del CDN, da fare appena
-// l'egress verso `cdn.sheetjs.com` è aperto (403 riverificato il 26 agosto):
-//   npm install --save https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
-// Il worker non la sostituisce: la rende non urgente.
+// ✅ Il fix DEFINITIVO è fatto: `xlsx@0.20.3` dal tarball di SheetJS, che dal
+// 6 novembre sta nel repository (`vendor/xlsx-0.20.3.tgz`, B-5) — vedi il
+// preambolo di xlsxWorker.js. Il worker resta: è difesa in profondità.
 import { withPrototypePollutionGuard } from "./prototypeGuard.js";
 import { testoEccezione } from "./errori.js";
 

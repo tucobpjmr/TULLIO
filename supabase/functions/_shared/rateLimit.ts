@@ -5,7 +5,7 @@
 // (RPC `rate_limit_incrementa`, migrazione 20260904000000) e non nella
 // memoria dell'isolate, che su Deno Deploy non sopravvive fra due
 // invocazioni — un contatore locale si azzererebbe a ogni cold start.
-import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import type { SupabaseClient } from "jsr:@supabase/supabase-js@2.108.0";
 
 /**
  * @param adminClient client service_role: la RPC gira `security definer` ma

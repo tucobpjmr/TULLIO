@@ -2,8 +2,8 @@
 // Edge Function (Admin-only): invia un invito email via Supabase Auth e
 // pre-crea il profilo in public.users con pending=true.
 // verify_jwt:true → Supabase valida il JWT prima di eseguire il body.
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import "jsr:@supabase/functions-js@2.108.0/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2.108.0";
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireActiveAdmin } from "../_shared/requireActiveAdmin.ts";
 // A-4 dell'audit del 22 agosto: `safeRedirect` viveva qui come copia della

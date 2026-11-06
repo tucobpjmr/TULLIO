@@ -63,7 +63,7 @@ vi.mock("../../lib/supabase", () => ({
   getSupabase: () => Promise.resolve({ from: fakeFrom, rpc: fakeRpc }),
 }));
 
-const { ListeAPI } = await import("../../components/liste/listeApi.js");
+const { ListeAPI } = await import("../../lib/api/liste.js");
 
 beforeEach(() => {
   db.tables = {};

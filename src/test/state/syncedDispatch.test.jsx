@@ -455,3 +455,53 @@ describe("useSyncedDispatch — identità stabile", () => {
     expect(TasksAPI.softDelete).toHaveBeenCalledWith(uuid(1));
   });
 });
+
+// ─── B-3 dell'analisi del 4 novembre · due dispatch nello stesso handler ────
+// React accorpa gli aggiornamenti e non renderizza fra due dispatch dello
+// stesso gestore: il secondo deve comunque vedere lo stato prodotto dal primo.
+// Qui `rawDispatch` è un mock e lo state passato all'hook non cambia mai, cioè
+// la condizione peggiore: nessun render in mezzo. Prima di B-3 entrambi i casi
+// fallivano — il ref era aggiornato solo in render.
+describe("useSyncedDispatch — B-3, il secondo dispatch vede il primo", () => {
+  it("UPDATE_TASK subito dopo ADD_TASK trova la riga appena aggiunta", async () => {
+    const { dispatch, rawDispatch } = setup();
+    let esito;
+    await act(async () => {
+      const creazione = dispatch({ type: "ADD_TASK", payload: task({ id: "temp-1" }) });
+      const id = azioniDispatchate(rawDispatch)[0].payload.id;
+      esito = await dispatch({ type: "UPDATE_TASK", payload: { id, title: "Volo Milano" } });
+      await creazione;
+    });
+    expect(esito).toEqual({ error: null });
+    expect(TasksAPI.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("due TOGGLE_PIN_NOTICE di fila scrivono true e poi false", async () => {
+    const { Notices: NoticesAPI } = await import("../../lib/api.js");
+    const rawDispatch = vi.fn();
+    const avviso = { id: "n1", text: "Riunione", pinned: false, author: "admin1", color: "yellow" };
+    const state = { ...makeInitialState({ team: TEAM, currentUserId: "admin1" }), notices: [avviso], toasts: [] };
+    const { result } = renderHook(() => useSyncedDispatch(state, rawDispatch, { enabled: true }));
+
+    await act(async () => {
+      await Promise.all([
+        result.current({ type: "TOGGLE_PIN_NOTICE", payload: "n1" }),
+        result.current({ type: "TOGGLE_PIN_NOTICE", payload: "n1" }),
+      ]);
+    });
+    expect(NoticesAPI.togglePin.mock.calls.map(([, pinned]) => pinned)).toEqual([true, false]);
+  });
+
+  it("al render successivo il ref torna allo stato vero di React", async () => {
+    const { dispatch, rawDispatch, state, view } = setup();
+    await act(async () => { await dispatch({ type: "ADD_TASK", payload: task({ id: "temp-1" }) }); });
+    // Lo stato «vero» non contiene la task (il mock non la applica): dopo un
+    // render con quello stato, un UPDATE sulla stessa riga non la trova più.
+    const id = azioniDispatchate(rawDispatch)[0].payload.id;
+    view.rerender({ s: { ...state } });
+    let esito;
+    await act(async () => { esito = await view.result.current({ type: "UPDATE_TASK", payload: { id, title: "X" } }); });
+    expect(esito.error).toBeTruthy();
+    expect(TasksAPI.update).not.toHaveBeenCalled();
+  });
+});

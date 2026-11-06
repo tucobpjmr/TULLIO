@@ -19,7 +19,7 @@ const ListeAPI = {
 };
 const subscribeToTable = vi.fn(() => () => {});
 
-vi.mock("../../components/liste/listeApi.js", () => ({ ListeAPI }));
+vi.mock("../../lib/api/liste.js", () => ({ ListeAPI }));
 vi.mock("../../lib/api.js", () => ({ subscribeToTable: (...a) => subscribeToTable(...a) }));
 
 const { useListeData } = await import("../../components/liste/useListeData.js");

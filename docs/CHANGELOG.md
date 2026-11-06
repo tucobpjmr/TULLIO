@@ -1,5 +1,57 @@
 # CHANGELOG — VoyageDesk
 
+## 6 novembre (ii) — i rilievi di priorità bassa (B-1…B-8)
+
+**B-1 · La demo è un flag, non una deduzione.** `useSupabase` era
+`initialTeam.length > 0`: un team arrivato vuoto spegneva in silenzio la
+persistenza, anche in produzione. Ora la demo è `import.meta.env.DEV &&
+!initialCurrentUserId` (AuthGate monta l'app solo con session e profilo), e lo
+stesso criterio vale in `makeInitialState`. Un team che non contiene chi ha
+fatto login è una risposta incoerente — la propria riga è sempre leggibile —
+quindi `caricaProfilo` lo ritenta e poi lo segnala: AuthGate mostra
+«Caricamento non riuscito» con Riprova invece di un'app che non salva.
+Verificato sulla build: i dati demo restano fuori dal bundle.
+
+**B-2 · TOKEN_REFRESHED non ricarica niente.** Il rinnovo del token (circa
+ogni ora) non chiama più `caricaProfilo` (tre query), e la `session` del
+contesto si sostituisce solo quando cambia l'utente: niente value nuovo e
+niente giro di render per un token che nessun consumatore legge da lì.
+
+**B-3 · Il ref di `useSyncedDispatch` avanza a ogni dispatch.** Il commento
+diceva che assegnarlo in render bastava a far vedere al secondo di due
+dispatch lo stato del primo: non era vero, React non renderizza in mezzo.
+Ora `applica` fa avanzare il ref con lo stesso reducer (puro) subito dopo
+ogni dispatch. Due casi lo provano: `UPDATE_TASK` subito dopo `ADD_TASK`
+(prima: rifiutato dal guard) e due `TOGGLE_PIN_NOTICE` di fila (prima:
+scrivevano `true` due volte); entrambi falliscono senza la correzione.
+
+**B-4 · Versioni fissate nelle Edge Function.** `@supabase/supabase-js` e
+`@supabase/functions-js` a **2.108.0**, la stessa del lockfile del frontend
+(`jsr:` e `npm:`). `src/test/edge/versioniFissate.test.js` lo tiene vero.
+⚠️ Le funzioni deployate restano sulla versione risolta al loro ultimo
+deploy: la nuova vale dal prossimo.
+
+**B-5 · Il tarball di xlsx sta nel repository.** `vendor/xlsx-0.20.3.tgz`,
+con `package.json` che punta lì. L'integrità nel lockfile non cambia (sha512
+verificato contro il tarball del CDN). Prima `npm ci` ricontattava
+`cdn.sheetjs.com` a ogni installazione, e dove l'host è bloccato falliva
+l'installazione intera.
+
+**B-6 · Toast solo per le azioni esplicite.** Swipe, cestino, riapri e
+ripristina tengono il toast. La modifica di un campo del pannello task
+(`daCampo` su `UPDATE_TASK`) si conferma con «Salvato ✓» accanto al campo
+(`ui/SalvatoInLinea.jsx`, `tasks/useCampiSalvati.js`), acceso solo a esito
+positivo e spento dopo 2 s. Gli errori restano toast.
+
+**B-7 · `listeApi.js` → `lib/api/liste.js`.** Accanto agli altri moduli del
+data layer, ma resta privato del modulo Liste come prima (ST-6): non passa
+da `lib/api.js`, `VIETATO_LISTEAPI_DA_FUORI` lo vieta a tutto tranne
+`components/liste/**` (anche come `./api/liste.js` da `src/lib/`), e
+`VIETATI_MODULI_API_INTERNI` lo esclude di proposito.
+
+**B-8 · README.** 2358 test (37 di integrazione, solo con le credenziali di
+staging), 144 migrazioni.
+
 ## 6 novembre — la presenza si riapre
 
 **M-3 (seguito) · `presenza:agenzia` respingeva tutti.** Per entrare in un

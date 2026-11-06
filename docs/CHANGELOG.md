@@ -41,6 +41,29 @@ togliendo ciascuna protezione fallisce il test che la riguarda (5 su 5).
 Nessun caso automatico di eliminazione: se sullo staging girasse ancora la
 funzione vecchia, eliminerebbe davvero l'utente di prova.
 
+✅ **`delete-account` distribuita sullo staging** (v4, `verify_jwt` invariato).
+Provata su un utente usa-e-getta creato per l'occasione. Le chiamate sono
+partite da dentro lo staging con `pg_net`, perché da questo ambiente l'host
+non è raggiungibile:
+
+| Richiesta | Esito |
+|---|---|
+| senza password | 400, account intatto |
+| password sbagliata | 403 «Password non corretta.», account intatto |
+| password giusta | 200: ban di 10 anni, email `eliminato+<id>@invalid.invalid` anche in `auth.identities`, metadati `{}`, profilo «Utente eliminato», contatti cancellati, audit senza residui, email vera di nuovo libera |
+
+La sessione aperta per la verifica si è chiusa. Resta quella del chiamante,
+che il ban non lascia rinnovare. Alla fine l'utente di prova e tutto ciò che
+ha lasciato (profilo, identità, sessioni, audit, contatore del limite,
+risposte HTTP) sono stati cancellati.
+
+⚠️ **Da fare:** accendere «Require current password when changing password»
+in Supabase Auth, su staging prima del merge (altrimenti
+`integration/account.test.js` è rosso su `main`) e su produzione. Poi
+distribuire `delete-account` in produzione SUBITO DOPO il merge, non prima:
+la funzione nuova senza il client nuovo rifiuta ogni eliminazione per
+password mancante.
+
 ## 6 novembre (iii) — analisi del 6 novembre: A-1, A-2, M-1, M-2
 
 **A-1 · `created_by` e `created_at` dei task non si riscrivono.** Il WITH

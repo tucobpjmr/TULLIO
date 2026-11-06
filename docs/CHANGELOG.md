@@ -63,7 +63,8 @@ sullo staging** il 6 novembre. `rls.yml`, lanciato a mano sul ramo, ha dato
 server: GoTrue rifiuta davvero la password attuale sbagliata, ma il codice è
 `current_password_invalid`. Io l'avevo dedotto dal NOME della costante
 (`ErrorCodeCurrentPasswordMismatch`) invece che dal suo valore. Il messaggio
-italiano non sarebbe mai comparso. Corretti la mappa e i test.
+italiano non sarebbe mai comparso. Corretti la mappa e i test. Rilanciato
+sul commit corretto: 45 su 45.
 
 ⚠️ **Da fare:** accendere la stessa opzione in produzione. Poi
 distribuire `delete-account` in produzione SUBITO DOPO il merge, non prima:

@@ -9,9 +9,13 @@
 // originale. Meglio un inglese giusto di un italiano sbagliato.
 import { REQUISITI_PASSWORD_TESTO } from "./validators.js";
 
+// ⚠️ I codici sono i VALORI che GoTrue manda, non i nomi delle sue costanti.
+// `ErrorCodeCurrentPasswordMismatch` vale "current_password_invalid": scriverlo
+// dal nome dava una chiave che nessuna risposta porta mai. L'ha scoperto
+// integration/account.test.js sullo staging.
 /** @type {Record<string, string>} */
 const MESSAGGI = {
-  current_password_mismatch: "La password attuale non è corretta.",
+  current_password_invalid: "La password attuale non è corretta.",
   current_password_required: "Inserisci la password attuale.",
   same_password: "La nuova password deve essere diversa da quella attuale.",
   weak_password: `Password troppo debole: usa ${REQUISITI_PASSWORD_TESTO}.`,

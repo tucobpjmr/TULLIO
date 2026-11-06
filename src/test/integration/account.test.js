@@ -52,8 +52,8 @@ suite("Cambio password: GoTrue chiede la password attuale", () => {
     expect(error?.code).toBe("current_password_required");
   });
 
-  it("con una current_password sbagliata: current_password_mismatch", async () => {
+  it("con una current_password sbagliata: current_password_invalid", async () => {
     const { error } = await client.auth.updateUser({ password, current_password: `${password}-sbagliata` });
-    expect(error?.code).toBe("current_password_mismatch");
+    expect(error?.code).toBe("current_password_invalid");
   });
 });

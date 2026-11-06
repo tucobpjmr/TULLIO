@@ -57,9 +57,15 @@ che il ban non lascia rinnovare. Alla fine l'utente di prova e tutto ciò che
 ha lasciato (profilo, identità, sessioni, audit, contatore del limite,
 risposte HTTP) sono stati cancellati.
 
-⚠️ **Da fare:** accendere «Require current password when changing password»
-in Supabase Auth, su staging prima del merge (altrimenti
-`integration/account.test.js` è rosso su `main`) e su produzione. Poi
+✅ **Opzione «Require current password when changing password» accesa
+sullo staging** il 6 novembre. `rls.yml`, lanciato a mano sul ramo, ha dato
+44 test su 45 passati. Il caso mancante ha trovato un errore mio, non del
+server: GoTrue rifiuta davvero la password attuale sbagliata, ma il codice è
+`current_password_invalid`. Io l'avevo dedotto dal NOME della costante
+(`ErrorCodeCurrentPasswordMismatch`) invece che dal suo valore. Il messaggio
+italiano non sarebbe mai comparso. Corretti la mappa e i test.
+
+⚠️ **Da fare:** accendere la stessa opzione in produzione. Poi
 distribuire `delete-account` in produzione SUBITO DOPO il merge, non prima:
 la funzione nuova senza il client nuovo rifiuta ogni eliminazione per
 password mancante.

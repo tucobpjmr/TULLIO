@@ -502,13 +502,13 @@ describe("AuthContext — A-3, le operazioni irreversibili portano la password",
     const { supabaseAuth } = await import("../../lib/supabaseAuth.js");
     supabaseAuth.updateUser.mockResolvedValueOnce({
       data: { user: null },
-      error: { code: "current_password_mismatch", message: "Current password required when setting new password." },
+      error: { code: "current_password_invalid", message: "Current password required when setting new password." },
     });
     const { result } = await montaAuth();
     let esito;
     await act(async () => { esito = await result.current.cambiaPassword("sbagliata", "Nuova12345678"); });
     expect(esito.error.message).toBe("La password attuale non è corretta.");
-    expect(esito.error.code).toBe("current_password_mismatch");
+    expect(esito.error.code).toBe("current_password_invalid");
   });
 
   it("updatePassword (recupero e invito) NON manda current_password: lì non esiste", async () => {

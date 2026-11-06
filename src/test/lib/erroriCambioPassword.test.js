@@ -7,7 +7,7 @@ import { REQUISITI_PASSWORD_TESTO } from "../../lib/validators.js";
 
 describe("messaggioCambioPassword", () => {
   it.each([
-    ["current_password_mismatch", "La password attuale non è corretta."],
+    ["current_password_invalid", "La password attuale non è corretta."],
     ["current_password_required", "Inserisci la password attuale."],
     ["same_password", "La nuova password deve essere diversa da quella attuale."],
     ["reauthentication_needed", "Per sicurezza esci, rientra e riprova."],

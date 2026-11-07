@@ -134,8 +134,7 @@ export function AccountSicurezza() {
                   value={stato.pwd.bozza.attuale} onChange={e => accountDispatch({ type: "SET_PWD_CAMPO", campo: "attuale", valore: e.target.value })}
                   placeholder="La password con cui sei entrato"
                   show={stato.pwd.rivela} onToggle={() => accountDispatch({ type: "TOGGLE_RIVELA_PWD" })}
-                  onFocus={e => e.target.style.borderColor = "var(--gold)"}
-                  onBlur={e => e.target.style.borderColor = "var(--border)"}
+                  className="vd-campo-fuoco"
                 />
               </div>
               <div>
@@ -146,8 +145,7 @@ export function AccountSicurezza() {
                   value={stato.pwd.bozza.nuova} onChange={e => accountDispatch({ type: "SET_PWD_CAMPO", campo: "nuova", valore: e.target.value })}
                   placeholder={`Minimo ${PASSWORD_MIN} caratteri, con maiuscole, minuscole e cifre`}
                   show={stato.pwd.rivela} onToggle={() => accountDispatch({ type: "TOGGLE_RIVELA_PWD" })}
-                  onFocus={e => e.target.style.borderColor = "var(--gold)"}
-                  onBlur={e => e.target.style.borderColor = "var(--border)"}
+                  className="vd-campo-fuoco"
                 />
               </div>
               <div>
@@ -158,8 +156,7 @@ export function AccountSicurezza() {
                   value={stato.pwd.bozza.conferma} onChange={e => accountDispatch({ type: "SET_PWD_CAMPO", campo: "conferma", valore: e.target.value })}
                   placeholder="Ripeti la password"
                   show={stato.pwd.rivela} onToggle={() => accountDispatch({ type: "TOGGLE_RIVELA_PWD" })}
-                  onFocus={e => e.target.style.borderColor = "var(--gold)"}
-                  onBlur={e => e.target.style.borderColor = "var(--border)"}
+                  className="vd-campo-fuoco"
                   onKeyDown={e => { if (e.key === "Enter") aggiornaPassword(); }}
                 />
               </div>
@@ -235,8 +232,7 @@ export function AccountSicurezza() {
                   id={confermaElimId}
                   value={stato.elim.conferma} onChange={e => accountDispatch({ type: "SET_CONFERMA_ELIM", valore: e.target.value })}
                   placeholder="ELIMINA" style={{ ...inputWFull, borderColor: "rgba(192,57,43,0.4)" }}
-                  onFocus={e => e.target.style.borderColor = "var(--danger)"}
-                  onBlur={e => e.target.style.borderColor = "rgba(192,57,43,0.4)"}
+                  className="vd-campo-fuoco-danger"
                 />
               </div>
               <div>
@@ -247,8 +243,7 @@ export function AccountSicurezza() {
                   value={stato.elim.password} onChange={e => accountDispatch({ type: "SET_PASSWORD_ELIM", valore: e.target.value })}
                   placeholder="Per confermare che sei tu"
                   show={stato.elim.rivela} onToggle={() => accountDispatch({ type: "TOGGLE_RIVELA_ELIM" })}
-                  onFocus={e => e.target.style.borderColor = "var(--danger)"}
-                  onBlur={e => e.target.style.borderColor = "var(--border)"}
+                  className="vd-campo-fuoco-danger"
                   onKeyDown={e => { if (e.key === "Enter") eliminaAccount(); }}
                 />
               </div>

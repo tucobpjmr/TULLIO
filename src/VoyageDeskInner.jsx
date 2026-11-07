@@ -1,9 +1,6 @@
 // src/VoyageDeskInner.jsx
-// Estratto da VoyageDesk.jsx (B-3 dell'audit del 13 agosto: un file, un
-// componente — vedi docs/CLAUDE.md). Nessun cambiamento di comportamento:
-// VoyageDesk.jsx resta il thin wrapper che fornisce ViewportProvider (letto
-// da useViewport() qui dentro e nei discendenti), questo file è tutto il
-// resto dell'orchestratore.
+// L'orchestratore: compone hook e viste. VoyageDesk.jsx è il wrapper che
+// fornisce ViewportProvider.
 
 import { useReducer, useEffect, useCallback, lazy, Suspense, Profiler } from "react";
 
@@ -12,16 +9,13 @@ import { registraSinkErrori } from "./lib/errorReporting.js";
 import { getActiveTasks } from "./lib/taskUtils.js";
 import { canAccessAdmin } from "./lib/permissions.js";
 import { reducer, makeInitialState } from "./state/reducer.js";
-// M-3 (audit del 15 agosto): l'annidamento dei provider di dominio ha
-// un file suo. Qui resta la composizione, non la scaletta di dieci tag.
+// M-3 · L'annidamento dei provider ha un file suo.
 import { AppProviders } from "./state/AppProviders.jsx";
 import { demoState } from "./state/demoState.js";
 
 // ── Hook di dominio ────────────────────────────────────────────────────────
-// Questo file è un ORCHESTRATORE: compone hook e viste, non implementa.
-// Ogni hook possiede un pezzo di ciclo di vita che prima viveva qui in linea —
-// idratazione, notifiche, presenza, push, chat — per un totale di ~800 righe
-// che rendevano impossibile toccare una feature senza aprire il file di tutte.
+// Ogni hook possiede un pezzo di ciclo di vita (idratazione, notifiche,
+// presenza, push, chat): qui si compone, non si implementa.
 import { useSyncedDispatch } from "./hooks/useSyncedDispatch.js";
 import { useCodaScritture } from "./hooks/useCodaScritture.js";
 import { useAppHydration } from "./hooks/useAppHydration.js";
@@ -30,9 +24,7 @@ import { usePresence } from "./hooks/usePresence.js";
 import { usePushNavigation } from "./hooks/usePushNavigation.js";
 import { useUrlStato } from "./hooks/useUrlStato.js";
 import { useChatData } from "./hooks/useChatData.js";
-// M-3 · Lo stato di UI effimera del guscio (pannelli aperti, ricerca) e i suoi
-// callback stabili: sei useState che non appartengono al reducer di dominio e
-// che convivevano qui con i sei hook di dominio — due lavori nello stesso file.
+// M-3 · UI effimera del guscio (pannelli, ricerca) con callback stabili.
 import { useShellUi } from "./hooks/useShellUi.js";
 
 // ── Guscio e primitive ─────────────────────────────────────────────────────
@@ -52,35 +44,22 @@ import { OfflineBanner } from "./components/shell/OfflineBanner.jsx";
 // ── Viste ──────────────────────────────────────────────────────────────────
 import { QuickAddTask } from "./components/tasks/QuickAddTask.jsx";
 
-// Stili costanti di questo file: allocati una volta a livello di modulo,
-// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
+// Stili costanti: allocati una volta, non a ogni render.
 const col = { display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--surface)", fontFamily: "'DM Sans', sans-serif" };
 const rowFlex1 = { display: "flex", flex: 1, overflow: "hidden" };
 const flex1 = { flex: 1, overflowY: "auto", overflowX: "hidden" };
 
-// Chunk async: viste pesanti o riservate a un ruolo, scaricate on-demand.
-// B-1 (audit del 30 agosto) · Dashboard e ClientiView erano rimaste eager
-// perché sono le due viste d'ingresso più frequenti e renderle lazy avrebbe
-// sostituito il costo con un flash di fallback su ogni sessione. Quella
-// motivazione risale a prima di LazyFallback e degli skeleton per entità
-// (SkeletonCards/SkeletonRows): con quelli in piedi il Suspense qui sotto
-// mostra uno scheletro coerente invece di un flash vuoto, e il margine
-// recuperato sul chunk app conta più del costo residuo del fallback.
+// Chunk async: viste scaricate on-demand. Anche Dashboard e ClientiView (B-1):
+// gli scheletri rendono il fallback innocuo.
 const Dashboard = lazy(() =>
   import("./components/dashboard/Dashboard.jsx").then(m => ({ default: m.Dashboard }))
 );
 const ClientiView = lazy(() =>
   import("./components/clients/ClientiView.jsx").then(m => ({ default: m.ClientiView }))
 );
-// ST-12 · La chat era l'ultimo gruppo differibile grande rimasto: ~54 kB
-// (pannello, conversazioni, composer, vocali) nel chunk iniziale di OGNI
-// sessione, benché il pannello chiuso ritorni null. Attenzione al dettaglio
-// che rendeva questo rilievo non banale: ChatPanel ri-esportava
-// `getUnreadCount` per il badge dei non letti, che si calcola FUORI dal
-// pannello (in useChatData) — con quel ri-export in piedi il modulo sarebbe
-// rimasto agganciato al chunk eager e il lazy() non avrebbe spostato niente.
-// È esattamente il difetto di P2-1. Ora chi serve `getUnreadCount` lo importa
-// da chat/chatFormat.js, e una regola di lint tiene chiuso il percorso.
+// ST-12 · La chat è lazy. ⚠️ `getUnreadCount` si importa da chat/chatFormat.js,
+// non da ChatPanel: un ri-export terrebbe il modulo nel chunk eager (una
+// regola di lint chiude il percorso).
 const ChatPanel = lazy(() =>
   import("./components/chat/ChatPanel.jsx").then(m => ({ default: m.ChatPanel }))
 );
@@ -96,9 +75,7 @@ const AdminView = lazy(() =>
 const ListeViaggio = lazy(() =>
   import("./components/liste/ListeViaggio.jsx").then(m => ({ default: m.ListeViaggio }))
 );
-// Viste secondarie: aperte da una minoranza di sessioni, ciascuna dietro un
-// item di navigazione — differirle sposta ~55 kB fuori dal chunk iniziale
-// senza cambiare cosa vede l'utente, solo quando lo scarica.
+// Viste secondarie, ciascuna dietro una voce di navigazione: lazy.
 const CalendarPlanner = lazy(() =>
   import("./components/calendar/CalendarPlanner.jsx").then(m => ({ default: m.CalendarPlanner }))
 );
@@ -108,31 +85,17 @@ const Trash = lazy(() =>
 const Archive = lazy(() =>
   import("./components/tasks/Archive.jsx").then(m => ({ default: m.Archive }))
 );
-// Suggerimento strategico #3 (docs/archivio/audit/AUDIT_PERFORMANCE_2026-08.md): un
-// React.Profiler attorno alla vista attiva, per rispondere "quanto costa un
-// render" con un numero invece che a sensazione — la stessa domanda a cui
-// `npm run misura:render` risponde per la sola `layoutColumns`, qui estesa
-// al render React completo (reconciliation e commit inclusi, non solo il
-// calcolo). Dietro VITE_PROFILE_VIEWS=true in dev: fuori da quel guard
-// `import.meta.env.DEV` è `false` a build time e il ramo — Profiler incluso —
-// esce dal bundle di produzione (stessa tecnica di demoState.js).
+// React.Profiler attorno alla vista attiva, per misurare un render. Solo con
+// VITE_PROFILE_VIEWS=true in dev: in produzione il ramo esce dal bundle.
 const PROFILE_VIEWS = import.meta.env.DEV && import.meta.env.VITE_PROFILE_VIEWS === 'true';
 const onViewRender = (id, phase, actualDuration, baseDuration) => {
   console.log(`[profile] ${id} ${phase}: actual=${actualDuration.toFixed(2)}ms base=${baseDuration.toFixed(2)}ms`);
 };
 
 // ─── A-3 · quali entità idratate alimentano ciascuna vista ─────────────────
-// (audit UX/errori del 31 agosto)
-//
-// Dichiarato QUI perché questo è l'unico file che le conosce tutte, ed è lo
-// stesso punto in cui si decide quale vista montare. Una vista assente da
-// questa mappa non ha un'entità dell'idratazione di cui possa mancare
-// l'elenco: `liste` ha il proprio caricamento (useListeData) e la chat pure.
-//
-// L'etichetta è il complemento oggetto della frase che l'utente legge — «Non è
-// stato possibile caricare ___» — e non il nome tecnico dell'entità: è la
-// stessa distinzione fra `tag` ed `etichetta` che la fabbrica `idratazione`
-// fa già per i toast.
+// Qui perché è l'unico file che le conosce tutte. Liste e chat hanno un
+// caricamento loro. L'etichetta completa la frase «Non è stato possibile
+// caricare ___».
 const ENTITA_PER_VISTA = {
   dashboard: [["tasks", "le task"], ["notices", "la bacheca avvisi"]],
   calendar: [["tasks", "le task"]],
@@ -142,12 +105,6 @@ const ENTITA_PER_VISTA = {
   admin: [["team", "il team"], ["categories", "le categorie"]],
 };
 
-// Dove è finito il resto del monolite:
-//   utility pure          → src/lib/{taskUtils,permissions,chatUtils,mappers}.js
-//   reducer + persistenza → src/state/{reducer,persistence}.js
-//   CSS globale e tema    → src/styles/global.css (importato da main.jsx)
-//   dati demo             → src/state/mockData.js
-//   viste e primitive     → src/components/**
 
 export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   const [state, rawDispatch] = useReducer(
@@ -156,32 +113,20 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     makeInitialState
   );
 
-  // ─── B-1 dell'analisi del 4 novembre · la demo è un FLAG, non una deduzione ──
-  // Era `useSupabase = initialTeam.length > 0`: la modalità si DEDUCEVA dal
-  // team, quindi un team arrivato vuoto (RLS, risposta parziale a freddo)
-  // spegneva in silenzio la persistenza — l'app girava, ogni modifica restava
-  // in memoria e spariva al reload, anche in produzione. Ora la demo è una
-  // decisione esplicita: solo in sviluppo e solo senza utente loggato.
-  // AuthGate monta l'app soltanto con una session e un profilo, e le passa
-  // `profile.id`: un `initialCurrentUserId` assente vuol dire «nessuna
-  // session», cioè i test che montano `<VoyageDesk />` nudo. Un team vuoto con
-  // una session valida non arriva fin qui: AuthGate mostra un errore.
+  // ─── B-1 del 4 novembre · la demo è un FLAG, non una deduzione ──────────────
+  // Solo in sviluppo e solo senza utente loggato. Un team vuoto con una session
+  // valida non arriva qui: AuthGate mostra un errore (prima spegneva in silenzio
+  // la persistenza).
   const modalitaDemo = import.meta.env.DEV && !initialCurrentUserId;
   const useSupabase = !modalitaDemo;
 
-  // Conversazioni/messaggi demo per useChatData sotto: stessa tecnica di
-  // reducer.js/makeInitialState. `import.meta.env.DEV` collassa a `false` in
-  // produzione, quindi il ramo — e con esso demoState()/mockData.js — esce
-  // dal bundle invece di restare solo irraggiungibile. Il DEV resta scritto
-  // nell'`if` di proposito: è la costante che il bundler sa piegare.
+  // Dati demo per useChatData: in produzione il ramo esce dal bundle. Il DEV
+  // resta nell'`if`: è la costante che il bundler sa piegare.
   let demo = null;
   if (import.meta.env.DEV && modalitaDemo) demo = demoState();
 
-  // M-2 dell'audit del 10 settembre · la coda delle scritture offline. Sta qui,
-  // prima di `dispatch`, perché è `dispatch` a doverla ricevere: quando una
-  // scrittura fallisce per assenza di rete finisce lì invece di essere annullata.
-  // `api` ha identità stabile (vedi hooks/useCodaScritture.js), quindi passarla
-  // non rompe la stabilità di `dispatch` da cui dipende la memoizzazione dei figli.
+  // M-2 · La coda delle scritture offline, passata a `dispatch`. `api` ha
+  // identità stabile, quindi `dispatch` resta stabile.
   const { api: codaScritture, inAttesa: scrittureInAttesa } = useCodaScritture({
     enabled: useSupabase,
     uid: state.currentUserId,
@@ -189,43 +134,29 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     rawDispatch,
   });
 
-  // Il wrapper dispatch (283 righe di switch: permessi + mapping + chiamate DB
-  // + rollback) è stato sostituito dal registry dichiarativo in
-  // state/persistence.js, orchestrato da questo hook. Stessa firma di prima:
-  // ritorna Promise<{ error }> e ha identità stabile tra i render.
+  // Il registry (state/persistence.js) orchestrato da questo hook: ritorna
+  // Promise<{ error }> e ha identità stabile.
   const dispatch = useSyncedDispatch(state, rawDispatch, { enabled: useSupabase, coda: codaScritture });
 
-  // Toast d'errore: firma unica per tutti gli hook, che così non conoscono né
-  // il reducer né la forma dell'azione.
+  // Toast d'errore con una firma unica per tutti gli hook.
   const showError = useCallback(
     (message) => rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message } }), []);
   const showSuccess = useCallback(
     (message) => rawDispatch({ type: "SHOW_TOAST", payload: { type: "success", message } }), []);
 
-  // Gli handler globali installati in main.jsx sanno intercettare gli errori
-  // ma non hanno modo di mostrarli: qui diamo loro il canale. Finché nessuno
-  // è registrato si limitano alla console — è la fase in cui l'app non è
-  // montata e un toast non avrebbe dove comparire. Il cleanup di useEffect è
-  // la funzione di deregistrazione ritornata da registraSinkErrori.
+  // Il canale con cui gli handler globali di main.jsx mostrano un errore.
+  // Prima della registrazione si limitano alla console.
   useEffect(() => registraSinkErrori(showError), [showError]);
 
-  // `caricamento` porta un flag per ENTITÀ (criticità #6): finché il primo
-  // fetch di una di esse non è tornato, le viste che la mostrano devono dire
-  // "sto caricando" e non "non c'è niente". `caricamentoClienti` è il flag
-  // dell'anagrafica, che ha una storia sua (vedi hooks/useAppHydration.js).
-  // A-3 (audit UX/errori del 31 agosto) · `erroriCaricamento` è il TERZO stato,
-  // accanto a "sto caricando" e "ho finito": `entita → { messaggio, riprova }`
-  // per ciò che non si è caricato. Senza, un fetch fallito arrivava alle viste
-  // indistinguibile da un fetch riuscito e vuoto, e loro dicevano «Nessuna task
-  // aperta a tuo nome. Buon lavoro!».
+  // `caricamento`: un flag per entità (scheletro, non vuoto). A-3 ·
+  // `erroriCaricamento` è il terzo stato, `entita → { messaggio, riprova }`:
+  // un fetch fallito non deve sembrare un elenco vuoto.
   const { caricamento, erroriCaricamento, caricamentoClienti, storicoTask, clientiCompleti } = useAppHydration({
     enabled: useSupabase,
     currentUserId: initialCurrentUserId,
     dispatch: rawDispatch,
     onError: showError,
-    // B-1 dell'audit del 16 agosto: il team che AuthContext ha già letto per
-    // decidere se montare questo componente. Passarlo evita che
-    // l'idratazione rilegga `users` un round-trip dopo, con la stessa query.
+    // B-1 · Il team già letto da AuthContext: l'idratazione non lo rilegge.
     teamIniziale: initialTeam,
   });
 
@@ -235,22 +166,11 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     enabled: useSupabase, userId: initialCurrentUserId, team: initialTeam,
   });
 
-  // Step J: navigazione da notifica → TaskSlideOver
-  // Se il task referenziato dalla notifica non è (più) raggiungibile — cestinato,
-  // purgato o non più visibile per riassegnazione/permessi — il pannello si
-  // chiude comunque e la notifica viene marcata come letta lato chiamante: senza
-  // un toast esplicito l'utente clicca e non vede succedere nulla, in silenzio.
-  //
-  // Le dipendenze includono `state.tasks`, quindi questa callback cambia
-  // identità a ogni mutazione dei task e la prop `onOpenTask` invalida il
-  // `memo` di <Topbar>. NON è un difetto da correggere con un ref, ed è stato
-  // verificato invece che dedotto (audit del 14 agosto, terzo passaggio): la
-  // Topbar chiama `useTasks()` (Topbar.jsx:89), cioè è ISCRITTA a
-  // TasksContext, il cui value è memoizzato su `[tasks]` — la stessa
-  // identità. Si ri-renderizza quando i task cambiano comunque, con o senza
-  // questa dipendenza. Stabilizzare la callback aggiungerebbe un ref e
-  // toglierebbe zero render.
-  const openTaskById = useCallback((taskId) => {
+  // Navigazione da notifica → TaskSlideOver. Task non più raggiungibile: si
+  // chiude il pannello e si dice perché con un toast.
+  // La dipendenza da `state.tasks` NON va tolta con un ref: la Topbar è già
+  // iscritta a TasksContext e si ri-renderizza comunque (verificato).
+  const apriTaskDaId = useCallback((taskId) => {
     if (!taskId) return;
     const t = (state.tasks || []).find(x => x.id === taskId && !x.deletedAt);
     if (t) {
@@ -260,25 +180,10 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     }
   }, [state.tasks, dispatch]);
 
-  // Spegne la notifica in campanella della conversazione che si sta aprendo.
-  //
-  // Era scritta qui — dispatch ottimistico su `setNotifications` più la
-  // chiamata di rete — finché A-2 dell'audit del 28 agosto non ha dato al feed
-  // un registro delle scritture in volo: da fuori non si poteva marcare nulla,
-  // quindi questa restava l'unica mutazione della campanella che un refetch
-  // concorrente poteva riportare indietro. Ora la possiede `useNotifications`
-  // insieme alle altre quattro, e qui resta solo il collegamento.
-  //
-  // ⚠️ Si estrae PER NOME e non si usa l'oggetto `notif` (A-2 dell'audit del
-  // 16 agosto). `useNotifications` ritorna un oggetto letterale, quindi `notif`
-  // è NUOVO a ogni render del guscio — cioè a ogni toast, a ogni carattere
-  // digitato nella ricerca, a ogni tick di presenza. Passare `notif` di qui
-  // rimetterebbe `onConversationRead` a cambiare identità altrettanto spesso, e
-  // con lui l'intero registro `commands` della chat: il `useMemo` che lo
-  // costruisce non salterebbe MAI un render, e con lui il `memo` di ChatPanel.
-  // `markReadForConversation` è invece un `useCallback` con sole dipendenze
-  // stabili, cioè ha la stessa proprietà del setter che stava qui prima —
-  // misurata da src/test/chat/chatMemo.test.jsx.
+  // Spegne la notifica in campanella della conversazione aperta: la possiede
+  // `useNotifications` (A-2), qui c'è solo il collegamento.
+  // ⚠️ Si estrae PER NOME: `notif` è un oggetto nuovo a ogni render, e passarlo
+  // romperebbe il `memo` di ChatPanel (misurato da src/test/chat/chatMemo.test.jsx).
   const { markReadForConversation: markChatNotificationsRead } = notif;
 
   const chat = useChatData({
@@ -292,16 +197,9 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     onConversationRead: markChatNotificationsRead,
   });
 
-  // Stato di UI effimera del guscio, con i suoi callback a identità stabile:
-  // vive in `hooks/useShellUi.js` da M-3 (audit del 15 agosto). Il perché di
-  // ogni scelta — non nel reducer, non locale alla Topbar, ogni callback da
-  // `useCallback` — sta lì, accanto al codice che la applica.
+  // UI effimera del guscio: il perché delle scelte sta in hooks/useShellUi.js.
   const ui = useShellUi();
-  // Le tre callback che servono dentro un `useEffect`, estratte per nome:
-  // `ui` è un oggetto nuovo a ogni render, quindi metterlo nelle dipendenze
-  // farebbe ripartire gli effetti sempre. Queste tre hanno identità stabile
-  // (`useCallback` con array vuoto), e dichiararle è ciò che tiene
-  // `exhaustive-deps` a zero warning senza silenziarlo.
+  // Estratte per nome: `ui` è nuovo a ogni render, queste tre sono stabili.
   const { apriFAB, alternaScorciatoie, chiudiPannelli } = ui;
 
   usePushNavigation({
@@ -312,15 +210,9 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     onOpenChat: ui.apriConversazione,
   });
 
-  // A-2 dell'audit del 5 settembre: la vista e il task aperto vivono anche
-  // nella barra degli indirizzi, così un link si può mandare, il tasto
-  // Indietro torna indietro e un refresh non riporta alla dashboard.
-  //
-  // ⚠️ DOPO `usePushNavigation`, e non e' un dettaglio di stile: gli effetti
-  // girano nell'ordine in cui gli hook sono chiamati, e quello consuma
-  // `?task=`/`?chat=` al mount. Invertirli farebbe riscrivere qui un `?task=`
-  // che l'altro sta per cancellare. Il perche' completo sta nel preambolo di
-  // hooks/useUrlStato.js.
+  // A-2 · Vista e task aperto vivono anche nell'URL (link, Indietro, refresh).
+  // ⚠️ DOPO `usePushNavigation`: quello consuma `?task=`/`?chat=` al mount, e
+  // gli effetti girano nell'ordine degli hook. Vedi hooks/useUrlStato.js.
   useUrlStato({
     vista: state.activeView,
     taskId: state.selectedTask?.id ?? null,
@@ -344,37 +236,25 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         e.preventDefault();
         alternaScorciatoie();
       }
-      // Escape NON è più gestito qui: da quando l'overlay delle scorciatoie è
-      // un ui/Modal.jsx, la chiusura con Esc arriva dal guscio — e passa dalla
-      // pila dei modali aperti, che la consegna solo a quello in cima. Un
-      // secondo handler globale la chiuderebbe anche quando le sta sopra
-      // qualcos'altro, e comunque non scattava affatto mentre il focus era in
-      // un campo (il guard `inInput` qui sopra).
+      // Esc non è gestito qui: lo consegna ui/Modal.jsx al solo modale in cima.
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [apriFAB, alternaScorciatoie]);
 
-  // Quando l'utente cambia, se la view corrente non è permessa il reducer la riporta a dashboard.
-  // Inoltre chiudo eventuali pannelli aperti.
+  // Al cambio utente il reducer riporta la vista a dashboard se serve; qui si
+  // chiudono i pannelli.
   useEffect(() => {
     chiudiPannelli();
   }, [state.currentUserId, chiudiPannelli]);
 
-  // A-3 · le voci di `ENTITA_PER_VISTA` (sopra) risolte contro lo stato
-  // corrente, tenendo solo quelle in errore.
+  // A-3 · Le voci di ENTITA_PER_VISTA in errore.
   const vociStato = (chiavi) => chiavi
     .map(([chiave, etichetta]) => ({ chiave, etichetta, stato: erroriCaricamento[chiave] }))
     .filter(v => v.stato);
 
-  // Le viste NON ricevono più `state`: leggono task e clienti dai provider e si
-  // fanno passare solo le fette piccole che consumano davvero (notices, la tab
-  // coda richiesta, la lista da aprire). `state` cambia identità dopo qualunque
-  // azione — un toast, un carattere nella ricerca — e finché era una prop
-  // costringeva la vista attiva a ri-renderizzarsi per intero ogni volta. Le
-  // prop rimaste hanno identità stabile, quindi il `memo` sulle viste può
-  // davvero saltare il render (vedi state/TasksContext.jsx: senza memo il
-  // provider da solo non basta).
+  // Le viste NON ricevono `state` (cambia identità a ogni azione): leggono dai
+  // provider e ricevono solo prop stabili, così il loro `memo` funziona.
   const renderView = () => {
     switch (state.activeView) {
       case "dashboard":  return <Dashboard onOpenChat={ui.apriChatCon} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={caricamento.tasks} noticesLoading={caricamento.notices} />;
@@ -382,14 +262,9 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       case "clienti":    return <ClientiView loading={caricamentoClienti} />;
       case "archivio":   return <Archive loading={caricamento.tasks} />;
       case "trash":      return <Trash loading={caricamento.tasks} />;
-      // Il guard qui è ridondante per costruzione — il reducer rifiuta
-      // SET_VIEW → "admin" per i non-admin (reducer.js:95) e riporta la vista
-      // a dashboard al cambio utente (reducer.js:145) — ma è la ridondanza che
-      // serve: è l'ultimo punto prima del montaggio, e non dipende dal fatto
-      // che ogni percorso futuro verso activeView passi da quei due controlli.
-      // Costa una riga; senza, la protezione della vista più sensibile
-      // dell'app poggia interamente sul fatto che nessuno scriva mai un terzo
-      // modo di impostare activeView.
+      // Ridondante col reducer per costruzione, ed è voluto: è l'ultimo punto prima
+      // del montaggio della vista più sensibile, e non dipende da come activeView
+      // verrà impostata domani.
       case "admin":      return canAccessAdmin(state.team, state.currentUserId)
         ? <AdminView agencyName={state.agencyName} notices={state.notices}
                      activityLog={state.activityLog} messageTemplates={state.messageTemplates} />
@@ -400,10 +275,8 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   };
 
   return (
-    // I provider di dominio sono alimentati dallo STESSO state del
-    // reducer: non esiste una seconda copia di team/categorie/utente da tenere
-    // allineata a mano. L'annidamento (e il perché del suo ordine) vive in
-    // state/AppProviders.jsx da M-3 — qui il guscio compone e basta.
+    // I provider sono alimentati dallo STESSO state del reducer (vedi
+    // state/AppProviders.jsx).
     <AppProviders
       dispatch={dispatch}
       team={state.team}
@@ -416,16 +289,11 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       richiediClienti={clientiCompleti.richiedi}
       clientiInCorso={clientiCompleti.caricando}
     >
-      {/* vd-app-shell = height 100dvh con fallback 100vh (vedi FontLoader): su iOS
-          "vh" è il viewport GRANDE, con la barra del browser visibile il guscio
-          sfora in basso e la bottom-nav finisce fuori schermo. */}
+      {/* vd-app-shell = 100dvh (fallback 100vh): su iOS "vh" è il viewport grande e
+         la bottom-nav finirebbe fuori schermo. */}
       <div className="vd-app-shell" style={col}>
-        {/* Il guscio dichiara le fette che consuma, come le viste (ST-2):
-            `state` cambia identità dopo qualunque azione, e finché era una
-            prop ri-renderizzava Topbar, Sidebar e BottomNav a ogni toast e a
-            ogni carattere digitato. Team, categorie e utente corrente non
-            compaiono qui: i tre componenti li leggono da AppDataContext, e la
-            Topbar prende i task da TasksContext per il pannello di ricerca. */}
+        {/* Il guscio riceve solo le fette che usa (ST-2): team, categorie e utente da
+           AppDataContext, i task da TasksContext. */}
         <Topbar
           activeView={state.activeView}
           ricerca={ui.ricerca}
@@ -436,21 +304,13 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           onMarkAllRead={notif.markAllRead}
           onRemoveNotification={notif.remove}
           onClearAllNotifications={notif.clearAll}
-          onOpenTask={openTaskById}
+          onOpenTask={apriTaskDaId}
           onOpenChat={ui.apriConversazione}
         />
-        {/* Banner offline (criticità #7). Sopra a tutto il resto perché è la
-            condizione che invalida tutto il resto: senza rete i numeri a
-            schermo sono l'ultimo stato noto, non lo stato attuale, e ogni
-            salvataggio fallirà. Il componente si nasconde da sé quando la rete
-            c'è, quindi non ha un guard qui. */}
+        {/* Banner offline: sopra a tutto, perché invalida tutto il resto. Si
+           nasconde da sé. */}
         <OfflineBanner inAttesa={scrittureInAttesa} />
-        {/* Il banner esiste solo per il cambio-utente demo, che il reducer
-            accetta solo in DEV (reducer.js, case SET_CURRENT_USER). In
-            produzione `import.meta.env.DEV` è la costante `false`: il ramo
-            collassa a build time e l'import di AdminRollbackBanner resta senza
-            referenti, quindi il modulo esce dal bundle invece di restarci
-            semplicemente irraggiungibile. */}
+        {/* Solo per il cambio-utente demo: in produzione il ramo esce dal bundle. */}
         {import.meta.env.DEV && state.adminRollbackTo && state.adminSwitchedAt && (
           <AdminRollbackBanner
             rollbackTo={state.adminRollbackTo}
@@ -460,22 +320,13 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         <div style={rowFlex1}>
           <Sidebar activeView={state.activeView} onOpenBulk={ui.apriBulk} onOpenChat={ui.apriChat} unreadChat={chat.unreadChat} />
           <main className="vd-main-scroll" style={flex1}>
-            {/* Suspense per la vista attiva: tutte le viste sono lazy
-                (Dashboard e ClientiView incluse da B-1 dell'audit del 30
-                agosto). ViewErrorBoundary confina alla vista un eventuale
-                errore di render: senza, l'unico boundary è quello in
-                main.jsx, che sostituisce tutta l'app con una schermata di
-                errore a tutta pagina anche quando la shell è perfettamente
-                integra. */}
+            {/* Suspense + ViewErrorBoundary: un errore di render resta confinato alla vista. */}
             <Suspense fallback={<LazyFallback />}>
               <ViewErrorBoundary
                 viewKey={state.activeView}
                 onReset={() => dispatch({ type: "SET_VIEW", payload: "dashboard" })}
               >
-                {/* A-3 · il riquadro si AGGIUNGE alla vista, non la sostituisce:
-                    ciò che era stato caricato prima dell'errore resta
-                    utilizzabile. Sta dentro il boundary e non fuori perché è
-                    parte della vista, non della shell. */}
+                {/* A-3 · Il riquadro d'errore si aggiunge alla vista, non la sostituisce. */}
                 <StatoEntita voci={vociStato(ENTITA_PER_VISTA[state.activeView] ?? [])}>
                   {PROFILE_VIEWS
                     ? <Profiler id={state.activeView} onRender={onViewRender}>{renderView()}</Profiler>
@@ -489,14 +340,8 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {/* Bottom nav mobile/tablet */}
         <BottomNav activeView={state.activeView} onOpenBulk={ui.apriBulk} onOpenChat={ui.apriChat} unreadChat={chat.unreadChat} />
 
-        {/* Slide-over (lazy, Phase 2g). `LazyPanel` = Suspense + boundary: un
-            eventuale errore (chunk 404 dopo un deploy, o crash di render)
-            resta confinato al pannello — senza, l'unico boundary sarebbe
-            quello di main.jsx, che sostituirebbe l'intera app mentre la
-            dashboard sotto è integra. `resetKey` è l'id del task perché il
-            pannello resta MONTATO passando da un task all'altro (apertura da
-            notifica): senza, un crash sul precedente resterebbe visibile
-            aprendo il nuovo. */}
+        {/* Slide-over lazy in LazyPanel (Suspense + boundary). `resetKey` = id del
+           task: il pannello resta montato passando da un task all'altro. */}
         {state.selectedTask && (
           <LazyPanel
             resetKey={state.selectedTask?.id}
@@ -507,15 +352,8 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           </LazyPanel>
         )}
 
-        {/* Chat Panel — montato solo da aperto (ST-12). Prima era sempre nel
-            render e si limitava a ritornare `null` da chiuso: con `lazy()` il
-            chunk si scaricherebbe comunque al primo render, cioè il rilievo
-            resterebbe aperto con il codice che sembra chiuderlo. Il prezzo è
-            che chiudendo la chat si torna all'elenco invece di ritrovare la
-            conversazione aperta — lo stato di navigazione del pannello vive in
-            `chatPanelReducer`, dentro il pannello. I dati non si ricaricano:
-            conversazioni e messaggi stanno in useChatData, che resta montato.
-            `chat.unreadChat` per il badge si calcola lì, fuori dal chunk. */}
+        {/* Chat montata solo da aperta (ST-12), altrimenti il chunk si scaricherebbe
+           comunque. I dati restano in useChatData; il badge si calcola lì. */}
         {ui.chatAperta && (
           <LazyPanel resetKey="chat" onReset={ui.chiudiChat} overlay>
             <ChatPanel
@@ -537,17 +375,16 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
           </LazyPanel>
         )}
 
-        {/* FAB principale (singolo task). La creazione bulk/multi-task è ora in Sidebar/BottomNav. */}
+        {/* FAB principale (singolo task). La creazione in blocco è in Sidebar/BottomNav. */}
         {state.activeView !== "trash" && state.activeView !== "archivio" && state.activeView !== "admin" && (
           <FAB onClick={ui.apriFAB} />
         )}
         {ui.fabAperto && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={ui.chiudiFAB} />}
 
-        {/* Overlay scorciatoie tastiera (v2.8 Round 10) */}
+        {/* Overlay scorciatoie tastiera */}
         {ui.scorciatoieAperte && <KeyboardHelpOverlay onClose={ui.chiudiScorciatoie} />}
 
-        {/* Bulk Task Creator (lazy, Phase 2g). Stessa ragione dello slide-over
-            qui sopra: un crash non deve portare via l'intera app. */}
+        {/* Bulk Task Creator lazy: un crash non porta via l'app. */}
         {ui.bulkAperto && (
           <LazyPanel resetKey="bulk" onReset={ui.chiudiBulk} overlay>
             <BulkTaskCreator

@@ -262,8 +262,7 @@ export const ProfileEditor = ({ member, onClose }) => {
               ref={nameRef}
               value={draft.name} onChange={e => scrivi("name", e.target.value)}
               style={inputWFull} placeholder="Il tuo nome"
-              onFocus={e => e.target.style.borderColor = "var(--gold)"}
-              onBlur={e => e.target.style.borderColor = "var(--border)"}
+              className="vd-campo-fuoco"
               {...ariaCampo("prof-name-err", errori.name)}
             />
             <FieldError id="prof-name-err">{errori.name}</FieldError>
@@ -278,8 +277,7 @@ export const ProfileEditor = ({ member, onClose }) => {
                 ref={emailRef}
                 value={draft.email} onChange={e => scrivi("email", e.target.value)}
                 type="email" style={inputWFull} placeholder="nome@agenzia.it"
-                onFocus={e => e.target.style.borderColor = "var(--gold)"}
-                onBlur={e => e.target.style.borderColor = "var(--border)"}
+                className="vd-campo-fuoco"
                 {...ariaCampo("prof-email-err", errori.email)}
               />
               <FieldError id="prof-email-err">{errori.email}</FieldError>
@@ -290,8 +288,7 @@ export const ProfileEditor = ({ member, onClose }) => {
                 id={telefonoId}
                 value={draft.phone} onChange={e => scrivi("phone", e.target.value)}
                 type="tel" style={inputWFull} placeholder="+39 333 123 4567"
-                onFocus={e => e.target.style.borderColor = "var(--gold)"}
-                onBlur={e => e.target.style.borderColor = "var(--border)"}
+                className="vd-campo-fuoco"
               />
             </div>
           </div>

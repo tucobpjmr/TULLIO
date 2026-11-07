@@ -25,15 +25,8 @@ import { requireActiveAdmin } from "../_shared/requireActiveAdmin.ts";
 import { registraAudit } from "../_shared/audit.ts";
 import { entroLimite } from "../_shared/rateLimit.ts";
 import { erroreInterno } from "../_shared/erroreInterno.ts";
-
-// Non un ban "per sempre" letterale (a differenza di delete-account, che è
-// irreversibile per scelta): è "fino a quando un admin non lo rimuove
-// esplicitamente", che nell'API di GoTrue si esprime con una durata molto
-// lunga e non con un valore speciale — l'unico valore speciale è "none" per
-// TOGLIERE il ban, non per impostarne uno indefinito. Stessa durata di
-// delete-account: entrambe le colonne significano "indefinitamente, finché
-// un'azione esplicita non la cambia".
-const BAN_INDEFINITO = "87600h"; // 10 anni
+import { leggiCorpoJson, MSG_CORPO_NON_VALIDO, testo } from "../_shared/corpoJson.ts";
+import { cambiaStatoAccesso } from "./statoAccesso.ts";
 
 Deno.serve(async (req: Request) => {
   const cors = corsHeaders(req);
@@ -76,8 +69,9 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Troppe richieste in poco tempo: riprova più tardi" }, 429);
     }
 
-    const body = await req.json();
-    const targetId: string = (body.userId ?? "").trim();
+    const body = await leggiCorpoJson(req);
+    if (!body) return json({ error: MSG_CORPO_NON_VALIDO }, 400);
+    const targetId: string = testo(body.userId);
     const active = body.active === true;
     if (!targetId) return json({ error: "userId mancante" }, 400);
 
@@ -94,17 +88,15 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Non puoi disattivare te stesso da qui: chiedi a un altro admin" }, 400);
     }
 
-    // L'operazione che tocca la sessione PRIMA di quella che tocca solo
-    // l'applicazione — nello stesso ordine di delete-account, e per lo stesso
-    // motivo: se questa fallisce usciamo senza aver scritto nulla, invece di
-    // lasciare `public.users.active` disallineato dalla sessione reale.
-    const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(targetId, {
-      ban_duration: active ? "none" : BAN_INDEFINITO,
-    });
-    if (authErr) return json(erroreInterno("set-user-active/ban", authErr), 500);
-
-    const { error: dbErr } = await supabaseAdmin.from("users").update({ active }).eq("id", targetId);
-    if (dbErr) return json(erroreInterno("set-user-active/db", dbErr), 500);
+    // Ban e profilo insieme, con la compensazione se il secondo fallisce
+    // (B-1 dell'analisi del 6 novembre): vedi statoAccesso.ts.
+    const cambio = await cambiaStatoAccesso(supabaseAdmin, targetId, active);
+    if (cambio.esito === "non_trovato") return json({ error: "Utente non trovato" }, 404);
+    if (cambio.esito === "guasto") {
+      const risposta = erroreInterno(`set-user-active/${cambio.fase}`, cambio.errore);
+      if (!cambio.compensato) risposta.error += " Accesso e profilo potrebbero non coincidere: va controllato.";
+      return json(risposta, 500);
+    }
 
     // Il trigger su public.users registra già il passaggio di `active`. Questa
     // voce dice l'altra metà, quella che il database non può vedere: che è

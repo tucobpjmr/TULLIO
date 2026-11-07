@@ -367,6 +367,19 @@ describe("useSyncedDispatch — fallimenti di persistenza", () => {
     expect(azioni.find(a => a.type === "SHOW_TOAST").payload.message).toContain("riga bloccata");
   });
 
+  // B-2 dell'analisi del 6 novembre: la purge va a blocchi. Se cade un blocco
+  // dopo che altri sono passati, tornano in lista solo i task non eliminati.
+  it("EMPTY_TRASH fallito a metà rimette in lista solo i task che il server non ha eliminato", async () => {
+    TasksAPI.hardDeleteMany.mockResolvedValueOnce({ error: { message: "rete" }, eliminati: [uuid(1)] });
+    const cestinati = [1, 2, 3].map(n => ({ ...task({ id: uuid(n) }), deletedAt: "2026-01-01T10:00:00Z" }));
+    const { dispatch, rawDispatch } = setup({ tasks: cestinati });
+
+    await act(async () => { await dispatch({ type: "EMPTY_TRASH" }); });
+
+    const undo = azioniDispatchate(rawDispatch).find(a => a.type === "ROLLBACK_EMPTY_TRASH");
+    expect(undo.payload.map(t => t.id)).toEqual([uuid(2), uuid(3)]);
+  });
+
   it("EMPTY_TRASH riuscito non dispatcha nessun rollback", async () => {
     const cestinati = [{ ...task({ id: uuid(1) }), deletedAt: "2026-01-01T10:00:00Z" }];
     const { dispatch, rawDispatch } = setup({ tasks: cestinati });

@@ -188,7 +188,7 @@ describe("useUrlStato — indietro e avanti", () => {
 
   it("un task cestinato o sparito CHIUDE il dettaglio senza toast", () => {
     // È una navigazione all'indietro, non un tentativo di aprire qualcosa:
-    // `openTaskById` alza un toast «non più disponibile» ed è giusto lì,
+    // `apriTaskDaId` alza un toast «non più disponibile» ed è giusto lì,
     // sarebbe sbagliato qui.
     const { result } = monta({ vistaIniziale: "archivio", taskIdIniziale: "t-1" });
     vaiA("/?v=archivio&task=t-2");

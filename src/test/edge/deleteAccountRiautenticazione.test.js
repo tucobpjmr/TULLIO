@@ -108,7 +108,7 @@ describe("delete-account — la password viene prima di tutto ciò che è irreve
   });
 
   it("la password si legge dal corpo, e senza risponde 400", () => {
-    expect(src).toMatch(/await\s+req\.json\(\)\.catch\(/);
+    expect(src).toMatch(/await\s+leggiCorpoJson\(\s*req\s*\)/);
     expect(src).toMatch(/if\s*\(\s*!password\s*\)\s*return\s+json\([^)]*,\s*400\s*\)/);
   });
 

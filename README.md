@@ -42,7 +42,7 @@ realtime, notifiche Web Push e cinque Edge Function.
 | Backend | Supabase — PostgreSQL, RLS, Realtime, Storage, Auth, Edge Functions |
 | Stile | CSS-in-JS + variabili di tema; token condivisi in `src/styles/tokens.js` |
 | Import/export | SheetJS (`xlsx`), caricato on-demand |
-| Test | Vitest + Testing Library — 2413 test (di cui 45 di integrazione, che girano solo con le credenziali di staging) + Playwright end-to-end in `e2e/` |
+| Test | Vitest + Testing Library — 2451 test (di cui 45 di integrazione, che girano solo con le credenziali di staging) + Playwright end-to-end in `e2e/` |
 | Qualità | ESLint 9 (flat config) con `max-lines`, `no-restricted-imports` |
 | Font | Playfair Display + DM Sans + Inter |
 | Lingua UI | italiano |
@@ -81,7 +81,7 @@ src/
 │   ├── documenti/        archivio documenti di identità (vista, import massivo,
 │   │                     deduzione del nome dal file, stato di scadenza)
 │   ├── ui/               ciò che è davvero trasversale (Modal, Avatar, Toast, Viewport…)
-└── test/                 2413 test (Vitest), conteggio del 6 novembre 2026
+└── test/                 2451 test (Vitest), conteggio del 7 novembre 2026
 
 supabase/
 ├── migrations/           146 migrazioni SQL (schema, RLS, RPC, trigger)

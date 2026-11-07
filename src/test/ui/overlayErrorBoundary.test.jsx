@@ -48,7 +48,7 @@ describe("OverlayErrorBoundary", () => {
   });
 
   it("si riarma quando resetKey cambia (apertura di un altro task senza chiudere)", () => {
-    // Riproduce openTaskById in VoyageDesk.jsx: click su una notifica mentre
+    // Riproduce apriTaskDaId in VoyageDesk.jsx: click su una notifica mentre
     // un altro task è già aperto sostituisce selectedTask senza smontare lo
     // slide-over, quindi senza un confronto d'identità il crash sul task
     // precedente resterebbe visibile aprendo quello nuovo.

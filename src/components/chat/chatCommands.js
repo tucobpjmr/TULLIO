@@ -1,31 +1,14 @@
 // src/components/chat/chatCommands.js
-// Le operazioni di scrittura della chat: aggiornamento locale + persistenza.
+// Le scritture della chat: aggiornamento locale + persistenza, un comando
+// esplicito per ognuna.
 //
-// PERCHÉ ESISTE. Prima la chat persisteva per DIFFERENZA: VoyageDesk passava ai
-// componenti due wrapper di `setConversations`/`setMessages` che, dentro la
-// funzione updater di setState, confrontavano lo stato precedente con quello
-// nuovo e da lì DEDUCEVANO l'operazione da mandare a Supabase (riga assente in
-// prev → INSERT, `pinned` cambiato → UPDATE, …). Due problemi, il primo grave:
+// ⛔ Mai una chiamata di rete dentro l'updater di setState: React 18 lo invoca
+// due volte in StrictMode e può rieseguirlo (creare una conversazione faceva
+// due INSERT). `setConversations`/`setMessages` restano setter puri; la rete
+// parte fuori. E l'intento si dichiara, non si deduce dalla differenza di stato.
 //
-//   1. L'updater passato a setState deve essere PURO. React 18 lo invoca due
-//      volte in StrictMode (attivo in main.jsx) e può rieseguirlo in Concurrent
-//      Rendering: una chiamata di rete lì dentro non ha alcuna garanzia di
-//      partire una sola volta. In sviluppo creare una conversazione faceva
-//      DUE INSERT — il guard `if (!prevById.has(c.id))` non protegge, perché
-//      entrambe le invocazioni ricevono lo stesso `prev`.
-//   2. Dedurre l'intento dalla differenza di stato è fragile: "questo messaggio
-//      non c'era" è un'ipotesi sul perché lo stato è cambiato, non un fatto.
-//      Ogni nuovo campo mutabile andava aggiunto al diff, e chi scriveva il
-//      call site non aveva modo di sapere che stava innescando una scrittura.
-//
-// Oggi le due cose sono separate: `setConversations`/`setMessages` tornano ad
-// essere normali setter React (updater puri), e ogni scrittura ha un comando
-// esplicito che dichiara cosa sta facendo. La chiamata di rete parte FUORI
-// dall'updater, dove eseguirla due volte non è più un rischio del framework.
-//
-// USO. La factory riceve i setter grezzi e ritorna i comandi. Con
-// `enabled: false` (nessun login, mock/test) i comandi fanno solo
-// l'aggiornamento locale: nessuna chiamata a Supabase.
+// USO. Con `enabled: false` (nessun login, mock, test) solo l'aggiornamento
+// locale.
 //
 //   const commands = makeChatCommands({ setConversations, setMessages, enabled });
 //   commands.sendMessage(convId, msg);
@@ -35,29 +18,18 @@ import {
   Messages as MessagesAPI,
 } from "../../lib/api.js";
 import { toDbConversation, toDbMessage, newId, isUuid } from "../../lib/mappers.js";
-// A-2 (terzo passaggio): "è andata bene" non è `!res.error`. Una scrittura che
-// la RLS rifiuta risponde 2xx senza errore — vedi lib/esitoScrittura.js. Fino a
-// questo intervento il controllo esisteva solo in hooks/useSyncedDispatch.js,
-// cioè per il core: la chat, che è il sottosistema che scrive di più, aveva la
-// versione cieca. `Messages.setPinned` chiedeva già `count: 'exact'` e nessuno
-// lo leggeva.
+// A-2 · «Andata bene» non è `!res.error`: la RLS può rifiutare con un 2xx
+// (vedi lib/esitoScrittura.js).
 import { esitoScrittura } from "../../lib/esitoScrittura.js";
 
 const noop = () => {};
 
-// `esitoScrittura()` ritorna `unknown` di proposito (lib/esitoScrittura.js):
-// il chiamante non deve dare per scontata la FORMA dell'errore. Qui serve
-// solo il messaggio per i cinque toast sotto, quando ce n'è uno leggibile.
+// `esitoScrittura()` ritorna `unknown`: qui serve solo il messaggio, se c'è.
 const msgErrore = (e) => (e instanceof Error ? e.message : "");
 
 /**
- * M-5 dell'audit del 4 settembre: `checkJs` allargato a `src/hooks/` trascina
- * dentro il programma anche questo modulo (è importato da `useChatData.js`),
- * ed è emerso che ogni default a `noop` faceva inferire a TypeScript la
- * FIRMA di `noop` — zero parametri — invece del vero tipo del chiamante. I
- * tipi qui sotto sono quelli reali passati da `useChatData.js`, non
- * un'aggiunta cosmetica: senza, `setConversations(prev => …)` risultava «si
- * aspetta 0 argomenti, ne ha ricevuto 1» su ogni singolo comando del file.
+ * I tipi dei setter sono quelli reali di `useChatData.js`: con un default a
+ * `noop` `checkJs` inferirebbe una firma a zero parametri.
  *
  * @param {object} [opts]
  * @param {(updater: (prev: object[]) => object[]) => void} [opts.setConversations]
@@ -78,28 +50,17 @@ export function makeChatCommands({
   onError = noop,
   onSuccess = noop,
   onConversationRead = noop,
-  // A-2 dell'audit del 14 agosto (secondo passaggio): il registro delle
-  // scritture in volo che vive in useChatData (messaggiInVolo). Di default
-  // sono no-op, così i chiamanti che non passano protezione contro le
-  // scritture in volo (i test, i mock) restano invariati — l'adozione è
-  // opt-in dal lato di chi possiede lo stato.
+  // A-2 · Il registro delle scritture in volo di useChatData. No-op di default.
   marcaInVolo = noop,
   smarcaInVolo = noop,
 } = {}) {
-  // convId → Promise dell'INSERT conversazione ancora in volo. Serve a
-  // serializzare il primo messaggio dietro la creazione della conversazione:
-  // senza, la RLS messages_insert rifiuta il messaggio perché la
-  // conversation_id non esiste ancora lato DB (race conv → primo messaggio,
-  // che l'utente vede come "il messaggio non arriva").
+  // convId → Promise dell'INSERT conversazione in volo: il primo messaggio
+  // aspetta, o la RLS lo rifiuta perché la conversazione non esiste ancora.
   const creazioniInVolo = new Map();
 
-  // A-5 · Ascoltatori per conversazione di un invio fallito: il composer di
-  // `ConversationView` si iscrive per QUELLA conversazione e ripopola il
-  // campo di testo col messaggio perso — senza, l'unico segnale di un invio
-  // fallito era il toast generico, che non restituisce nulla di ciò che
-  // l'utente aveva scritto. Vive DENTRO la factory (non a livello di modulo)
-  // per la stessa ragione di `creazioniInVolo`: ogni istanza di comandi ha il
-  // proprio ciclo di vita.
+  // A-5 · Ascoltatori di un invio fallito, per conversazione: il composer
+  // ripopola il campo col messaggio perso. Dentro la factory: ogni istanza ha
+  // il proprio ciclo di vita.
   const ripristinoAscoltatori = new Map(); // convId → Set<(msg) => void>
 
   const onInvioFallito = (convId, msg) => {
@@ -123,10 +84,8 @@ export function makeChatCommands({
 
   // ─── CONVERSAZIONI ─────────────────────────────────────────────────────────
 
-  // Ritorna la conversazione NORMALIZZATA (id uuid): il chiamante deve attivare
-  // quella, non l'originale. L'id viene assegnato sempre, anche in modalità
-  // mock — la vista attivata e la riga persistita devono condividerlo, e un id
-  // "c<timestamp>" farebbe saltare i gate isUuid di typing e markRead.
+  // Ritorna la conversazione NORMALIZZATA (id uuid): il chiamante attiva quella.
+  // Id uuid anche in mock: i gate isUuid di typing e markRead lo pretendono.
   const createConversation = (conv) => {
     const normalized = isUuid(conv.id) ? conv : { ...conv, id: newId() };
     setConversations(prev => [normalized, ...prev]);
@@ -136,10 +95,8 @@ export function makeChatCommands({
         const errore = esitoScrittura(r);
         if (errore) {
           fallito("conv.create", errore, `Chat: creazione conversazione fallita: ${msgErrore(errore)}`);
-          // `sendMessage` distingue "creazione fallita" da "riuscita" leggendo
-          // `r.error`: normalizziamo l'esito, così un rifiuto silenzioso della
-          // RLS non fa partire l'INSERT del primo messaggio verso una
-          // conversazione che sul server non esiste.
+          // Esito normalizzato: un rifiuto silenzioso della RLS non deve far partire il
+          // primo messaggio verso una conversazione inesistente.
           return { ...r, error: errore };
         }
         return r;
@@ -149,9 +106,7 @@ export function makeChatCommands({
     return normalized;
   };
 
-  // Riceve la conversazione COMPLETA già aggiornata (non un patch parziale):
-  // l'UPDATE scrive comunque tutti e tre i campi modificabili, come faceva il
-  // vecchio diff.
+  // Riceve la conversazione COMPLETA: l'UPDATE scrive tutti i campi modificabili.
   const updateConversation = (conv) => {
     setConversations(prev => prev.map(c => (c.id === conv.id ? conv : c)));
     if (!enabled || !isUuid(conv.id)) return;
@@ -168,46 +123,14 @@ export function makeChatCommands({
   };
 
   // Eliminazione conversazione/gruppo.
-  //
-  // C-1 dell'audit del 14 agosto (terzo passaggio). L'ORDINE dei due passi
-  // server era invertito, e la ragione scritta accanto era corretta ma
-  // incompleta: «prima il cleanup degli allegati, perché dopo il DELETE della
-  // conversazione le policy sul bucket non permetterebbero più di rimuoverli →
-  // orfani permanenti». Vero. Ma quell'ordine rende la prima operazione —
-  // l'unica IRREVERSIBILE delle due — condizionata a nulla:
-  //
-  //   1. `removeConversationFiles` cancella dal bucket gli allegati di TUTTI i
-  //      partecipanti (vocali, documenti di pratica, foto di passaporti);
-  //   2. poi parte la DELETE della riga. Se fallisce — rete caduta fra i due
-  //      await, che su mobile è il caso normale, sessione revocata, utente
-  //      tolto dai `participants` nel frattempo — la conversazione resta viva
-  //      per tutti gli altri, con ogni allegato distrutto e nessun modo di
-  //      recuperarlo;
-  //   3. e la DELETE poteva anche non fallire affatto pur non facendo nulla:
-  //      `ConversationsAPI.remove` non chiedeva `count`, quindi un rifiuto
-  //      della RLS (che filtra le righe invece di sollevare un errore) era
-  //      indistinguibile da una riuscita — toast verde «Conversazione
-  //      eliminata» compreso.
-  //
-  // Ora l'ordine è: DELETE della riga (con `count`, letto da esitoScrittura),
-  // e SOLO se ha davvero tolto la riga si passa alla pulizia degli allegati.
-  // Il costo dichiarato di questa inversione è il rovescio dell'osservazione
-  // originale: dopo la DELETE la policy `chat_files_delete` autorizza il
-  // chiamante solo sui file di cui è `owner_id` (o su tutti, se è admin),
-  // quindi gli allegati caricati dagli ALTRI partecipanti restano nel bucket
-  // come orfani. È un costo recuperabile — byte e una bonifica — contro una
-  // perdita di dati che non lo è; e la migrazione
-  // 20260814220000_chat_files_delete_orfani.sql lo azzera del tutto,
-  // autorizzando la cancellazione degli oggetti la cui conversazione non
-  // esiste più (finché non è applicata, il ramo qui sotto degrada al solo
-  // `owner_id` e lo dice a log).
-  //
-  // Il parametro è la conversazione INTERA e non il solo id: serve a
-  // rimetterla in lista se la DELETE non passa, ed è lo stesso motivo per cui
-  // `setMessagePinned` riceve `pinned` esplicito invece di dedurlo. I messaggi
-  // NON si tolgono più prima della conferma: senza la conversazione in lista
-  // sono comunque invisibili, e tenerli è ciò che rende il ripristino completo
-  // invece che una conversazione vuota.
+  // ⚠️ C-1 · PRIMA la DELETE della riga (con `count`), e SOLO se ha tolto
+  // davvero la riga si puliscono gli allegati: l'ordine inverso distruggeva i
+  // file di tutti anche quando la DELETE falliva o veniva filtrata dalla RLS.
+  // Il costo: dopo la DELETE si cancellano solo i file propri (o tutti, se
+  // admin); gli orfani li autorizza la migrazione
+  // 20260814220000_chat_files_delete_orfani.sql.
+  // Riceve la conversazione INTERA per poterla rimettere in lista; i messaggi
+  // non si tolgono prima della conferma.
   const removeConversation = (conv) => {
     const convId = typeof conv === "string" ? conv : conv?.id;
     if (!convId) return;
@@ -225,8 +148,7 @@ export function makeChatCommands({
     (async () => {
       const errore = esitoScrittura(await ConversationsAPI.remove(convId));
       if (errore) {
-        // La riga è ancora lì: si rimette la conversazione dov'era (i messaggi
-        // non sono mai stati tolti) e NON si tocca lo storage.
+        // La riga c'è ancora: si rimette la conversazione e non si tocca lo storage.
         if (snapshot) {
           setConversations(prev => (prev.some(c => c.id === convId) ? prev : [snapshot, ...prev]));
         }
@@ -242,27 +164,19 @@ export function makeChatCommands({
 
   // ─── MESSAGGI ──────────────────────────────────────────────────────────────
 
-  // A differenza delle conversazioni l'id del messaggio si normalizza solo in
-  // modalità DB: senza login i messaggi restano locali con l'id provvisorio
-  // "m<timestamp>" prodotto dal composer, e nulla lo legge come uuid.
+  // L'id del messaggio si normalizza solo in modalità DB: in locale resta il
+  // provvisorio "m<timestamp>".
   const sendMessage = (convId, msg) => {
     const normalized = !enabled || isUuid(msg.id) ? msg : { ...msg, id: newId() };
     setMessages(prev => ({ ...prev, [convId]: [...(prev[convId] || []), normalized] }));
     if (!enabled) return normalized;
 
-    // A-2: marca il messaggio come "in volo" PRIMA di qualunque await — è la
-    // stessa finestra di rischio descritta in state/persistence.js per i
-    // task: un evento realtime altrui può far ripartire il reload della chat
-    // (il sottosistema con la frequenza di scrittura più alta dell'app)
-    // prima che questa INSERT abbia fatto commit.
+    // A-2 · In volo PRIMA di qualunque await: un reload realtime altrui può
+    // partire prima del commit.
     marcaInVolo(convId, normalized);
 
-    // Il messaggio non è mai arrivato sul server: lasciarlo a schermo lo
-    // rende indistinguibile da uno consegnato, e sparirebbe da solo al
-    // reload — cioè nel momento in cui l'utente non lo sta più guardando.
-    // Toglierlo qui, insieme al toast, è l'unica versione onesta di "non è
-    // partito". Prima non c'era alcuna compensazione: il messaggio fantasma
-    // restava a schermo fino al refresh successivo.
+    // Messaggio mai arrivato: si toglie dallo schermo insieme al toast, o
+    // sembrerebbe consegnato.
     const scartaOttimistico = () => {
       setMessages(prev => ({
         ...prev,
@@ -270,23 +184,13 @@ export function makeChatCommands({
       }));
     };
 
-    // A-5 · Un percorso di fallimento SOLO, per i due modi in cui l'invio può
-    // non essere arrivato sul server: `esitoScrittura` legge la promise
-    // RISOLTA con un errore dentro (RLS, vincolo PostgREST — vedi
-    // lib/esitoScrittura.js), il `.catch` qui sotto quella RIGETTATA (`fetch`
-    // che fallisce, DNS giù, CORS, tab che perde la rete a metà invio). Prima
-    // solo il primo caso toglieva il messaggio fantasma: sul secondo `.then`
-    // non girava affatto, `scartaOttimistico` non girava, e restava
-    // esattamente il messaggio fantasma che il commento sopra dichiara di
-    // aver tolto — a schermo, indistinguibile da uno consegnato, destinato a
-    // sparire al prossimo reload, cioè quando l'utente non lo sta più
-    // guardando.
+    // A-5 · Un solo percorso di fallimento per i due modi: promise RISOLTA con un
+    // errore (RLS, vincolo) e promise RIGETTATA (rete). Entrambi tolgono il
+    // messaggio fantasma.
     const fallimento = (errore) => {
       scartaOttimistico();
-      // Il testo torna al mittente: toglierlo dallo schermo senza
-      // restituirlo distruggerebbe quello che ha scritto per un errore di
-      // rete — la stessa domanda a cui `formSenzaAttesaEsito` risponde per i
-      // form, posta al sottosistema che scrive più di tutti (A-5).
+      // Il testo torna al mittente (A-5): un errore di rete non deve distruggere
+      // ciò che ha scritto.
       onInvioFallito(convId, normalized);
       fallito("msg.send", errore, `Chat: invio messaggio fallito: ${errore?.message || ""}`);
     };
@@ -294,16 +198,12 @@ export function makeChatCommands({
     const invia = () => MessagesAPI.send(toDbMessage(normalized, convId))
       .then(r => { const errore = esitoScrittura(r); if (errore) fallimento(errore); })
       .catch(fallimento)
-      // finally e non .then(): un errore di rete che lasciasse l'id marcato
-      // per sempre bloccherebbe quel messaggio dal realtime per il resto
-      // della sessione — stessa ragione del finally in useSyncedDispatch.
+      // finally: un id rimasto marcato bloccherebbe il messaggio dal realtime.
       .finally(() => smarcaInVolo(normalized.id));
 
-    // Se la conversazione è appena stata creata e l'INSERT è ancora in volo,
-    // aspetta. Se quella creazione è fallita non si tenta l'invio: il toast
-    // d'errore è già stato mostrato per la conversazione (niente `fallito`
-    // qui, per non duplicarlo), ma il messaggio fantasma e il testo digitato
-    // vanno comunque tolti e restituiti — non lo farà mai nessun altro.
+    // Conversazione appena creata e ancora in volo: si aspetta. Se la creazione è
+    // fallita, niente invio (il toast c'è già), ma messaggio fantasma e testo
+    // vanno comunque tolti e restituiti.
     const attesa = creazioniInVolo.get(convId);
     if (attesa) {
       attesa.then(
@@ -316,9 +216,8 @@ export function makeChatCommands({
             invia();
           }
         },
-        // Anche la CREAZIONE della conversazione può RIGETTARE invece di
-        // risolvere: senza questo ramo il messaggio resta in volo per sempre
-        // e il realtime lo scarta per il resto della sessione (A-5).
+        // Anche la creazione può RIGETTARE (A-5): senza, il messaggio resterebbe in
+        // volo per sempre.
         (err) => { fallimento(err); smarcaInVolo(normalized.id); },
       );
     } else {
@@ -327,15 +226,9 @@ export function makeChatCommands({
     return normalized;
   };
 
-  // Pin condiviso: tutti i partecipanti vedono lo stesso stato. `pinned` è
-  // esplicito — il chiamante ha già il messaggio sotto mano e sa se sta
-  // fissando o togliendo, non serve dedurlo da un confronto. pinnedBy/pinnedAt
-  // sono l'audit: valorizzati al pin, azzerati all'unpin.
-  // `precedente` è lo stato del pin PRIMA del comando ({ pinned, pinnedBy,
-  // pinnedAt }): lo passa il chiamante, che il messaggio ce l'ha già sotto
-  // mano (ConversationView lo cerca comunque per calcolare `!target.pinned`).
-  // Serve al ripristino qui sotto: senza, un unpin fallito potrebbe essere
-  // riportato indietro solo indovinando chi aveva fissato il messaggio.
+  // Pin condiviso: `pinned` è esplicito; pinnedBy/pinnedAt valorizzati al pin,
+  // azzerati all'unpin. `precedente` ({ pinned, pinnedBy, pinnedAt }) lo passa
+  // il chiamante: serve al ripristino.
   const setMessagePinned = (convId, msgId, pinned, pinnedBy = null, precedente = null) => {
     const quando = pinned ? new Date().toISOString() : null;
     setMessages(prev => ({
@@ -346,15 +239,11 @@ export function makeChatCommands({
     }));
     if (!enabled || !isUuid(msgId)) return;
     MessagesAPI.setPinned(msgId, pinned, pinned ? pinnedBy : null).then(r => {
-      // `setPinned` chiede `count: 'exact'`: qui quel conteggio viene
-      // finalmente letto (A-2). Il pin è la scrittura più esposta al rifiuto
-      // silenzioso — è l'unica che si fa sul messaggio ALTRUI, e il trigger
-      // `messages_blocca_modifiche_altrui` (20260806150000) sorveglia proprio
-      // quelle colonne.
+      // A-2 · `count` letto: il pin è l'unica scrittura sul messaggio ALTRUI, e il
+      // trigger `messages_blocca_modifiche_altrui` sorveglia quelle colonne.
       const errore = esitoScrittura(r);
       if (errore) {
-        // Il pin ottimistico va riportato indietro: senza, il messaggio resta
-        // fissato a schermo per chi ha cliccato e per nessun altro.
+        // Pin ottimistico riportato indietro.
         const prima = precedente || { pinned: !pinned, pinnedBy: null, pinnedAt: null };
         setMessages(prev => ({
           ...prev,
@@ -367,10 +256,8 @@ export function makeChatCommands({
     });
   };
 
-  // markRead in blocco all'apertura della conversazione: update locale
-  // ottimistico + UNA RPC che marca letti tutti i non letti della conv (invece
-  // di N UPDATE, uno per messaggio). Il lettore è sempre auth.uid() lato
-  // server; origin_client è taggato, così l'eco realtime viene filtrata.
+  // markRead in blocco: update locale + UNA RPC per la conversazione. Il lettore
+  // è auth.uid() lato server; origin_client filtra l'eco.
   const markConversationRead = (convId) => {
     const uid = getCurrentUserId();
     if (!convId || !uid) return;
@@ -386,9 +273,7 @@ export function makeChatCommands({
       });
       return cambiato ? { ...prev, [convId]: next } : prev;
     });
-    // La notifica 'chat_message' di questa conversazione ha fatto il suo
-    // lavoro: spegnerla evita che la campanella resti con un non letto per una
-    // chat che l'utente sta leggendo in questo momento.
+    // Spegne la notifica 'chat_message' della conversazione che si sta leggendo.
     onConversationRead(convId);
     if (!enabled || !isUuid(convId)) return;
     MessagesAPI.markReadBulk(convId).then(r => {
@@ -398,37 +283,13 @@ export function makeChatCommands({
     });
   };
 
-  // Toggle reazione. La scrittura NON passa dal client: la RPC
-  // messages_toggle_reaction fa read-modify-write sotto lock di riga e usa
-  // sempre auth.uid() come reactor. Scrivere l'intero oggetto `reactions`
-  // calcolato qui sarebbe last-write-wins fra due utenti che reagiscono
-  // insieme. In caso di errore si torna alle SOLE reazioni precedenti del
-  // messaggio toccato.
-  //
-  // A-2 dell'audit del 14 agosto (secondo passaggio): prima il rollback
-  // ripristinava uno snapshot dell'INTERA mappa `messages` — tutte le
-  // conversazioni, non solo quella toccata. Fra il toggle e la risposta della
-  // RPC passa un round-trip, e in quella finestra possono arrivare messaggi
-  // nuovi da realtime: ripristinare lo snapshot totale li cancellava dallo
-  // stato, in ogni conversazione — un rollback che per annullare un'emoji
-  // portava via dei messaggi, senza che nulla poi li rimettesse (non erano
-  // mai stati toccati sul server). Qui si ricorda solo `reactions` del
-  // messaggio toccato, e si applica un merge puntuale.
-  // M-3 dell'audit del 14 agosto (terzo passaggio). Lo snapshot da cui
-  // dipende il rollback (`reazioniPrima`, e il flag `trovato` che dice se
-  // c'era qualcosa da annullare) veniva ASSEGNATO DENTRO l'updater di
-  // setMessages — cioè dentro la funzione che l'intestazione di questo stesso
-  // file dichiara di aver reso pura, e per una ragione precisa: React 18 la
-  // invoca due volte in StrictMode e può rieseguirla in Concurrent Rendering.
-  // Scriverci sopra variabili lette poi in un callback asincrono è la stessa
-  // forma di prima («dedurre l'intento dalla differenza di stato»), solo più
-  // piccola: il valore su cui si basa la compensazione dipende da quante volte
-  // React ha deciso di eseguire l'updater e da quale `prev` gli ha passato.
-  //
-  // Il messaggio ce l'ha già il chiamante — `handleTogglePin`, nello stesso
-  // componente, lo cerca con `msgs.find` da sempre — quindi qui si riceve
-  // `reazioniPrima` invece di estrarlo di nascosto. L'updater torna una
-  // funzione pura di `prev`, e chi compensa sa cosa sta ripristinando.
+  // Toggle reazione via RPC messages_toggle_reaction: read-modify-write sotto
+  // lock di riga, reactor = auth.uid(). Scrivere l'oggetto intero da qui
+  // sarebbe last-write-wins.
+  // A-2 · Il rollback ripristina le SOLE reazioni del messaggio toccato: uno
+  // snapshot dell'intera mappa porterebbe via i messaggi arrivati nel frattempo.
+  // M-3 · `reazioniPrima` lo passa il chiamante: estrarlo dentro l'updater lo
+  // renderebbe impuro.
   const toggleReaction = (convId, msgId, emoji, reazioniPrima = null) => {
     const uid = getCurrentUserId();
     if (!convId || !msgId || !emoji || !uid) return;
@@ -456,9 +317,7 @@ export function makeChatCommands({
     MessagesAPI.toggleReaction(msgId, emoji).then(r => {
       const errore = esitoScrittura(r);
       if (errore) {
-        // Si ripristinano le SOLE reazioni del messaggio toccato (A-2 del
-        // secondo passaggio): uno snapshot dell'intera mappa porterebbe via i
-        // messaggi arrivati nel frattempo.
+        // Solo le reazioni del messaggio toccato (A-2).
         if (reazioniPrima) {
           setMessages(prev => ({
             ...prev,

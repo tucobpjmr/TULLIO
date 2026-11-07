@@ -185,8 +185,7 @@ export const Archive = memo(function Archive({ loading = false }) {
                 onChange={e => setQuery(e.target.value)}
                 placeholder="Cerca per titolo, cliente, pratica…"
                 style={boxF13MinW0}
-                onFocus={e => e.target.style.borderColor = "var(--gold)"}
-                onBlur={e => e.target.style.borderColor = "var(--border)"}
+                className="vd-campo-fuoco"
               />
               <button type="button" onClick={() => setCategory("all")} style={chipStyle(category === "all")}>Tutte</button>
               {presentCats.map(k => (

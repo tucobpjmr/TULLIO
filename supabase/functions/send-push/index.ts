@@ -16,6 +16,7 @@
 // (npm:web-push dipende da node:crypto e sul runtime edge è meno affidabile).
 import { createClient } from "npm:@supabase/supabase-js@2.108.0";
 import * as webpush from "jsr:@negrel/webpush@0.5.0";
+import { leggiCorpoJson } from "../_shared/corpoJson.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -102,7 +103,10 @@ Deno.serve(async (req) => {
     return json({ error: "unauthorized" }, 401);
   }
 
-  let payload: {
+  // Un corpo `null` passava il try/catch e lanciava su `payload.user_id`.
+  const corpo = await leggiCorpoJson(req);
+  if (!corpo) return json({ error: "invalid json" }, 400);
+  const payload = corpo as {
     user_id?: string;
     notification_id?: string;
     type?: string;
@@ -111,11 +115,6 @@ Deno.serve(async (req) => {
     task_id?: string | null;
     conversation_id?: string | null;
   };
-  try {
-    payload = await req.json();
-  } catch {
-    return json({ error: "invalid json" }, 400);
-  }
   if (!payload.user_id) return json({ error: "user_id mancante" }, 400);
 
   const { data: subs, error } = await supabase

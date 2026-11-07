@@ -65,9 +65,14 @@ Controlli negativi: togliendo la compensazione di B-1 falliscono 4 casi su
 45 saltati (integrazione). Lint, tipi, `verifica:convenzioni` (69 controlli),
 build e `verifica:bundle` verdi.
 
-⚠️ **Le cinque Edge Function toccate NON sono ancora distribuite.** Vanno
-distribuite su staging e poi in produzione, con il nuovo
-`_shared/corpoJson.ts` e, per `set-user-active`, `statoAccesso.ts`.
+✅ **Distribuite sullo staging** il 7 novembre, `verify_jwt` invariato, con
+`_shared/corpoJson.ts` e, per `set-user-active`, `statoAccesso.ts`:
+`set-user-active` v3, `invite-user` v3, `delete-user` v3, `delete-account` v5.
+Prova d'avvio via `pg_net` con la chiave anonima: tutte 401 «Token non valido»,
+senza scritture. `send-push` sullo staging non esiste: si distribuisce solo in
+produzione.
+
+⚠️ **Produzione: NON ancora distribuite** (le quattro sopra più `send-push`).
 
 ## 6 novembre (iv) — analisi del 6 novembre: A-3 e M-3, il ciclo di vita dell'account
 

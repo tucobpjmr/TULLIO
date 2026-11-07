@@ -10,7 +10,7 @@
 //
 // Il task può non essere ancora idratato quando l'utente tocca la notifica:
 // l'id resta in sospeso finché non compare in `tasks`. È la differenza con
-// openTaskById, che mostra subito un toast "non più disponibile" — qui sarebbe
+// apriTaskDaId, che mostra subito un toast "non più disponibile" — qui sarebbe
 // un falso negativo dovuto solo al timing dell'idratazione.
 
 import { useState, useRef, useEffect } from "react";
@@ -23,7 +23,7 @@ export function usePushNavigation({ enabled, currentUserId, tasks, dispatch, onO
   //   - app già aperta → postMessage { type: 'push-open-task', taskId }
   // Il task può non essere ancora idratato al momento del click: l'id resta
   // in pendingPushTask finché non compare in state.tasks (niente toast d'errore
-  // prematuro, a differenza di openTaskById).
+  // prematuro, a differenza di apriTaskDaId).
   const pendingPushTask = useRef(null);
   const [pushNavTick, setPushNavTick] = useState(0);
   const [pushSyncTick, setPushSyncTick] = useState(0);

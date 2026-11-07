@@ -14,6 +14,7 @@ import { requireActiveAdmin } from "../_shared/requireActiveAdmin.ts";
 import { registraAudit } from "../_shared/audit.ts";
 import { entroLimite } from "../_shared/rateLimit.ts";
 import { erroreInterno } from "../_shared/erroreInterno.ts";
+import { leggiCorpoJson, MSG_CORPO_NON_VALIDO, testo } from "../_shared/corpoJson.ts";
 
 Deno.serve(async (req: Request) => {
   const cors = corsHeaders(req);
@@ -74,8 +75,9 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Troppe eliminazioni in poco tempo: riprova più tardi" }, 429);
     }
 
-    const body = await req.json();
-    const targetId: string = (body.userId ?? "").trim();
+    const body = await leggiCorpoJson(req);
+    if (!body) return json({ error: MSG_CORPO_NON_VALIDO }, 400);
+    const targetId: string = testo(body.userId);
     if (!targetId) return json({ error: "userId mancante" }, 400);
 
     // Un admin non può eliminare se stesso da qui: deve usare "Elimina account"

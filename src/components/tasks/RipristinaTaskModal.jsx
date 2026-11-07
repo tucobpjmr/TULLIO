@@ -146,8 +146,7 @@ export function RipristinaTaskModal({ task, onClose }) {
                 setErrori(prec => (prec.title ? {} : prec));
               }}
               style={boxF14WFull}
-              onFocus={e => e.target.style.borderColor = "var(--gold)"}
-              onBlur={e => e.target.style.borderColor = "var(--border)"}
+              className="vd-campo-fuoco"
               {...ariaCampo("vd-trash-title-err", errori.title)}
             />
             <FieldError id="vd-trash-title-err">{errori.title}</FieldError>
@@ -223,8 +222,7 @@ export function RipristinaTaskModal({ task, onClose }) {
               onChange={e => scrivi("client", e.target.value)}
               style={boxF14WFull}
               placeholder="Nome cliente"
-              onFocus={e => e.target.style.borderColor = "var(--gold)"}
-              onBlur={e => e.target.style.borderColor = "var(--border)"}
+              className="vd-campo-fuoco"
             />
           </div>
 
@@ -277,8 +275,7 @@ export function RipristinaTaskModal({ task, onClose }) {
               rows={3}
               style={boxF13WFull2}
               placeholder="Descrizione task..."
-              onFocus={e => e.target.style.borderColor = "var(--gold)"}
-              onBlur={e => e.target.style.borderColor = "var(--border)"}
+              className="vd-campo-fuoco"
             />
           </div>
         </div>

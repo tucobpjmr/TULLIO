@@ -131,6 +131,16 @@ const HOVER_SENZA_TASTIERA = {
     + 'docs/AUDIT_ARCHITETTURA_SICUREZZA_2026-09-04.md.',
 };
 
+// B-3 dell'analisi del 6 novembre: il bordo di un campo a fuoco si dà con la
+// classe CSS, non scrivendo `style` da onFocus/onBlur.
+const FOCUS_SCRITTO_A_MANO = {
+  selector: "JSXAttribute[name.name=/^on(Focus|Blur)$/] AssignmentExpression"
+    + "[left.object.type='MemberExpression'][left.object.property.name='style']",
+  message:
+    'Lo stile di un campo a fuoco va nel CSS: usa className="vd-campo-fuoco" '
+    + '(o "vd-campo-fuoco-danger"), definite in styles/global.css.',
+};
+
 const VIETATO_APPGLOBALS = {
   group: ['**/state/appGlobals', '**/state/appGlobals.js'],
   message:
@@ -529,7 +539,7 @@ export default [
       }],
       'no-restricted-syntax': ['error', STILE_INLINE_COSTANTE, VIETATO_CONTEXT_VALUE_LETTERALE,
         VIETATO_COMMON_NOMINATO, VIETATO_DISPATCH_PROP, CELLA_TABELLA_CLICCABILE_SENZA_TASTIERA,
-        HOVER_SENZA_TASTIERA],
+        HOVER_SENZA_TASTIERA, FOCUS_SCRITTO_A_MANO],
     },
   },
   // Il confine vale per i COMPONENTI. Non per src/hooks/ (è lì che i dati

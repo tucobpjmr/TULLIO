@@ -60,6 +60,8 @@ import { gateStorageSenzaElenco } from './storage.js';
 // sorgente, non solo a una riga di tabella — vedi ANCORE più sotto. File a sé
 // (ancore.js) perché convenzioni.js aveva superato la soglia di max-lines.
 import { verificaAncore, entryTaskSenzaRollback } from './ancore.js';
+// M-4 (analisi del 6 novembre): i due tetti sul costo di lettura.
+import { quotaCommenti, leggiTettoCommenti, leggiTettoClaudeMd } from './peso.js';
 
 // ─── ANCORE (M-3 dell'audit del 2 settembre) ────────────────────────────────
 // Il controllo n. 7 (leggiStatoAudit/leggiStatoIndex) confronta la tabella di
@@ -516,6 +518,24 @@ async function main() {
     nome: `file oltre ${TETTO_FISICO} righe fisiche`, dove: 'scripts/verifica-convenzioni/convenzioni.js',
     dichiarato: 0, misurato: troppoLunghi.length,
     rimedio: `La parte NARRATIVA (com'era prima, quale audit lo ha cambiato) va in docs/, non cancellata: ${troppoLunghi.map(f => `${f.path} (${f.righe})`).join(', ')}`,
+  });
+
+  // 5-quater-bis-0 · M-4 (analisi del 6 novembre). Il costo di lettura: la
+  //    quota di commenti in src/ e il peso di CLAUDE.md, entrambi sotto un
+  //    tetto dichiarato in CLAUDE.md (§ Commenti). Il tetto si abbassa a mano.
+  const commenti = quotaCommenti(sorgenti);
+  const tettoCommenti = leggiTettoCommenti(claudeMd);
+  controlli.push({
+    nome: `commenti in src/: ${commenti.percento.toFixed(1)}% (tetto ${tettoCommenti}%)`, dove: 'docs/CLAUDE.md',
+    dichiarato: 0, misurato: commenti.percento > tettoCommenti ? 1 : 0,
+    rimedio: `I commenti sono il ${commenti.percento.toFixed(1)}% delle righe: accorcia quelli nuovi. La storia (com'era prima, quale audit) va nel CHANGELOG, nel codice resta il perché.`,
+  });
+  const kbClaudeMd = Buffer.byteLength(claudeMd, 'utf8') / 1024;
+  const tettoClaudeMd = leggiTettoClaudeMd(claudeMd);
+  controlli.push({
+    nome: `docs/CLAUDE.md: ${kbClaudeMd.toFixed(1)} KB (tetto ${tettoClaudeMd} KB)`, dove: 'docs/CLAUDE.md',
+    dichiarato: 0, misurato: kbClaudeMd > tettoClaudeMd ? 1 : 0,
+    rimedio: `CLAUDE.md pesa ${kbClaudeMd.toFixed(1)} KB: una regola sta in una o due righe, il ragionamento lungo va in docs/CLAUDE_DETTAGLI.md.`,
   });
 
   // 5-quater-bis · M-4 (audit del 10 settembre). Il tema scuro vale per ciò che

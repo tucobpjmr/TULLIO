@@ -31,6 +31,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { entroLimite } from "../_shared/rateLimit.ts";
 import { erroreInterno } from "../_shared/erroreInterno.ts";
 import { registraAudit } from "../_shared/audit.ts";
+import { leggiCorpoJson } from "../_shared/corpoJson.ts";
 import { emailAnonima, metadatiAzzerati, verificaPassword } from "./riautenticazione.ts";
 
 Deno.serve(async (req: Request) => {
@@ -75,7 +76,7 @@ Deno.serve(async (req: Request) => {
 
     // Un corpo assente o non JSON vale «password mancante» (400), non un
     // guasto (500): è una richiesta incompleta, non un errore del server.
-    const corpo = await req.json().catch(() => null) as { password?: unknown } | null;
+    const corpo = await leggiCorpoJson(req);
     const password = typeof corpo?.password === "string" ? corpo.password : "";
     if (!password) return json({ error: "Per eliminare l'account serve la tua password." }, 400);
     if (!user.email) {

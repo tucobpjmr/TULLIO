@@ -156,8 +156,7 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
         rows={4}
         maxLength={500}
         style={boxF13WFull}
-        onFocus={e => e.target.style.borderColor = "var(--gold)"}
-        onBlur={e => e.target.style.borderColor = "var(--border)"}
+        className="vd-campo-fuoco"
       />
       <FieldError id="vd-notice-text-err">{errori.text}</FieldError>
       <div style={rowBetweenMt4}>

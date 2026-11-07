@@ -150,8 +150,7 @@ export const ArchivedListe = ({ isMobile }) => {
             onChange={e => setQuery(e.target.value)}
             placeholder="Cerca per cliente, titolo, note…"
             style={boxF13MinW0}
-            onFocus={e => e.target.style.borderColor = "var(--gold)"}
-            onBlur={e => e.target.style.borderColor = "var(--border)"}
+            className="vd-campo-fuoco"
           />
         </div>
       )}

@@ -21,9 +21,10 @@ export class LetturaFallita extends Error {}
 // Una definizione e non tre: era ricopiata in due funzioni con due forme
 // diverse (una arrow, una costante locale), che è il modo in cui due copie
 // della stessa lettura cominciano a divergere.
+// Una regex sola, da sinistra a destra: un `/*` dentro un commento `//`
+// (`src/components/**`) non apre un blocco che si mangia il codice dopo.
 const senzaCommenti = (testo) => testo
-  .replace(/\/\*[\s\S]*?\*\//g, ' ')
-  .replace(/\/\/[^\n]*/g, ' ');
+  .replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, ' ');
 
 /**
  * Legge dal testo di un documento il conteggio dei casi `react/no-multi-comp`

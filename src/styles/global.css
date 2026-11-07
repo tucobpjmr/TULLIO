@@ -298,6 +298,14 @@ body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: va
   box-shadow: 0 0 0 4px var(--focus-alone) !important;
 }
 
+/* ─── BORDO DEL CAMPO A FUOCO (B-3 dell'analisi del 6 novembre) ───
+   Era scritto in 15 campi da onFocus/onBlur con `e.target.style`: il blur
+   rimetteva `var(--border)` anche su un bordo di base diverso. `:focus` e non
+   `:focus-visible`: il bordo segue anche il click, come prima. `!important`
+   perché il bordo di base è inline, e l'inline vince sulla cascata. */
+.vd-campo-fuoco:focus { border-color: var(--gold) !important; }
+.vd-campo-fuoco-danger:focus { border-color: var(--danger) !important; }
+
 /* ─── RESPONSIVE ─── */
 /* Griglie adattive: collassano su tablet/mobile via media query.
    Gli stili inline restano il default desktop; queste regole hanno la priorità grazie a !important. */

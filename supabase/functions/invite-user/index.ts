@@ -13,6 +13,7 @@ import { redirectConsentito } from "../_shared/originConsentite.ts";
 import { registraAudit } from "../_shared/audit.ts";
 import { entroLimite } from "../_shared/rateLimit.ts";
 import { erroreInterno } from "../_shared/erroreInterno.ts";
+import { leggiCorpoJson, MSG_CORPO_NON_VALIDO, testo } from "../_shared/corpoJson.ts";
 
 const VALID_ROLES = new Set(["admin", "manager", "agent", "driver"]);
 
@@ -68,10 +69,11 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Troppi inviti in poco tempo: riprova più tardi" }, 429);
     }
 
-    const body = await req.json();
-    const email: string = (body.email ?? "").trim().toLowerCase();
-    const name: string = (body.name ?? "").trim();
-    const rawRole: string = body.role ?? "agent";
+    const body = await leggiCorpoJson(req);
+    if (!body) return json({ error: MSG_CORPO_NON_VALIDO }, 400);
+    const email: string = testo(body.email).toLowerCase();
+    const name: string = testo(body.name);
+    const rawRole: string = testo(body.role);
     const role: string = VALID_ROLES.has(rawRole) ? rawRole : "agent";
     // B-1 dell'audit del 13 agosto: `Number(body.capacity) || 8` accettava
     // qualunque numero — negativo, frazionario, 1e9 — perché `||` scarta solo

@@ -10,6 +10,7 @@ conclusa mesi prima. Questo indice risponde a quella domanda.
 | Documento | Cosa contiene | Quando leggerlo |
 |---|---|---|
 | [`CLAUDE.md`](CLAUDE.md) | Convenzioni, pattern, helper, caveat accumulati, mappa dei file | **Prima di qualsiasi modifica al codice** |
+| [`CLAUDE_DETTAGLI.md`](CLAUDE_DETTAGLI.md) | Il perché, per esteso, delle regole di `CLAUDE.md` (stessi titoli in grassetto) | Quando si tocca l'area di una regola |
 | [`SICUREZZA.md`](SICUREZZA.md) | Modello di sicurezza: RLS, ruoli, superficie esposta | Prima di toccare policy, RPC o Edge Function |
 | [`MIGRAZIONI_SUPABASE.md`](MIGRAZIONI_SUPABASE.md) | Come si scrive e si applica una migrazione | Prima di aggiungere un file in `supabase/migrations/` |
 | [`PROJECT_SPEC.md`](PROJECT_SPEC.md) | Specifiche funzionali e architettura | Per capire *perché* una feature è fatta così |

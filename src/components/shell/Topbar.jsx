@@ -172,8 +172,8 @@ export const Topbar = memo(function Topbar({
           <input
             value={ricerca}
             onChange={e => { onSearchChange(e.target.value); setSearchOpen(true); }}
-            onFocus={e => { setSearchOpen(true); e.target.style.borderColor = "var(--gold)"; }}
-            onBlur={e => { e.target.style.borderColor = "var(--border)"; }}
+            onFocus={() => setSearchOpen(true)}
+            className="vd-campo-fuoco"
             placeholder={isMobile ? "Cerca..." : "Cerca task, clienti, categorie... (Ctrl+K)"}
             aria-label="Cerca"
             style={boxF13Navy}

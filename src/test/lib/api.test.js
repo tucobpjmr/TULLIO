@@ -7,9 +7,8 @@
 // e che gli errori non blocchino comunque l'eliminazione della riga task.
 //
 // M-4: le due varianti condividono un'implementazione sola e filtrano con `in`
-// anche per un id singolo. Il caso in blocco è quello che conta davvero — è
-// EMPTY_TRASH — e deve restare a TRE round-trip qualunque sia il numero di
-// task, non tre per task come nel `Promise.all(ids.map(hardDelete))` di prima.
+// anche per un id singolo. Il caso in blocco è EMPTY_TRASH: tre round-trip per
+// blocco da 100 id (B-2 del 6 novembre), non tre per task.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Stato mutabile letto dai mock: ogni test lo aggiorna per simulare lo
@@ -140,7 +139,7 @@ describe("TasksAPI.hardDeleteMany — purge in blocco", () => {
     state.storageRemove = { data: null, error: null };
   });
 
-  it("elimina N task con tre round-trip in tutto, non tre per task", async () => {
+  it("elimina N task (un blocco) con tre round-trip in tutto, non tre per task", async () => {
     state.taskFilesSelect = {
       data: [{ file_url: `${TASK_ID}/a.pdf` }, { file_url: `${ALTRO_ID}/b.png` }],
       error: null,
@@ -162,12 +161,49 @@ describe("TasksAPI.hardDeleteMany — purge in blocco", () => {
   it("con un elenco vuoto non tocca il server", async () => {
     const res = await Tasks.hardDeleteMany([]);
     expect(calls).toEqual([]);
-    expect(res).toEqual({ error: null });
+    expect(res).toEqual({ error: null, eliminati: [] });
   });
 
   it("propaga l'errore della delete: è quello che innesca il rollback", async () => {
     state.tasksDelete = { data: null, error: { message: "riga bloccata" } };
     const res = await Tasks.hardDeleteMany([TASK_ID]);
     expect(res.error).toEqual({ message: "riga bloccata" });
+    expect(res.eliminati).toEqual([]);
+  });
+});
+
+// B-2 dell'analisi del 6 novembre: gli id vanno nell'URL, quindi a blocchi.
+const idN = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+
+describe("TasksAPI.hardDeleteMany — a blocchi da PURGE_BLOCCO", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    calls.length = 0;
+    state.taskFilesSelect = { data: [], error: null };
+    state.tasksDelete = { data: null, error: null };
+    state.storageRemove = { data: null, error: null };
+  });
+
+  it("250 task: tre DELETE, nessuna con più di 100 id, nell'ordine", async () => {
+    const ids = Array.from({ length: 250 }, (_, i) => idN(i));
+    const res = await Tasks.hardDeleteMany(ids);
+    expect(tasksDeleteInMock).toHaveBeenCalledTimes(3);
+    const blocchi = tasksDeleteInMock.mock.calls.map(([, lista]) => lista);
+    expect(blocchi.map((b) => b.length)).toEqual([100, 100, 50]);
+    expect(blocchi.flat()).toEqual(ids);
+    // Anche la lettura degli allegati usa l'URL: stessi blocchi.
+    expect(taskFilesSelectInMock.mock.calls.map(([, lista]) => lista.length)).toEqual([100, 100, 50]);
+    expect(res).toEqual({ error: null, eliminati: ids });
+  });
+
+  it("un blocco fallito ferma i successivi e dice quali task sono già eliminati", async () => {
+    const ids = Array.from({ length: 250 }, (_, i) => idN(i));
+    tasksDeleteInMock
+      .mockImplementationOnce(() => Promise.resolve({ data: null, error: null }))
+      .mockImplementationOnce(() => Promise.resolve({ data: null, error: { message: "rete" } }));
+    const res = await Tasks.hardDeleteMany(ids);
+    expect(tasksDeleteInMock).toHaveBeenCalledTimes(2);
+    expect(res.error).toEqual({ message: "rete" });
+    expect(res.eliminati).toEqual(ids.slice(0, 100));
   });
 });

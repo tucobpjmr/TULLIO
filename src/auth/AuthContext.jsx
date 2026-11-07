@@ -6,22 +6,13 @@ import { messaggioCambioPassword } from '../lib/erroriCambioPassword.js';
 
 const AuthContext = createContext(null);
 
-// Timeout per le chiamate di init auth (getSession + query profilo). Su
-// mobile (WebView Android, PWA riportata in foreground dopo essere rimasta
-// a lungo in background) una richiesta di rete può restare "appesa" senza
-// mai risolversi né rigettarsi (lock del refresh token bloccato, socket
-// morto non ancora rilevato dal sistema operativo). In quel caso la Promise
-// chain getSession()→caricaProfilo()→impostaCaricando(false) non arriva mai al
-// finally: niente errore da intercettare, solo uno spinner "Caricamento…"
-// bloccato a tempo indeterminato, risolvibile solo da un refresh manuale
-// (che ricrea la connessione di rete da zero). withTimeout forza quella
-// Promise appesa a rigettare, così rientra nella gestione errori esistente
-// (authError + retry) invece di restare bloccata per sempre.
+// Timeout per l'init auth (getSession + profilo). Su mobile una richiesta può
+// restare appesa per sempre (lock del refresh token, socket morto): senza,
+// lo spinner «Caricamento…» non si chiuderebbe mai. withTimeout la fa
+// rigettare e rientrare nella gestione errori (authError + retry).
 const AUTH_TIMEOUT_MS = 15000;
 
-// Tetto alla revoca delle push al logout (A-1, audit del 4 novembre): oltre,
-// si esce comunque. Più corto di AUTH_TIMEOUT_MS perché qui l'utente ha
-// appena premuto «Esci» e aspetta solo quello.
+// A-1 · Tetto alla revoca delle push al logout: oltre, si esce comunque.
 export const REVOCA_PUSH_TIMEOUT_MS = 5000;
 
 function withTimeout(promise, ms, label) {
@@ -34,14 +25,8 @@ function withTimeout(promise, ms, label) {
   });
 }
 
-// Ritenta automaticamente e in silenzio una chiamata di init prima di
-// arrendersi. Il primo avvio "a freddo" (progetto Supabase in pausa dopo
-// inattività, mobile che ristabilisce la connessione al ritorno in foreground)
-// può far fallire la PRIMA richiesta con un errore transitorio (o un cold
-// start lentissimo), mentre il tentativo successivo su connessione ormai
-// "calda" va a buon fine. Ritentando qui, l'utente resta sullo spinner
-// "Caricamento…" ancora un attimo invece di vedere lampeggiare una schermata
-// d'errore che si risolve da sola dopo un secondo.
+// Ritenta in silenzio l'init prima di arrendersi: al primo avvio a freddo la
+// PRIMA richiesta può fallire e la seconda riuscire.
 const AUTH_RETRIES = 2;
 const AUTH_RETRY_DELAY_MS = 1200;
 
@@ -63,12 +48,9 @@ async function withRetry(fn, label) {
   throw lastErr;
 }
 
-// Rileva dal frammento URL con quale tipo di link Auth è arrivato l'utente.
-// I link di RECUPERO password emettono anche l'evento PASSWORD_RECOVERY, ma i
-// link di INVITO (inviteUserByEmail) NO: arrivano come SIGNED_IN con
-// '#...&type=invite'. Senza questo controllo l'invitato entrerebbe in app senza
-// mai vedere la schermata "imposta password", restando di fatto costretto al
-// recupero password. Letto in modo sincrono al primo render, prima che
+// Il tipo di link Auth dal frammento URL. ⚠️ I link di INVITO non emettono
+// PASSWORD_RECOVERY (arrivano come SIGNED_IN con `type=invite`): senza questo
+// l'invitato non vedrebbe mai «imposta password». Letto prima che
 // detectSessionInUrl ripulisca l'hash.
 function detectAuthLinkType() {
   if (typeof window === 'undefined') return null;
@@ -77,9 +59,7 @@ function detectAuthLinkType() {
   return t === 'invite' || t === 'recovery' ? t : null;
 }
 
-// Catturato UNA volta al caricamento del modulo: detectSessionInUrl ripulisce
-// l'hash in modo asincrono, quindi leggerlo qui (prima del primo render React)
-// è più robusto che leggerlo dentro il componente, che potrebbe rimontare.
+// Catturato una volta al caricamento del modulo, prima del primo render.
 const INITIAL_AUTH_LINK_TYPE = detectAuthLinkType();
 
 export function AuthProvider({ children }) {
@@ -87,29 +67,17 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [team, setTeam] = useState([]);
   const [caricando, impostaCaricando] = useState(true);
-  // recovery=true quando l'utente arriva da un link che richiede di impostare
-  // la password: "reimposta password" (evento PASSWORD_RECOVERY) oppure "invito"
-  // (type=invite nell'URL). In quel caso mostriamo la schermata di impostazione
-  // password invece dell'app, anche se la session è valida. recoveryKind
-  // distingue i due casi per adattare i testi (primo accesso vs recupero).
+  // recovery=true: link che chiede di impostare la password (recupero o invito).
+  // Si mostra quella schermata anche con una session valida; recoveryKind
+  // adatta i testi.
   const [recovery, setRecovery] = useState(!!INITIAL_AUTH_LINK_TYPE);
   const [recoveryKind, setRecoveryKind] = useState(INITIAL_AUTH_LINK_TYPE);
-  // Errore del caricamento profilo/sessione iniziale: senza, un blip di rete
-  // (es. connessione DB "a freddo" dopo inattività) lasciava l'app bloccata
-  // sulla schermata "Caricamento…" per sempre, recuperabile solo con un
-  // refresh manuale della pagina. Con authError mostriamo un retry esplicito.
+  // Errore dell'init: si mostra un retry esplicito invece di uno spinner eterno.
   const [authError, setAuthError] = useState(null);
-  // Ref alla funzione di init corrente, così retryInit può rieseguirla senza
-  // ricreare l'effetto (vedi commento sopra all'useEffect).
+  // La funzione di init corrente, per rieseguirla da retryInit.
   const initAuthRef = useRef(null);
-  // Deduplica i caricamenti profilo concorrenti sullo stesso utente. All'avvio
-  // caricaProfilo veniva chiamata DUE volte quasi in contemporanea: una da
-  // initAuth (dopo getSession) e una dall'evento INITIAL_SESSION che
-  // onAuthStateChange emette subito alla sottoscrizione. Due query concorrenti
-  // sul DB "a freddo": se una falliva e l'altra riusciva, la prima faceva
-  // lampeggiare la schermata d'errore prima che la seconda montasse l'app
-  // ("errore, poi si connette"). Con un'unica richiesta in volo per utente il
-  // race sparisce.
+  // Un solo caricamento profilo in volo per utente: all'avvio initAuth e
+  // INITIAL_SESSION lo chiedevano insieme, e uno dei due poteva fallire.
   const caricamentoInVoloRef = useRef(null);
 
   const caricaProfilo = useCallback((userId) => {
@@ -120,74 +88,40 @@ export function AuthProvider({ children }) {
     const promise = (async () => {
       if (!userId) { setProfile(null); setTeam([]); setAuthError(null); return; }
       try {
-        // Import dinamico e non statico in cima al file (B-2 dell'audit del
-        // 30 agosto): questa è l'UNICA riga di AuthContext.jsx che tocca il
-        // client pieno (postgrest). Fino a qui — getSession, login, sign out
-        // — è passato tutto da lib/supabaseAuth.js, che non porta con sé
-        // @supabase/supabase-js. Chi resta sulla schermata di login non
-        // arriva mai qui, quindi non scarica mai il chunk che contiene
-        // postgrest/realtime/storage. Chi invece HA una sessione lo scarica
-        // ora, in parallelo al chunk di VoyageDesk (anch'esso lazy) che ne ha
-        // comunque bisogno un attimo dopo. `getSupabase()` è a sua volta lazy
-        // (vedi lib/supabase.js): questo import statico del MODULO non porta
-        // ancora con sé @supabase/supabase-js, solo la funzione che lo importa.
+        // B-2 · Import dinamico: è l'unica riga che tocca il client pieno. Chi resta
+        // sul login non scarica mai postgrest/realtime/storage.
         const { getSupabase } = await import('../lib/supabase.js');
         const supabase = await getSupabase();
         const { me, all, contacts } = await withRetry(async () => {
           const [{ data: me, error: meError }, { data: all, error: allError }, { data: contacts }] = await withTimeout(
             Promise.all([
               supabase.from('users').select('*').eq('id', userId).single(),
-              // Nessun filtro su active: gli admin devono vedere anche utenti pending
-              // (per approvarli) e disabilitati. Le viste task usano getAssignableTeam()
-              // che filtra a sua volta active=true + pending=false (lib/permissions.js).
+              // Nessun filtro su active: l'admin vede anche pending e disattivati.
+              // getAssignableTeam() filtra per le viste task.
               supabase.from('users').select('*').order('name'),
-              // email/phone vivono in public.user_contacts. Le carico solo per
-              // l'utente loggato e le rimergio nel profilo e nella sua entry di
-              // team, così ProfileEditor le mostra.
-              //
-              // ATTENZIONE a cosa NON dice questo: caricarne una sola non è una
-              // restrizione di sicurezza, è solo ciò che serve qui. La policy di
-              // SELECT è `user_id = auth.uid() or private.can_liste()`: ognuno
-              // legge il proprio contatto, e la rubrica del team la leggono i
-              // ruoli interni (admin/manager/agent attivi e approvati). Il
-              // driver ne è FUORI — decisione di prodotto del 5 settembre,
-              // migrazione 20260905115909, M-7 dell'audit del 4 settembre, che
-              // ha ristretto la rubrica aperta a ogni autenticato dalla
-              // 20260629222802. INSERT/UPDATE restano own+admin, quindi nessuno
-              // può modificare i contatti altrui.
-              //
-              // Questo commento ha già sbagliato due volte, e in due direzioni
-              // opposte: prima prometteva "solo proprietario+admin, by-design
-              // privacy hardening" dopo che la 20260629222802 aveva aperto la
-              // rubrica a tutti; poi ha dichiarato `using (true)` ed è rimasto
-              // così dopo che M-7 ne aveva escluso il driver. La lezione non è
-              // "scrivere commenti migliori": è che a tenerlo onesto è il caso
-              // in src/test/integration/rls.test.js, che interroga la policy
-              // vera con un driver e con un ruolo interno. Se cambi la policy,
-              // quel test lo dice — questo commento no.
+              // email/phone stanno in public.user_contacts: si caricano per l'utente
+              // loggato e si rimettono nel profilo e nella sua entry di team.
+              // Non è una restrizione di sicurezza. La policy di SELECT oggi è
+              // `user_id = auth.uid() or private.can_liste()` (il driver ne è fuori);
+              // INSERT/UPDATE restano own+admin. ⚠️ Questo commento è già stato sbagliato
+              // due volte: a tenerlo onesto è il caso in src/test/integration/rls.test.js.
               supabase.from('user_contacts').select('email, phone').eq('user_id', userId).maybeSingle(),
             ]),
             AUTH_TIMEOUT_MS,
             'caricaProfilo',
           );
-          // Errori/righe mancanti rientrano nel retry: al primo avvio a freddo
-          // il token può non essere ancora rinfrescato e le RLS restituiscono
-          // vuoto, cosa che si risolve al tentativo successivo.
+          // Errori o righe mancanti rientrano nel retry: a freddo il token può non
+          // essere ancora rinfrescato.
           if (meError || !me) throw meError || new Error('Profilo non trovato');
           if (allError) throw allError;
-          // B-1 dell'analisi del 4 novembre: la propria riga di `users` è
-          // sempre leggibile (policy `users_select_self_o_attivo`), quindi un
-          // team che non contiene chi ha fatto login è una risposta
-          // incoerente, non un'agenzia vuota. Rientra nel retry come il
-          // profilo mancante; se persiste, AuthGate mostra l'errore invece di
-          // montare un'app senza persistenza.
+          // B-1 · La propria riga di `users` è sempre leggibile: un team senza chi ha
+          // fatto login è una risposta incoerente. Retry; se persiste, AuthGate
+          // mostra l'errore.
           if (!all?.some((u) => u.id === userId)) throw new Error('Team vuoto o incompleto');
           return { me, all, contacts };
         }, 'caricaProfilo');
         const myContacts = { email: contacts?.email ?? null, phone: contacts?.phone ?? null };
-        // Normalizza la colonna DB photo_url → photoUrl (camelCase) atteso da
-        // Avatar/ProfileEditor (caveat #25): senza, la foto persistita non si
-        // ri-mostrerebbe dopo il reload.
+        // photo_url → photoUrl, atteso da Avatar/ProfileEditor.
         const normalize = (u) => ({ ...u, photoUrl: u.photo_url ?? null });
         setProfile({ ...normalize(me), ...myContacts });
         setTeam((all ?? []).map(u => u.id === userId ? { ...normalize(u), ...myContacts } : normalize(u)));
@@ -199,9 +133,7 @@ export function AuthProvider({ children }) {
     })();
 
     caricamentoInVoloRef.current = { key, promise };
-    // Libera lo slot a fine caricamento così una richiesta successiva (es.
-    // USER_UPDATED, o un retry esplicito dell'utente) riparte da capo.
-    // TOKEN_REFRESHED non arriva più fin qui (B-2, vedi onAuthStateChange).
+    // Libera lo slot: la richiesta successiva riparte da capo.
     promise.finally(() => {
       if (caricamentoInVoloRef.current?.promise === promise) caricamentoInVoloRef.current = null;
     });
@@ -224,61 +156,34 @@ export function AuthProvider({ children }) {
         console.error('[auth] init failed', err);
         if (mounted) setAuthError(err);
       } finally {
-        // Sempre eseguito: senza questo, un errore/rifiuto in getSession() o
-        // caricaProfilo() lasciava `caricando` bloccato a true per sempre (nessun
-        // catch a monte → la Promise chain non arrivava mai a impostaCaricando(false)).
+        // Sempre eseguito: altrimenti un errore lascerebbe `caricando` a true.
         if (mounted) impostaCaricando(false);
       }
     };
-    // Esposta via retryInit: se getSession() stessa va in errore/timeout
-    // (session mai ottenuta), il retry deve rieseguire l'intera sequenza,
-    // non solo caricaProfilo (a differenza di refreshTeam, usato quando la
-    // session c'è già ma il profilo no).
+    // retryInit riesegue l'intera sequenza (anche getSession), non solo il profilo.
     initAuthRef.current = initAuth;
     initAuth();
 
-    // ATTENZIONE: questo callback DEVE restare SINCRONO, senza await di
-    // chiamate supabase al suo interno. gotrue-js emette gli eventi (compreso
-    // INITIAL_SESSION, sparato subito alla sottoscrizione) TENENDO il lock
-    // auth (navigator.locks) e ASPETTANDO che il callback finisca. Qualsiasi
-    // query awaited qui dentro deve prima ottenere l'access token →
-    // getSession() → lo STESSO lock: attesa circolare. In pratica all'avvio:
-    // initAuth faceva partire caricaProfilo, le cui query restavano in coda sul
-    // lock; il callback INITIAL_SESSION (che il lock lo deteneva) faceva
-    // await della STESSA promise deduplicata da caricamentoInVoloRef → deadlock.
-    // Risultato: schermata "Caricamento…" bloccata a ogni avvio (desktop e
-    // mobile) finché non scadevano timeout+retry (~45s), risolvibile in
-    // pratica solo con un refresh manuale — che a volte vinceva il race sul
-    // lock e quindi "funzionava". setTimeout(0) rimanda il lavoro a dopo il
-    // ritorno del callback: il lock si libera subito e caricaProfilo procede.
+    // ⚠️ Questo callback DEVE restare SINCRONO: gotrue lo chiama tenendo il lock
+    // auth (navigator.locks) e aspetta che finisca. Una query awaited qui chiede
+    // lo stesso lock per il token → deadlock («Caricamento…» bloccato a ogni
+    // avvio). setTimeout(0) rimanda il lavoro a dopo il ritorno del callback.
     const { data: sub } = supabaseAuth.onAuthStateChange((evento, s) => {
       if (evento === 'PASSWORD_RECOVERY') {
         setRecovery(true);
         setRecoveryKind(prev => prev ?? 'recovery');
       }
-      // ─── B-2 dell'analisi del 4 novembre ─────────────────────────────────
-      // gotrue emette TOKEN_REFRESHED a ogni rinnovo del token (circa ogni
-      // ora, e al ritorno in primo piano di una scheda rimasta ferma). Prima
-      // ogni evento faceva due cose: un oggetto `session` nuovo — quindi un
-      // value nuovo del contesto e un giro di render di tutto ciò che legge
-      // useAuth() — e un caricaProfilo completo (tre query) per un utente che
-      // non era cambiato. Ora la session si sostituisce solo quando cambia
-      // CHI è collegato (login, logout, cambio account): nessun consumatore
-      // legge il token da qui — le richieste lo prendono dal client
-      // (lib/supabase.js), che lo ha sempre fresco.
+      // B-2 · TOKEN_REFRESHED arriva a ogni rinnovo del token. La session si
+      // sostituisce solo quando cambia CHI è collegato: nessun consumatore legge il
+      // token da qui (le richieste lo prendono dal client).
       setSession(prev => ((prev?.user?.id ?? null) === (s?.user?.id ?? null) ? prev : s));
       // Il rinnovo del token non cambia né il profilo né il team.
       if (evento === 'TOKEN_REFRESHED') return;
       setTimeout(() => {
         if (!mounted) return;
         caricaProfilo(s?.user?.id).finally(() => {
-          // Sblocca lo spinner anche da qui, non solo dal finally di initAuth.
-          // INITIAL_SESSION è un segnale indipendente da getSession() che lo
-          // stato auth iniziale è determinato: su avvio a freddo getSession()
-          // può restare appesa (socket morto su mobile/PWA) e in quel caso
-          // session e profilo arrivano da QUI. Chiudendo `caricando` in entrambi
-          // i percorsi l'app monta appena i dati sono pronti, da qualunque dei
-          // due arrivi per primo.
+          // Sblocca lo spinner anche da qui: a freddo getSession() può restare appesa,
+          // e session e profilo arrivano da INITIAL_SESSION.
           if (mounted) impostaCaricando(false);
         });
       }, 0);
@@ -287,39 +192,23 @@ export function AuthProvider({ children }) {
     return () => { mounted = false; sub.subscription.unsubscribe(); };
   }, [caricaProfilo]);
 
-  // Tutte le funzioni qui sotto sono useCallback: sono nelle dipendenze del
-  // useMemo di `value` più sotto, e senza identità stabile lo vanificherebbero
-  // — un value "memoizzato" le cui dipendenze cambiano a ogni render è di
-  // nuovo un oggetto nuovo a ogni render (VIETATO_CONTEXT_VALUE_LETTERALE
-  // in eslint.config.js, suggerimento strategico n.2 dell'audit del 16
-  // agosto — nato proprio per impedire che questo file tornasse qui).
+  // useCallback per tutte: sono dipendenze del useMemo di `value`.
   const signIn = useCallback((email, password) =>
     supabaseAuth.signInWithPassword({ email, password }), []);
 
-  // La registrazione self-service è stata rimossa (S-13): l'unico modo di
-  // entrare nel gestionale è l'invito (Edge Function invite-user). Il trigger
-  // handle_new_auth_user resta al suo posto e continua a creare il profilo con
-  // pending=true — è la rete di sicurezza se un account nascesse comunque, per
-  // esempio da una chiamata diretta a /auth/v1/signup finché il signup non è
-  // disattivato anche nella dashboard Supabase.
+  // La registrazione self-service non esiste (S-13): si entra solo per invito.
+  // Il trigger handle_new_auth_user crea comunque il profilo con pending=true.
 
-  // B-4 dell'audit del 5 settembre. `signOut()` non ricarica la pagina — la
-  // SPA torna alla LoginScreen — quindi senza svuotare le cache di signed
-  // URL (src/lib/api/storage.js), le URL firmate di chi esce restano in
-  // memoria fino al loro TTL e le vedrebbe anche il prossimo utente che
-  // entra nella stessa scheda. Import dinamico di lib/api.js per lo stesso
-  // motivo di deleteAccount/caricaProfilo: non riportare nel grafo eager
-  // ciò che B-2 ne aveva tolto.
+  // B-4 · `signOut()` non ricarica la pagina: si svuotano le cache di signed
+  // URL, o le vedrebbe chi entra dopo nella stessa scheda. Import dinamico come
+  // deleteAccount.
   const svuotaCache = useCallback(async () => {
     const { svuotaCacheUrl } = await import('../lib/api.js');
     svuotaCacheUrl();
   }, []);
 
-  // A-1 dell'audit del 4 novembre: all'uscita le push di questo dispositivo si
-  // revocano, altrimenti su un PC condiviso arrivano a chi entra dopo. Va
-  // chiamata PRIMA del signOut (la DELETE su push_subscriptions passa dalla
-  // RLS) e con un tetto di tempo: senza rete il logout non deve restare appeso.
-  // Import dinamico per la stessa ragione di svuotaCache.
+  // A-1 · All'uscita si revocano le push di questo dispositivo (PC condivisi).
+  // PRIMA del signOut (la DELETE passa dalla RLS) e con un tetto di tempo.
   const uidSessione = session?.user?.id ?? null;
   const revocaPush = useCallback(async (opzioni) => {
     try {
@@ -330,11 +219,9 @@ export function AuthProvider({ children }) {
     }
   }, [uidSessione]);
 
-  // M-4 dell'audit del 4 novembre: le scritture fatte senza rete e non ancora
-  // consegnate stanno su IndexedDB con l'azione intera (nomi di clienti,
-  // contatti, testi). All'uscita si tolgono quelle di chi esce: restavano lì
-  // fino a sette giorni, su un dispositivo che in agenzia è spesso condiviso.
-  // Chi le avrebbe perse è avvisato PRIMA, dal guscio (shell/confermaUscita.js).
+  // M-4 · All'uscita si tolgono le scritture offline di chi esce (su IndexedDB
+  // c'è l'azione intera). L'avviso a chi le perderebbe lo dà il guscio
+  // (shell/confermaUscita.js).
   const svuotaCoda = useCallback(async () => {
     try {
       const { svuotaScrittureDi } = await import('../state/codaDispositivo.js');
@@ -344,12 +231,8 @@ export function AuthProvider({ children }) {
     }
   }, [uidSessione]);
 
-  // scope:'local' → esce SOLO dalla scheda/dispositivo corrente. Senza scope,
-  // supabase-js usa di default 'global' e revoca TUTTE le sessioni dell'utente
-  // su ogni scheda e dispositivo: un logout in un punto invalidava lato server
-  // anche le altre schede ancora aperte, che restavano con una sessione "morta"
-  // in memoria → la successiva azione privilegiata (es. invito via Edge
-  // Function) falliva con "Token non valido" (session_not_found).
+  // scope:'local': esce solo da questa scheda/dispositivo. Il default 'global'
+  // revocherebbe le sessioni delle altre schede aperte.
   const signOut = useCallback(async () => {
     await revocaPush({ ovunque: false });
     await svuotaCoda();
@@ -358,13 +241,8 @@ export function AuthProvider({ children }) {
     return res;
   }, [revocaPush, svuotaCoda, svuotaCache]);
 
-  // Uscita da OGNI dispositivo: revoca i refresh token lato server. È il
-  // rimedio per un dispositivo perso, e non ha il difetto che ha portato a
-  // 'local' sopra — qui la sessione morta nelle altre schede è ESATTAMENTE
-  // ciò che si vuole, quindi il toast "Sessione scaduta" di api.js è la
-  // risposta giusta e non un effetto collaterale da nascondere.
-  // Qui le push si tolgono da OGNI dispositivo: un telefono perso con la
-  // sessione revocata continuerebbe altrimenti a mostrare le notifiche.
+  // Uscita da OGNI dispositivo (dispositivo perso): revoca i refresh token e le
+  // push ovunque. Qui la sessione morta nelle altre schede è voluta.
   const signOutOvunque = useCallback(async () => {
     await revocaPush({ ovunque: true });
     await svuotaCoda();
@@ -373,17 +251,13 @@ export function AuthProvider({ children }) {
     return res;
   }, [revocaPush, svuotaCoda, svuotaCache]);
 
-  // Invia l'email con il link per reimpostare la password. redirectTo riporta
-  // l'utente sull'app, dove detectSessionInUrl genera l'evento PASSWORD_RECOVERY.
+  // Email con il link per reimpostare la password (evento PASSWORD_RECOVERY).
   const resetPassword = useCallback((email) =>
     supabaseAuth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin,
     }), []);
 
-  // Reinvia l'email di conferma signup (utile quando l'utente ha registrato un
-  // account ma non ha cliccato il link in tempo, o lo ha perso). Supabase
-  // emette lo stesso link OTP del signup. Usata dal LoginScreen quando il
-  // tentativo di login fallisce con email_not_confirmed.
+  // Reinvia l'email di conferma (login fallito con email_not_confirmed).
   const resendConfirmation = useCallback((email) =>
     supabaseAuth.resend({
       type: 'signup',
@@ -391,25 +265,18 @@ export function AuthProvider({ children }) {
       options: { emailRedirectTo: window.location.origin },
     }), []);
 
-  // Aggiorna la password dell'utente nella sessione di recovery, poi esce
-  // dalla modalità recovery così l'app monta normalmente.
-  // ⛔ Solo per il recupero e il primo accesso da invito (UpdatePasswordScreen):
-  // lì una password attuale non c'è, e GoTrue lo sa — la sessione di recovery
-  // e l'utente senza password sono esclusi dal controllo. Dal profilo si
-  // passa da `cambiaPassword`.
+  // Password nella sessione di recovery, poi si esce dalla modalità recovery.
+  // ⛔ Solo recupero e primo accesso da invito: lì non c'è una password
+  // attuale. Dal profilo si usa `cambiaPassword`.
   const updatePassword = useCallback(async (password) => {
     const res = await supabaseAuth.updateUser({ password });
     if (!res.error) { setRecovery(false); setRecoveryKind(null); }
     return res;
   }, []);
 
-  // A-3 dell'analisi del 6 novembre. Il cambio password dal profilo chiede la
-  // password ATTUALE: su un PC condiviso una sessione lasciata aperta bastava
-  // a cambiarla, cioè a prendersi l'account. Il controllo vero lo fa GoTrue
-  // (opzione «Require current password when changing password» di Supabase
-  // Auth): un controllo qui lo salterebbe chiunque chiami l'API con il token.
-  // `current_password` con l'underscore: supabase-js 2.108 passa gli
-  // attributi così come sono nel corpo della PUT.
+  // A-3 · Dal profilo serve la password ATTUALE. La verifica la fa GoTrue
+  // («Require current password when changing password»), non questo file.
+  // `current_password` con l'underscore: va così com'è nel corpo della PUT.
   const cambiaPassword = useCallback(async (attuale, nuova) => {
     const res = await supabaseAuth.updateUser({ password: nuova, current_password: attuale });
     if (res.error) return { ...res, error: { ...res.error, message: messaggioCambioPassword(res.error) } };
@@ -418,30 +285,18 @@ export function AuthProvider({ children }) {
 
   const refreshTeam = useCallback(() => caricaProfilo(session?.user?.id), [session, caricaProfilo]);
 
-  // Retry per quando è la sessione stessa a non essere mai stata ottenuta
-  // (getSession() fallita o rimasta appesa in timeout): rieseguono tutta la
-  // sequenza init, non solo il caricamento profilo.
+  // Retry quando la session stessa non è mai arrivata: tutta la sequenza init.
   const retryInit = useCallback(() => initAuthRef.current?.(), []);
 
-  // Self-service account deletion: delegates to delete-account Edge Function,
-  // then signs out so the banned user is immediately logged out.
-  //
-  // Import dinamico di lib/api.js per lo stesso motivo di caricaProfilo: è la
-  // "porta" dell'intero data layer applicativo, e importarla in cima al file
-  // riporterebbe nel grafo eager tutto ciò che B-2 sposta fuori. Nella pratica
-  // questa funzione è comunque raggiungibile solo da ProfileEditor, dentro
-  // VoyageDesk già autenticato — qui l'import dinamico costa un `await` in
-  // più, non un secondo download: il chunk è già in cache a quel punto.
-  // A-3 dell'analisi del 6 novembre: senza la password del chiamante la Edge
-  // Function non elimina niente (la verifica è sua, non di questo file).
+  // Elimina account: Edge Function delete-account, poi sign out. A-3 · Senza la
+  // password la funzione non elimina niente (la verifica è sua). Import
+  // dinamico di lib/api.js come in caricaProfilo.
   const deleteAccount = useCallback(async (password) => {
     const { Users: UsersAPI } = await import('../lib/api.js');
     const result = await UsersAPI.deleteAccount(password);
     if (!result.error) {
-      // Le righe su push_subscriptions le cancella già la Edge Function
-      // delete-account; qui serve revocare la sottoscrizione del browser e
-      // cancellare l'intenzione, che altrimenti verrebbe riusata per l'utente
-      // successivo.
+      // Le righe di push_subscriptions le cancella la Edge Function; qui si revoca
+      // la sottoscrizione del browser e l'intenzione.
       await revocaPush({ ovunque: false });
       await svuotaCoda();
       await supabaseAuth.signOut();
@@ -459,14 +314,8 @@ export function AuthProvider({ children }) {
     authError,
     recovery,
     recoveryKind,
-    // Il ruolo passa da toDbRole come ovunque altrove (permissions.js,
-    // reducer, persistenza): erano due definizioni diverse di "admin" sulla
-    // stessa domanda — qui il confronto era sul valore grezzo della colonna,
-    // là normalizzato. Su un profilo con un ruolo storico ("Senior Agent") o
-    // con maiuscole diverse i due moduli rispondevano in modo diverso, e
-    // quello che decide cosa mostrare non era quello che decide cosa è
-    // permesso. toDbRole ritorna null fuori enum: nessuno dei quattro flag si
-    // accende, che è il verdetto più restrittivo.
+    // Il ruolo passa da toDbRole come ovunque: un ruolo fuori enum non accende
+    // nessun flag, il verdetto più restrittivo.
     isAdmin: toDbRole(profile?.role) === 'admin',
     isManager: toDbRole(profile?.role) === 'manager',
     isAgent: toDbRole(profile?.role) === 'agent',

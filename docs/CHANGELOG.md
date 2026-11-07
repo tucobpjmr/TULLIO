@@ -1,5 +1,74 @@
 # CHANGELOG — VoyageDesk
 
+## 7 novembre — analisi del 6 novembre: M-4 e B-1…B-4
+
+**M-4 · Leggere il progetto costa meno.**
+- `docs/CLAUDE.md` da 159 KB a 37 KB. Ogni regola sta in una o due righe;
+  la storia di ciascuna (com'era prima, quale audit, cosa si è misurato) è
+  passata, invariata, in `docs/CLAUDE_DETTAGLI.md`, sotto lo stesso titolo.
+  Lì i conteggi misurati sono scritti «N»: il numero vigente resta solo in
+  `CLAUDE.md`, l'unico documento che lo script legge.
+- Commenti accorciati negli undici file più carichi (`useAppHydration`,
+  `reducer`, `persistence`, `persistenceAdmin`, `VoyageDeskInner`,
+  `useDebouncedTableSubscription`, `AuthContext`, `chatCommands`,
+  `errorReporting`, `lib/api/task`, `realtime`): da 5.613 a 3.692 righe. Si è
+  tolta la storia, sono rimasti il perché e gli avvisi ⚠️/⛔. Il codice è
+  identico token per token (verificato con il tokenizer di ESLint, file per
+  file). Nei commenti di `src/` la quota scende dal 35,0% al 31,9%.
+- Regola nuova in `CLAUDE.md` § Commenti, e due tetti in
+  `verifica:convenzioni` (`scripts/verifica-convenzioni/peso.js`): commenti al
+  più il 32% delle righe di `src/`, `CLAUDE.md` sotto i 40 KB.
+
+**Difetto trovato durante il lavoro.** `senzaCommenti` di
+`verifica:convenzioni` toglieva prima i blocchi `/* */` e poi le righe `//`.
+Un `/**` dentro un commento `//` (`src/components/**`) apriva così un falso
+blocco che si mangiava il codice fino al `*/` successivo: fino a sei file
+erano in parte invisibili ai controlli. Ora una regex sola, da sinistra a
+destra. Ha fatto emergere un doppio nome reale in `VoyageDeskInner.jsx`
+(`apriFAB` accanto a `openTaskById`, ora `apriTaskDaId`).
+
+**B-1 · `set-user-active`: ban e profilo restano allineati.** Erano due
+scritture senza transazione: se il ban riusciva e l'update di
+`public.users` no, la sessione restava bannata con il profilo «attivo».
+Ora `set-user-active/statoAccesso.ts` legge il ban attuale da GoTrue,
+banna, aggiorna il profilo (con `.select`, per accorgersi di una riga
+assente) e, se il profilo non si aggiorna, rimette il ban com'era. Lo stato
+precedente si legge da GoTrue e non da `active`: un account eliminato è
+bannato con `active = false`, e dedurlo dal profilo lo sbloccherebbe. Se
+anche la compensazione fallisce, la risposta lo dice. Utente inesistente:
+404.
+
+**B-2 · Svuota cestino a blocchi.** Tutti gli id viaggiavano nell'URL di
+una sola DELETE (`id=in.(…)`): qualche centinaio di task superava il limite.
+`purgeTasks` va ora a blocchi da 100 (≈ 4 KB), anche per la lettura degli
+allegati. Ogni blocco è atomico, l'insieme no: `hardDeleteMany` ritorna
+`eliminati`, e il rollback di `EMPTY_TRASH` rimette in lista solo i task che
+il server non ha tolto.
+
+**B-3 · Bordo di focus nel CSS.** Quindici campi lo scrivevano da
+`onFocus`/`onBlur` con `e.target.style`, e il blur rimetteva
+`var(--border)` anche dove il bordo di base era un altro. Ora
+`.vd-campo-fuoco` / `.vd-campo-fuoco-danger` in `global.css` (con
+`!important`, perché il bordo di base è inline: provato in Chromium). Una
+regola ESLint (`FOCUS_SCRITTO_A_MANO`) impedisce di tornare indietro.
+
+**B-4 · JSON malformato → 400.** `await req.json()` lanciava e finiva nel
+catch del 500. Nuovo `_shared/corpoJson.ts` (`leggiCorpoJson`, `testo`) in
+`invite-user`, `delete-user`, `set-user-active`, `delete-account` e
+`send-push`: corpo assente, malformato o non oggetto → 400. `testo()` evita
+anche il `.trim()` su un campo che non è una stringa.
+
+Test: 38 casi nuovi (Edge Function eseguite con client finti e cablaggio
+letto dal sorgente, purge a blocchi, rollback parziale, tetti di peso).
+Controlli negativi: togliendo la compensazione di B-1 falliscono 4 casi su
+13; un `onFocus` con `e.target.style` fa fallire il lint. Suite: 2406 passati,
+45 saltati (integrazione). Lint, tipi, `verifica:convenzioni` (69 controlli),
+build e `verifica:bundle` verdi.
+
+⚠️ **Le cinque Edge Function toccate NON sono ancora distribuite.** Vanno
+distribuite su staging e poi in produzione, con il nuovo
+`_shared/corpoJson.ts` e, per `set-user-active`, `statoAccesso.ts`.
+
 ## 6 novembre (iv) — analisi del 6 novembre: A-3 e M-3, il ciclo di vita dell'account
 
 **A-3 · Le operazioni irreversibili chiedono la password attuale** (riprende

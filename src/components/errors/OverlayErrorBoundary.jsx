@@ -13,7 +13,7 @@
 // ma con `resetKey` invece di `viewKey`: serve perché TaskSlideOver resta
 // MONTATO quando si passa da un task all'altro senza chiudere (es. click su
 // una notifica mentre un altro task è già aperto — vedi VoyageDeskInner.jsx,
-// openTaskById) — senza il confronto d'identità un crash sul task precedente
+// apriTaskDaId) — senza il confronto d'identità un crash sul task precedente
 // resterebbe visibile aprendo quello nuovo.
 import { creaErrorBoundary } from './creaErrorBoundary.jsx';
 import { Z } from '../../styles/tokens.js';

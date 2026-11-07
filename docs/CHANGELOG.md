@@ -65,14 +65,26 @@ Controlli negativi: togliendo la compensazione di B-1 falliscono 4 casi su
 45 saltati (integrazione). Lint, tipi, `verifica:convenzioni` (69 controlli),
 build e `verifica:bundle` verdi.
 
-✅ **Distribuite sullo staging** il 7 novembre, `verify_jwt` invariato, con
+✅ **Distribuite il 7 novembre**, `verify_jwt` invariato, con
 `_shared/corpoJson.ts` e, per `set-user-active`, `statoAccesso.ts`:
-`set-user-active` v3, `invite-user` v3, `delete-user` v3, `delete-account` v5.
-Prova d'avvio via `pg_net` con la chiave anonima: tutte 401 «Token non valido»,
-senza scritture. `send-push` sullo staging non esiste: si distribuisce solo in
-produzione.
 
-⚠️ **Produzione: NON ancora distribuite** (le quattro sopra più `send-push`).
+| Funzione | Staging | Produzione |
+|---|---|---|
+| `set-user-active` | v4 | v5 |
+| `invite-user` | v3 | v13 |
+| `delete-user` | v3 | v8 |
+| `delete-account` | v5 | v8 |
+| `send-push` | — (non esiste) | v5 |
+
+Prova d'avvio via `pg_net` con la chiave anonima, in entrambi i progetti:
+401 «Token non valido» per le quattro funzioni admin, 401 «unauthorized» per
+`send-push` (quindi i segreti del Vault si leggono). Nessuna scrittura.
+
+⚠️ **L'hash del bundle (`ezbr_sha256`) non è più una prova di identità.**
+Il 6 novembre file uguali davano lo stesso hash nei due progetti. Oggi
+`set-user-active`, ridistribuita sullo staging con gli stessi file mandati in
+produzione pochi minuti prima, ha dato un terzo hash diverso. Il confronto
+fra progetti va fatto sui file (`get_edge_function`), non sull'hash.
 
 ## 6 novembre (iv) — analisi del 6 novembre: A-3 e M-3, il ciclo di vita dell'account
 

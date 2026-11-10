@@ -9,6 +9,12 @@
 //   - `tabelle` è il Set delle tabelle che hanno generato gli eventi, o `null`
 //     per l'idratazione iniziale e la ripresa (carica tutto).
 //
+// Il lavoro DOVUTO (10 novembre): un reload scartato da uno più recente non è
+// perso. Chi lo scarta ne eredita le tabelle (`null` assorbe tutto), e un
+// evento gestito da `applyRow` che scarta un reload in volo lo fa ripartire.
+// Prima un evento arrivato durante l'idratazione iniziale la buttava via: task
+// e conversazioni restavano vuoti fino alla ripresa successiva.
+//
 // Ripresa dopo un buco di connessione: Postgres Changes non riprende da un
 // offset, gli eventi persi col socket giù non arrivano MAI. Su `online` e sul
 // ritorno in primo piano si ricarica tutto (`tabelle = null`).
@@ -27,6 +33,10 @@ let seqSottoscrizione = 0;
 // Sopra i 30 s i browser mobili congelano timer e socket delle tab nascoste;
 // sotto, il canale resta agganciato.
 export const SOGLIA_RIPRESA_MS = 30_000;
+
+// Unione di due richieste di reload: `null` (tutto) assorbe qualunque Set.
+/** @param {Set<string>|null} a @param {Set<string>|null} b */
+const unisciTabelle = (a, b) => (a === null || b === null ? null : new Set([...a, ...b]));
 
 // ─── opzioni ───────────────────────────────────────────────────────────────
 // applyRow(tabella, payload) → true: l'evento è già applicato allo state
@@ -78,9 +88,22 @@ export function useDebouncedTableSubscription(
     let cancelled = false;
     let gen = 0;
 
-    const run = (tabelle) => {
+    // Il lavoro partito e non ancora arrivato: `undefined` nessuno, `null`
+    // tutto, un Set le tabelle. «Arrivato» = il reload è finito mentre era
+    // ancora l'ultimo partito.
+    /** @type {Set<string>|null|undefined} */
+    let dovuto;
+
+    const run = (richieste) => {
+      // Chi scarta un reload non arrivato ne prende le tabelle.
+      const tabelle = dovuto === undefined ? richieste : unisciTabelle(dovuto, richieste);
+      dovuto = tabelle;
       const my = ++gen;
-      return reloadRef.current(() => !cancelled && my === gen, tabelle);
+      const esito = reloadRef.current(() => !cancelled && my === gen, tabelle);
+      // Solo sul successo: un reload che rigetta resta dovuto, e il prossimo
+      // lo assorbe. Il rigetto resta visibile, come prima.
+      Promise.resolve(esito).then(() => { if (my === gen) dovuto = undefined; });
+      return esito;
     };
 
     // `null`: dopo un errore non si sa quale parte sia mancata.
@@ -95,6 +118,18 @@ export function useDebouncedTableSubscription(
     // Tabelle accumulate nella finestra del debounce; si svuota allo scatto.
     let pending = new Set();
 
+    const programma = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const tabelle = pending;
+        pending = new Set();
+        // Set vuoto: lo ha programmato `applyRow` per rifare un reload scartato.
+        // Se nel frattempo un altro reload è arrivato, non c'è più nulla da fare.
+        if (tabelle.size === 0 && dovuto === undefined) return;
+        run(tabelle);
+      }, delay);
+    };
+
     // filterEvent scarta un evento prima del debounce (es. gli UPDATE di sola
     // presenza su `users`).
     const debounced = (tbl, payload) => {
@@ -102,18 +137,15 @@ export function useDebouncedTableSubscription(
       if (fn && !fn(payload)) return;
       // applyRow PRIMA del debounce: un evento gestito non entra in `pending`.
       // ⚠️ A-1 · `gen` avanza anche qui: un reload già in volo riflette lo stato di
-      // prima della riga, e senza questo la sovrascriverebbe.
+      // prima della riga, e senza questo la sovrascriverebbe. Quel reload però
+      // era dovuto: riparte dopo il debounce, e partendo dopo l'evento lo contiene.
       if (applyRowRef.current?.(tbl, payload)) {
         gen += 1;
+        if (dovuto !== undefined) programma();
         return;
       }
       pending.add(tbl);
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        const tabelle = pending;
-        pending = new Set();
-        run(tabelle);
-      }, delay);
+      programma();
     };
 
     // B-1 · `senzaCanale`: niente canale per `categories` e `message_templates`

@@ -169,7 +169,8 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
   const applicaRigaMessaggio = (tbl, payload) => {
     if (tbl !== "messages") return false;
     // Durante una rilettura l'evento passa dal debounce: applicarlo qui
-    // scarterebbe la rilettura in volo (vedi `gen` nell'hook) senza rifarla.
+    // scarterebbe la rilettura in volo (vedi `gen` nell'hook), che l'hook
+    // farebbe ripartire. Dal debounce l'evento si unisce a lei: un reload solo.
     if (reloadInVolo.current > 0) return false;
     if (payload?.eventType === "DELETE") {
       const id = payload.old?.id;

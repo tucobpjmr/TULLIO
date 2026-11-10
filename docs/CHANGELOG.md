@@ -1,5 +1,19 @@
 # CHANGELOG — VoyageDesk
 
+## 10 novembre (iii) — un evento realtime non butta più via un reload
+
+**Il primo caricamento non si perde più** (`useDebouncedTableSubscription`).
+- Prima: un evento arrivato mentre un reload era in volo lo scartava (`gen`
+  avanza) e nessuno lo rifaceva. Al primo avvio i task restavano vuoti con lo
+  scheletro acceso (evento su `tasks` o `comments`), la chat senza
+  conversazioni (evento su `messages`). Si sbloccava solo con `online` o con un
+  ritorno in primo piano oltre 30 s.
+- Ora l'hook tiene il lavoro DOVUTO: chi scarta un reload non arrivato ne
+  eredita le tabelle (`null` assorbe tutto), e un evento gestito da `applyRow`
+  che scarta un reload in volo lo fa ripartire dopo il debounce. Vale per tutte
+  le nove istanze.
+- Test: `src/test/realtime/primoCaricamentoScartato.test.jsx`.
+
 ## 10 novembre (ii) — analisi del 10 novembre: A-2, M-2, B-1…B-4
 
 **A-2 · La chat non rilegge più il corpus a ogni messaggio** (secondo passo

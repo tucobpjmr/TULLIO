@@ -1,16 +1,18 @@
-// Un evento realtime arrivato DURANTE il primo caricamento lo scarta senza
-// rifarlo (useDebouncedTableSubscription: `gen` avanza e `isCurrent()` del
-// primo reload diventa false).
+// Un evento realtime arrivato DURANTE un reload non deve buttarlo via.
 //
-// ⚠️ BUG APERTO. I tre casi `it.fails` descrivono il comportamento GIUSTO e
-// oggi falliscono: lo documentano senza rompere la CI. Si sbloccano solo con
-// `online` o con un ritorno in primo piano oltre SOGLIA_RIPRESA_MS.
-//   - task, evento `tasks` (applyRow): il gen avanza, nessuno rifà il carico.
-//   - task, evento `comments`: il debounce lancia un reload `soloThread` che
-//     sostituisce quello completo.
+// Il difetto (10 novembre): in useDebouncedTableSubscription ogni evento fa
+// avanzare `gen`, il reload in volo vede `isCurrent() === false` e si scarta.
+// Nessuno lo rifaceva: al suo posto partiva un reload PARZIALE, o niente.
+//   - task, evento `tasks` (applyRow): SET_TASKS mai arrivato, scheletro acceso.
+//   - task, evento `comments`: il reload `soloThread` sostituiva quello completo.
 //   - chat, evento `messages` oltre il debounce: reload `soloMessaggi`, le
-//     conversazioni non arrivano mai.
-// Quando il bug è corretto, `it.fails` → `it`.
+//     conversazioni non arrivavano mai.
+// Si sbloccava solo con `online` o con un ritorno in primo piano oltre
+// SOGLIA_RIPRESA_MS.
+//
+// La correzione è il lavoro DOVUTO dell'hook: chi scarta un reload non
+// arrivato ne eredita le tabelle, e un evento `applyRow` che lo scarta lo fa
+// ripartire.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 
@@ -53,6 +55,7 @@ vi.mock("../../lib/api.js", () => ({
   Messages: MessagesAPI,
 }));
 
+const { useDebouncedTableSubscription } = await import("../../hooks/useDebouncedTableSubscription.js");
 const { useAppHydration } = await import("../../hooks/useAppHydration.js");
 const { useChatData } = await import("../../hooks/useChatData.js");
 
@@ -102,7 +105,7 @@ describe("controllo: senza eventi il primo caricamento arriva", () => {
 });
 
 describe("task: evento durante il primo caricamento", () => {
-  it.fails("evento su `tasks` (applyRow) durante il primo Tasks.list → SET_TASKS arriva comunque", async () => {
+  it("evento su `tasks` (applyRow) durante il primo Tasks.list → SET_TASKS arriva comunque", async () => {
     const primo = differita();
     rispostaTasks = () => primo.promise;
     const dispatch = vi.fn();
@@ -122,7 +125,7 @@ describe("task: evento durante il primo caricamento", () => {
     expect(result.current.caricamento.tasks, "scheletro ancora acceso").toBe(false);
   });
 
-  it.fails("evento su `comments` durante il primo Tasks.list (debounce scatta prima della risposta) → SET_TASKS arriva comunque", async () => {
+  it("evento su `comments` durante il primo Tasks.list (debounce scatta prima della risposta) → SET_TASKS arriva comunque", async () => {
     const primo = differita();
     rispostaTasks = () => primo.promise;
     const dispatch = vi.fn();
@@ -144,7 +147,7 @@ describe("task: evento durante il primo caricamento", () => {
 });
 
 describe("chat: evento durante il primo caricamento", () => {
-  it.fails("evento su `messages` durante il primo listMine (debounce scatta prima della risposta) → le conversazioni arrivano comunque", async () => {
+  it("evento su `messages` durante il primo listMine (debounce scatta prima della risposta) → le conversazioni arrivano comunque", async () => {
     const primo = differita();
     rispostaConv = () => primo.promise;
     const { result } = renderHook(() => useChatData({
@@ -165,5 +168,99 @@ describe("chat: evento durante il primo caricamento", () => {
     await attendi(400);
 
     expect(result.current.conversations.map((c) => c.id), "conversazioni mai caricate").toEqual(["c1"]);
+  });
+});
+
+describe("hook: il lavoro dovuto", () => {
+  // Reload che resta in volo finché il test non lo risolve.
+  const reloadDifferiti = () => {
+    const chiamate = [];
+    const reload = vi.fn((isCurrent, tabelle) => {
+      const d = differita();
+      chiamate.push({ isCurrent, tabelle, risolvi: d.risolvi });
+      return d.promise;
+    });
+    return { reload, chiamate };
+  };
+  const comeLista = (t) => (t === null ? null : [...t].sort());
+
+  it("un reload parziale che ne scarta uno completo non arrivato diventa completo", async () => {
+    const { reload, chiamate } = reloadDifferiti();
+    renderHook(() => useDebouncedTableSubscription(["a", "b"], reload, { delay: 5 }));
+    expect(chiamate[0].tabelle).toBe(null);
+
+    act(() => { emetti("a", { eventType: "INSERT", new: {} }); });
+    await attendi(20);
+
+    expect(reload).toHaveBeenCalledTimes(2);
+    expect(chiamate[1].tabelle).toBe(null);
+    expect(chiamate[0].isCurrent()).toBe(false);
+  });
+
+  it("due parziali: il secondo eredita le tabelle del primo non arrivato", async () => {
+    const { reload, chiamate } = reloadDifferiti();
+    renderHook(() => useDebouncedTableSubscription(["a", "b"], reload, { delay: 5 }));
+    await act(async () => { chiamate[0].risolvi(); });
+
+    act(() => { emetti("a", { eventType: "INSERT", new: {} }); });
+    await attendi(20);
+    act(() => { emetti("b", { eventType: "INSERT", new: {} }); });
+    await attendi(20);
+
+    expect(comeLista(chiamate[1].tabelle)).toEqual(["a"]);
+    expect(comeLista(chiamate[2].tabelle)).toEqual(["a", "b"]);
+  });
+
+  it("un evento applyRow che scarta il reload in volo lo fa ripartire, una volta sola", async () => {
+    const { reload, chiamate } = reloadDifferiti();
+    const applyRow = vi.fn(() => true);
+    renderHook(() => useDebouncedTableSubscription(["a"], reload, { delay: 5, applyRow }));
+
+    act(() => {
+      emetti("a", { eventType: "UPDATE", new: { id: 1 } });
+      emetti("a", { eventType: "UPDATE", new: { id: 2 } });
+    });
+    expect(chiamate[0].isCurrent()).toBe(false);
+    await attendi(20);
+
+    expect(reload).toHaveBeenCalledTimes(2);
+    expect(chiamate[1].tabelle).toBe(null);
+
+    // Il secondo arriva: niente altro è dovuto.
+    await act(async () => { chiamate[0].risolvi(); chiamate[1].risolvi(); });
+    await attendi(20);
+    expect(reload).toHaveBeenCalledTimes(2);
+  });
+
+  it("a reload arrivato, un evento applyRow non fa partire nulla", async () => {
+    const { reload, chiamate } = reloadDifferiti();
+    const applyRow = vi.fn(() => true);
+    renderHook(() => useDebouncedTableSubscription(["a"], reload, { delay: 5, applyRow }));
+    await act(async () => { chiamate[0].risolvi(); });
+
+    act(() => { emetti("a", { eventType: "UPDATE", new: { id: 1 } }); });
+    await attendi(20);
+
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("un reload che rigetta resta dovuto: il parziale successivo diventa completo", async () => {
+    const chiamate = [];
+    const reload = vi.fn((_isCurrent, tabelle) => {
+      chiamate.push(tabelle);
+      return chiamate.length === 1 ? Promise.reject(new Error("rete")) : Promise.resolve();
+    });
+    // Il rigetto è voluto: lo si intercetta, o vitest lo conta come errore.
+    const suRigetto = () => {};
+    process.on("unhandledRejection", suRigetto);
+    try {
+      renderHook(() => useDebouncedTableSubscription(["a", "b"], reload, { delay: 5 }));
+      await attendi(10);
+      act(() => { emetti("a", { eventType: "INSERT", new: {} }); });
+      await attendi(20);
+    } finally {
+      process.off("unhandledRejection", suRigetto);
+    }
+    expect(chiamate[1]).toBe(null);
   });
 });

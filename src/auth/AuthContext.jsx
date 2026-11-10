@@ -76,6 +76,8 @@ export function AuthProvider({ children }) {
   const [authError, setAuthError] = useState(null);
   // La funzione di init corrente, per rieseguirla da retryInit.
   const initAuthRef = useRef(null);
+  // M-1 · L'utente il cui profilo è già caricato (null: nessuno, o da rileggere).
+  const profiloCaricatoRef = useRef(null);
   // Un solo caricamento profilo in volo per utente: all'avvio initAuth e
   // INITIAL_SESSION lo chiedevano insieme, e uno dei due poteva fallire.
   const caricamentoInVoloRef = useRef(null);
@@ -86,7 +88,7 @@ export function AuthProvider({ children }) {
     if (inflight && inflight.key === key) return inflight.promise;
 
     const promise = (async () => {
-      if (!userId) { setProfile(null); setTeam([]); setAuthError(null); return; }
+      if (!userId) { profiloCaricatoRef.current = null; setProfile(null); setTeam([]); setAuthError(null); return; }
       try {
         // B-2 · Import dinamico: è l'unica riga che tocca il client pieno. Chi resta
         // sul login non scarica mai postgrest/realtime/storage.
@@ -124,10 +126,14 @@ export function AuthProvider({ children }) {
         // photo_url → photoUrl, atteso da Avatar/ProfileEditor.
         const normalize = (u) => ({ ...u, photoUrl: u.photo_url ?? null });
         setProfile({ ...normalize(me), ...myContacts });
+        // M-1 · Un invitato in attesa resta fuori: per lui il ritorno sulla
+        // scheda deve continuare a rileggere il profilo (l'approvazione).
+        profiloCaricatoRef.current = me.pending ? null : userId;
         setTeam((all ?? []).map(u => u.id === userId ? { ...normalize(u), ...myContacts } : normalize(u)));
         setAuthError(null);
       } catch (err) {
         console.error('[auth] caricaProfilo fallito dopo i retry', err);
+        profiloCaricatoRef.current = null;
         setAuthError(err);
       }
     })();
@@ -179,6 +185,11 @@ export function AuthProvider({ children }) {
       setSession(prev => ((prev?.user?.id ?? null) === (s?.user?.id ?? null) ? prev : s));
       // Il rinnovo del token non cambia né il profilo né il team.
       if (evento === 'TOKEN_REFRESHED') return;
+      // M-1 · gotrue emette SIGNED_IN a OGNI ritorno sulla scheda. Con lo stesso
+      // utente e il profilo già caricato non c'è niente da rileggere: tre query
+      // e un `team` nuovo a ogni cambio di finestra. Il team lo tiene fresco la
+      // sottoscrizione `users` di useAppHydration.
+      if (evento === 'SIGNED_IN' && s?.user?.id && s.user.id === profiloCaricatoRef.current) return;
       setTimeout(() => {
         if (!mounted) return;
         caricaProfilo(s?.user?.id).finally(() => {
@@ -235,8 +246,11 @@ export function AuthProvider({ children }) {
   // revocherebbe le sessioni delle altre schede aperte.
   const signOut = useCallback(async () => {
     await revocaPush({ ovunque: false });
-    await svuotaCoda();
     const res = await supabaseAuth.signOut({ scope: 'local' });
+    // M-3 · Senza rete gotrue torna errore e la sessione resta aperta: la coda
+    // offline si svuota solo a uscita avvenuta, o si perde lavoro restando dentro.
+    if (res?.error) return res;
+    await svuotaCoda();
     await svuotaCache();
     return res;
   }, [revocaPush, svuotaCoda, svuotaCache]);
@@ -245,8 +259,9 @@ export function AuthProvider({ children }) {
   // push ovunque. Qui la sessione morta nelle altre schede è voluta.
   const signOutOvunque = useCallback(async () => {
     await revocaPush({ ovunque: true });
-    await svuotaCoda();
     const res = await supabaseAuth.signOut({ scope: 'global' });
+    if (res?.error) return res; // M-3, come signOut
+    await svuotaCoda();
     await svuotaCache();
     return res;
   }, [revocaPush, svuotaCoda, svuotaCache]);

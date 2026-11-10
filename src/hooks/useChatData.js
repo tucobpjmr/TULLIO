@@ -144,6 +144,12 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
       console.error("[chat] msgs.list", msgsRes.error);
       onError(`Chat: caricamento messaggi fallito: ${msgsRes.error.message || ""}`);
     }
+    // A-1 · Una lettura fallita non sostituisce lo stato: scrivere `[]` e `{}`
+    // svuotava la chat proprio al rientro della rete. Resta ciò che c'era.
+    if (convsRes.error || msgsRes.error) {
+      setChatLoading(false);
+      return;
+    }
     const msgsByConv = {};
     for (const r of msgsRes.data || []) {
       // Vedi la nota gemella in useAppHydration: il mapper torna `null` per

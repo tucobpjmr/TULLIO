@@ -1,5 +1,35 @@
 # CHANGELOG — VoyageDesk
 
+## 10 novembre — analisi del 10 novembre: A-1, M-1, M-3
+
+**A-1 · Un errore di rete non svuota più la chat.** Se `listMine` o `listAll`
+fallivano, `useChatData` mostrava il toast e poi scriveva comunque `[]` nelle
+conversazioni e `{}` nei messaggi: la chat spariva proprio al rientro della
+rete, quando il reload riparte. Ora una lettura fallita lascia lo stato
+com'era (come già fa `useAppHydration`).
+
+**M-1 · Tornare sulla scheda non ricarica profilo e team.** gotrue emette
+`SIGNED_IN` a ogni ritorno sulla scheda, e `AuthContext` saltava solo
+`TOKEN_REFRESHED`: tre query e un `team` nuovo ogni volta. Ora `SIGNED_IN`
+dello stesso utente con il profilo già caricato si ignora (non per un invitato
+in attesa, né dopo un caricamento fallito: lì la rilettura serve). In più
+`usePresence` non ha più `team` tra le dipendenze del canale: un array nuovo
+con le stesse persone smontava il canale e scriveva offline e poi online su
+`users`, due eventi realtime per tutti.
+
+**M-3 · La coda offline si svuota solo a uscita riuscita.** Senza rete
+`signOut` di gotrue torna errore e lascia la sessione aperta, ma la coda era
+già stata svuotata: lavoro perso restando dentro. Ora `signOut` e
+`signOutOvunque` svuotano coda e cache dopo l'uscita, e solo se è riuscita. La
+revoca delle push resta prima (le serve il JWT).
+
+Test: 11 casi nuovi, uno aggiornato (l'ordine coda/uscita). Controllo
+negativo: sul codice precedente ne falliscono 8. Suite: 2416 passati, 45
+saltati (integrazione). Lint, tipi e `verifica:convenzioni` verdi. Non provato
+in browser.
+
+Restano aperti dell'analisi: A-2, M-2, B-1…B-4.
+
 ## 7 novembre — analisi del 6 novembre: M-4 e B-1…B-4
 
 **M-4 · Leggere il progetto costa meno.**

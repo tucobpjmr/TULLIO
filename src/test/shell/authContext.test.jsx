@@ -343,14 +343,31 @@ describe("AuthContext — M-4, le scritture in attesa di chi esce si tolgono", (
     return rendered;
   };
 
-  it.each([["signOut"], ["signOutOvunque"]])("%s() svuota la coda di chi esce, prima di uscire", async (uscita) => {
+  // M-3 dell'analisi del 10 novembre: la coda si svuota DOPO l'uscita, e solo
+  // se è riuscita. Senza rete gotrue torna errore e lascia la sessione aperta:
+  // svuotarla prima perdeva il lavoro di chi poi restava dentro.
+  it.each([["signOut"], ["signOutOvunque"]])("%s() svuota la coda di chi esce, a uscita avvenuta", async (uscita) => {
     const { supabaseAuth } = await import("../../lib/supabaseAuth.js");
     const { result } = await montaAuth();
     await act(async () => { await result.current[uscita](); });
 
     expect(svuotaScrittureDi).toHaveBeenCalledWith("u1");
     expect(svuotaScrittureDi.mock.invocationCallOrder[0])
-      .toBeLessThan(supabaseAuth.signOut.mock.invocationCallOrder[0]);
+      .toBeGreaterThan(supabaseAuth.signOut.mock.invocationCallOrder[0]);
+  });
+
+  it.each([["signOut"], ["signOutOvunque"]])("%s() fallito: la coda e la cache restano, e l'errore torna a chi chiama", async (uscita) => {
+    const { supabaseAuth } = await import("../../lib/supabaseAuth.js");
+    const { svuotaCacheUrl } = await import("../../lib/api.js");
+    svuotaCacheUrl.mockClear();
+    supabaseAuth.signOut.mockResolvedValueOnce({ error: { message: "Failed to fetch" } });
+    const { result } = await montaAuth();
+    let res;
+    await act(async () => { res = await result.current[uscita](); });
+
+    expect(res.error.message).toBe("Failed to fetch");
+    expect(svuotaScrittureDi).not.toHaveBeenCalled();
+    expect(svuotaCacheUrl).not.toHaveBeenCalled();
   });
 
   it("deleteAccount() riuscito la svuota; fallito no", async () => {
@@ -442,6 +459,39 @@ describe("AuthContext — B-2, TOKEN_REFRESHED non ricarica e non sostituisce la
 
     expect(supabase.from).not.toHaveBeenCalled();
     expect(result.current.session).toBe(sessionPrima);
+  });
+
+  // M-1 dell'analisi del 10 novembre: gotrue emette SIGNED_IN a ogni ritorno
+  // sulla scheda. Stesso utente, profilo già caricato: niente da rileggere.
+  it("SIGNED_IN dello stesso utente (ritorno sulla scheda): nessuna query, stesso team", async () => {
+    const { result, emetti } = await montaAuth();
+    const { supabase } = await import("../../lib/supabase");
+    const teamPrima = result.current.team;
+    supabase.from.mockClear();
+
+    await emetti("SIGNED_IN", { ...SESSION, access_token: "nuovo" });
+
+    expect(supabase.from).not.toHaveBeenCalled();
+    expect(result.current.team).toBe(teamPrima);
+  });
+
+  it("controllo positivo: USER_UPDATED dello stesso utente ricarica il profilo", async () => {
+    const { emetti } = await montaAuth();
+    const { supabase } = await import("../../lib/supabase");
+    supabase.from.mockClear();
+    await emetti("USER_UPDATED", SESSION);
+    await waitFor(() => expect(supabase.from).toHaveBeenCalled());
+  });
+
+  it("controllo positivo: dopo un logout il SIGNED_IN dello stesso utente ricarica", async () => {
+    const { result, emetti } = await montaAuth();
+    const { supabase } = await import("../../lib/supabase");
+    await emetti("SIGNED_OUT", null);
+    await waitFor(() => expect(result.current.profile).toBeNull());
+    supabase.from.mockClear();
+    await emetti("SIGNED_IN", SESSION);
+    await waitFor(() => expect(result.current.profile?.id).toBe("u1"));
+    expect(supabase.from).toHaveBeenCalled();
   });
 
   it("stesso utente su un altro evento: la session resta la stessa", async () => {

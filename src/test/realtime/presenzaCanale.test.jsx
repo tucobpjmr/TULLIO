@@ -197,3 +197,36 @@ describe("daStatoCanale — più schede della stessa persona", () => {
     expect(daStatoCanale({ u1: [null] })).toEqual({});
   });
 });
+
+// M-1 dell'analisi del 10 novembre. `team` era una dipendenza dell'effetto: un
+// array nuovo con le stesse persone (AuthContext lo ricreava a ogni ritorno
+// sulla scheda) smontava il canale e scriveva offline e poi online su `users`.
+describe("M-1 · un team nuovo con lo stesso utente non riavvia la presenza", () => {
+  it("nessuna scrittura e nessuna nuova iscrizione; la mappa prende i nuovi dati", async () => {
+    const { result, rerender } = renderHook(
+      ({ team }) => usePresence({ enabled: true, userId: "u1", team }),
+      { initialProps: { team: TEAM } },
+    );
+    await waitFor(() => expect(setPresence).toHaveBeenCalledTimes(1));
+    const iscrizione = ultimoOnSync;
+    setPresence.mockClear();
+
+    rerender({ team: [{ id: "u1", name: "Marco" }, { id: "u2", name: "Sofia" }, { id: "u3", name: "Luca" }] });
+
+    expect(setPresence).not.toHaveBeenCalled();
+    expect(unsubscribe).not.toHaveBeenCalled();
+    expect(ultimoOnSync).toBe(iscrizione);
+    await waitFor(() => expect(result.current.presenceMap.u3?.name).toBe("Luca"));
+  });
+
+  it("controllo positivo: un utente diverso riavvia il canale", async () => {
+    const { rerender } = renderHook(
+      ({ userId }) => usePresence({ enabled: true, userId, team: TEAM }),
+      { initialProps: { userId: "u1" } },
+    );
+    await waitFor(() => expect(setPresence).toHaveBeenCalledTimes(1));
+    rerender({ userId: "u2" });
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(setPresence).toHaveBeenCalledWith("u1", "offline");
+  });
+});

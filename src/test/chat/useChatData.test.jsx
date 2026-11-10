@@ -116,3 +116,54 @@ describe("useChatData — un messaggio in volo sopravvive a un reload concorrent
     expect(dopo.filter(m => m.id === normalized.id)).toHaveLength(1);
   });
 });
+
+// A-1 dell'analisi del 10 novembre. Una lettura fallita mostrava il toast e poi
+// scriveva comunque `[]` nelle conversazioni e `{}` nei messaggi: la chat si
+// svuotava proprio al rientro della rete, quando il reload riparte.
+describe("useChatData — una lettura fallita non svuota la chat", () => {
+  const MSG = { id: "m1", conversation_id: UUID_CONV, sender_id: "u2", text: "ciao", created_at: "2026-11-10T10:00:00Z", read_by: [] };
+
+  const monta = async (onError) => {
+    MessagesAPI.listAll.mockResolvedValue({ data: [MSG], error: null });
+    const r = renderHook(() => useChatData({
+      enabled: true, team: [{ id: "u1" }, { id: "u2" }], currentUserId: "u1",
+      mockConversations: [], mockMessages: {}, onError, onSuccess: () => {},
+    }));
+    await waitFor(() => expect(r.result.current.messages[UUID_CONV]?.length).toBe(1));
+    expect(r.result.current.conversations).toHaveLength(1);
+    return r;
+  };
+
+  it("messaggi in errore: conversazioni e messaggi restano, e l'errore si vede", async () => {
+    const onError = vi.fn();
+    const { result } = await monta(onError);
+    MessagesAPI.listAll.mockResolvedValue({ data: null, error: { message: "Failed to fetch" } });
+
+    await eventoRealtime("conversations");
+
+    expect(onError).toHaveBeenCalledWith(expect.stringContaining("messaggi"));
+    expect(result.current.messages[UUID_CONV]).toHaveLength(1);
+    expect(result.current.conversations).toHaveLength(1);
+  });
+
+  it("conversazioni in errore: restano quelle di prima", async () => {
+    const onError = vi.fn();
+    const { result } = await monta(onError);
+    ConversationsAPI.listMine.mockResolvedValue({ data: null, error: { message: "Failed to fetch" } });
+
+    await eventoRealtime("conversations");
+
+    expect(onError).toHaveBeenCalledWith(expect.stringContaining("conversazioni"));
+    expect(result.current.conversations).toHaveLength(1);
+    expect(result.current.messages[UUID_CONV]).toHaveLength(1);
+  });
+
+  it("primo caricamento in errore: lo spinner si chiude comunque", async () => {
+    MessagesAPI.listAll.mockResolvedValue({ data: null, error: { message: "giù" } });
+    const { result } = renderHook(() => useChatData({
+      enabled: true, team: [], currentUserId: "u1",
+      mockConversations: [], mockMessages: {}, onError: () => {}, onSuccess: () => {},
+    }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+  });
+});

@@ -44,7 +44,14 @@ export const TaskFiles = {
       source,
       uploaded_by: uploadedBy,
     };
-    return supabase.from('task_files').insert(row).select('*, users(name)').single();
+    const ins = await supabase.from('task_files').insert(row).select('*, users(name)').single();
+    // B-1 · Senza la riga il file non è raggiungibile da nessuna schermata:
+    // si toglie, o resta orfano nel bucket.
+    if (ins.error) {
+      const { error } = await supabase.storage.from('task-files').remove([row.file_url]);
+      if (error) console.warn('TaskFiles.upload: file orfano non rimosso', row.file_url, error);
+    }
+    return ins;
   },
 
   // Rimuove la riga metadati (fonte di verità) poi l'oggetto nel bucket. Un
@@ -53,7 +60,10 @@ export const TaskFiles = {
     const supabase = await getSupabase();
     const del = await supabase.from('task_files').delete().eq('id', id);
     if (del.error) return del;
-    if (path) await supabase.storage.from('task-files').remove([path]);
+    if (path) {
+      const { error } = await supabase.storage.from('task-files').remove([path]);
+      if (error) console.warn('TaskFiles.remove: file non rimosso dallo storage', path, error);
+    }
     return del;
   },
 

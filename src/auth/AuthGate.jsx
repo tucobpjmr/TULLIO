@@ -56,7 +56,9 @@ export function AuthGate() {
 
   // Recovery ha priorità: anche con una session valida, se l'utente arriva da
   // un link "reimposta password" mostriamo prima la schermata di aggiornamento.
-  if (recovery) return <UpdatePasswordScreen />;
+  // M-2 · Senza sessione non c'è nessuna password da impostare: la schermata
+  // fallirebbe all'invio. Si ricade sul login.
+  if (recovery && session) return <UpdatePasswordScreen />;
 
   // getSession() stessa è fallita o è andata in timeout (rete instabile,
   // mobile riportato in foreground dopo essere stato a lungo in background):

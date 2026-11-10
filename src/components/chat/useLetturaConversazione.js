@@ -9,7 +9,7 @@
 // server). Metterli insieme rende evidente ciò che entrambi presumono: che
 // questa vista sia visibile.
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 /**
  * @param {object} opzioni
@@ -18,16 +18,30 @@ import { useEffect } from "react";
  * @param {string} opzioni.myId
  * @param {any} opzioni.commands
  * @param {{current: any}} opzioni.scrollRif
+ * @param {{current: boolean}|null} [opzioni.prependManualeRif]
  * @returns {number} quanti messaggi non letti restano (serve solo qui, ma è
  *   ciò che fa ripartire il mark-as-read: vale la pena vederlo).
  */
-export function useLetturaConversazione({ convId, msgs, myId, commands, scrollRif }) {
+export function useLetturaConversazione({ convId, msgs, myId, commands, scrollRif, prependManualeRif = null }) {
+  // A-2 · Se cambia solo il PRIMO messaggio sono arrivati dei precedenti:
+  // chiesti a mano (`prependManualeRif`), chi legge resta dov'è; caricati
+  // all'apertura, si resta in fondo come per ogni altro cambiamento.
+  const primo = msgs[0]?.id ?? null;
+  const ultimo = msgs[msgs.length - 1]?.id ?? null;
+  const precedente = useRef({ convId: null, primo: null, ultimo: null });
   useEffect(() => {
+    const p = precedente.current;
+    precedente.current = { convId, primo, ultimo };
+    const soloPrecedenti = p.convId === convId && p.ultimo === ultimo && p.primo !== primo;
+    if (soloPrecedenti && prependManualeRif?.current) {
+      prependManualeRif.current = false;
+      return;
+    }
     scrollRif.current?.scrollTo({ top: scrollRif.current.scrollHeight, behavior: "smooth" });
     // `scrollRif` è un ref: la sua identità non cambia mai, e includerlo o no
     // non sposta nulla. Fuori, per non far credere che sia una condizione.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [msgs.length]);
+  }, [convId, primo, ultimo, msgs.length]);
 
   // Mark as read all'apertura E quando arrivano nuovi messaggi non letti a
   // chat aperta (Step Q.4: 1 RPC bulk invece di N UPDATE per messaggio).

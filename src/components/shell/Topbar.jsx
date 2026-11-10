@@ -85,6 +85,9 @@ const NotificationsPanel = lazy(() =>
 // Topbar: è candidata a diventare un filtro cross-view, e in quel caso deve
 // restare leggibile da fuori questo componente. `showNotif`, che nessuno
 // legge fuori da qui, è invece `useState` locale — vedi audit ST-2 parte 2.
+// B-4 · Ctrl+K cerca il campo per id, non per il testo del placeholder.
+export const ID_RICERCA_GLOBALE = "vd-ricerca-globale";
+
 export const Topbar = memo(function Topbar({
   activeView, ricerca, onSearchChange,
   notifications: notificationsProp, nonLetteOltreFinestra = 0, onMarkRead, onMarkAllRead,
@@ -176,6 +179,7 @@ export const Topbar = memo(function Topbar({
             className="vd-campo-fuoco"
             placeholder={isMobile ? "Cerca..." : "Cerca task, clienti, categorie... (Ctrl+K)"}
             aria-label="Cerca"
+            id={ID_RICERCA_GLOBALE}
             style={boxF13Navy}
           />
         </div>

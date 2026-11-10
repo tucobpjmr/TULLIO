@@ -562,11 +562,27 @@ describe("useChatData — un messaggio non ricarica le conversazioni (ST-4)", ()
     expect(ConversationsAPI.listMine).not.toHaveBeenCalled();
   });
 
-  it("un evento su conversations ricarica tutto", async () => {
+  // A-2 dell'analisi del 10 novembre: un evento su conversations rilegge le
+  // conversazioni. Il corpus solo se ne compare una mai vista, i cui messaggi
+  // non sono passati dal canale.
+  it("un evento su una conversazione già nota ricarica SOLO le conversazioni", async () => {
     idrata();
     await waitFor(() => expect(MessagesAPI.listAll).toHaveBeenCalledTimes(1));
     vi.clearAllMocks();
     ConversationsAPI.listMine.mockResolvedValue({ data: [{ id: "c1" }], error: null });
+    MessagesAPI.listAll.mockResolvedValue({ data: [], error: null });
+
+    await act(async () => { emetti("conversations"); await new Promise(r => setTimeout(r, 250)); });
+
+    expect(ConversationsAPI.listMine).toHaveBeenCalledTimes(1);
+    expect(MessagesAPI.listAll).not.toHaveBeenCalled();
+  });
+
+  it("una conversazione nuova ricarica anche il corpus", async () => {
+    idrata();
+    await waitFor(() => expect(MessagesAPI.listAll).toHaveBeenCalledTimes(1));
+    vi.clearAllMocks();
+    ConversationsAPI.listMine.mockResolvedValue({ data: [{ id: "c1" }, { id: "c2" }], error: null });
     MessagesAPI.listAll.mockResolvedValue({ data: [], error: null });
 
     await act(async () => { emetti("conversations"); await new Promise(r => setTimeout(r, 250)); });

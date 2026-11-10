@@ -224,6 +224,9 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
         : await TaskThreadsAPI.comments();
       if (!isCurrent()) return;
       if (rCommenti?.error) {
+        // B-3 · Gli id tornano nel set: il giro dopo li rilegge, invece di
+        // lasciare quei thread vecchi fino al prossimo reload completo.
+        for (const id of ids) taskConCommentiNuovi.current.add(id);
         console.error("[VoyageDesk] TaskThreads", rCommenti.error);
         onError(`Caricamento commenti fallito: ${rCommenti.error.message || ""}`);
         return;

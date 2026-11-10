@@ -52,10 +52,17 @@ async function withRetry(fn, label) {
 // PASSWORD_RECOVERY (arrivano come SIGNED_IN con `type=invite`): senza questo
 // l'invitato non vedrebbe mai «imposta password». Letto prima che
 // detectSessionInUrl ripulisca l'hash.
-function detectAuthLinkType() {
-  if (typeof window === 'undefined') return null;
-  const fromStr = (s) => new URLSearchParams((s || '').replace(/^[#?]/, '')).get('type');
-  const t = fromStr(window.location.hash) || fromStr(window.location.search);
+//
+// M-2 · `type` vale solo accanto a un token: un `?type=recovery` scritto a
+// mano (o in un link malevolo) non deve aprire «imposta password».
+const CHIAVI_TOKEN = ['access_token', 'token_hash', 'token', 'code'];
+export function detectAuthLinkType(posizione = typeof window === 'undefined' ? null : window.location) {
+  if (!posizione) return null;
+  const fromStr = (s) => {
+    const p = new URLSearchParams((s || '').replace(/^[#?]/, ''));
+    return CHIAVI_TOKEN.some((k) => p.get(k)) ? p.get('type') : null;
+  };
+  const t = fromStr(posizione.hash) || fromStr(posizione.search);
   return t === 'invite' || t === 'recovery' ? t : null;
 }
 
@@ -76,6 +83,8 @@ export function AuthProvider({ children }) {
   const [authError, setAuthError] = useState(null);
   // La funzione di init corrente, per rieseguirla da retryInit.
   const initAuthRef = useRef(null);
+  // M-1 · L'utente il cui profilo è già caricato (null: nessuno, o da rileggere).
+  const profiloCaricatoRef = useRef(null);
   // Un solo caricamento profilo in volo per utente: all'avvio initAuth e
   // INITIAL_SESSION lo chiedevano insieme, e uno dei due poteva fallire.
   const caricamentoInVoloRef = useRef(null);
@@ -86,7 +95,7 @@ export function AuthProvider({ children }) {
     if (inflight && inflight.key === key) return inflight.promise;
 
     const promise = (async () => {
-      if (!userId) { setProfile(null); setTeam([]); setAuthError(null); return; }
+      if (!userId) { profiloCaricatoRef.current = null; setProfile(null); setTeam([]); setAuthError(null); return; }
       try {
         // B-2 · Import dinamico: è l'unica riga che tocca il client pieno. Chi resta
         // sul login non scarica mai postgrest/realtime/storage.
@@ -124,10 +133,14 @@ export function AuthProvider({ children }) {
         // photo_url → photoUrl, atteso da Avatar/ProfileEditor.
         const normalize = (u) => ({ ...u, photoUrl: u.photo_url ?? null });
         setProfile({ ...normalize(me), ...myContacts });
+        // M-1 · Un invitato in attesa resta fuori: per lui il ritorno sulla
+        // scheda deve continuare a rileggere il profilo (l'approvazione).
+        profiloCaricatoRef.current = me.pending ? null : userId;
         setTeam((all ?? []).map(u => u.id === userId ? { ...normalize(u), ...myContacts } : normalize(u)));
         setAuthError(null);
       } catch (err) {
         console.error('[auth] caricaProfilo fallito dopo i retry', err);
+        profiloCaricatoRef.current = null;
         setAuthError(err);
       }
     })();
@@ -179,6 +192,11 @@ export function AuthProvider({ children }) {
       setSession(prev => ((prev?.user?.id ?? null) === (s?.user?.id ?? null) ? prev : s));
       // Il rinnovo del token non cambia né il profilo né il team.
       if (evento === 'TOKEN_REFRESHED') return;
+      // M-1 · gotrue emette SIGNED_IN a OGNI ritorno sulla scheda. Con lo stesso
+      // utente e il profilo già caricato non c'è niente da rileggere: tre query
+      // e un `team` nuovo a ogni cambio di finestra. Il team lo tiene fresco la
+      // sottoscrizione `users` di useAppHydration.
+      if (evento === 'SIGNED_IN' && s?.user?.id && s.user.id === profiloCaricatoRef.current) return;
       setTimeout(() => {
         if (!mounted) return;
         caricaProfilo(s?.user?.id).finally(() => {
@@ -235,8 +253,11 @@ export function AuthProvider({ children }) {
   // revocherebbe le sessioni delle altre schede aperte.
   const signOut = useCallback(async () => {
     await revocaPush({ ovunque: false });
-    await svuotaCoda();
     const res = await supabaseAuth.signOut({ scope: 'local' });
+    // M-3 · Senza rete gotrue torna errore e la sessione resta aperta: la coda
+    // offline si svuota solo a uscita avvenuta, o si perde lavoro restando dentro.
+    if (res?.error) return res;
+    await svuotaCoda();
     await svuotaCache();
     return res;
   }, [revocaPush, svuotaCoda, svuotaCache]);
@@ -245,8 +266,9 @@ export function AuthProvider({ children }) {
   // push ovunque. Qui la sessione morta nelle altre schede è voluta.
   const signOutOvunque = useCallback(async () => {
     await revocaPush({ ovunque: true });
-    await svuotaCoda();
     const res = await supabaseAuth.signOut({ scope: 'global' });
+    if (res?.error) return res; // M-3, come signOut
+    await svuotaCoda();
     await svuotaCache();
     return res;
   }, [revocaPush, svuotaCoda, svuotaCache]);
@@ -281,6 +303,19 @@ export function AuthProvider({ children }) {
     const res = await supabaseAuth.updateUser({ password: nuova, current_password: attuale });
     if (res.error) return { ...res, error: { ...res.error, message: messaggioCambioPassword(res.error) } };
     return res;
+  }, []);
+
+  // M-2 · Uscita da «imposta password» senza cambiarla: prima la schermata non
+  // aveva una via d'uscita. Toglie anche `type` dall'URL, o un ricarico la riapre.
+  const annullaRecovery = useCallback(() => {
+    setRecovery(false);
+    setRecoveryKind(null);
+    if (typeof window === 'undefined') return;
+    const p = new URLSearchParams(window.location.search);
+    if (!p.has('type')) return;
+    p.delete('type');
+    const qs = p.toString();
+    window.history.replaceState(window.history.state, '', window.location.pathname + (qs ? `?${qs}` : ''));
   }, []);
 
   const refreshTeam = useCallback(() => caricaProfilo(session?.user?.id), [session, caricaProfilo]);
@@ -324,6 +359,7 @@ export function AuthProvider({ children }) {
     resetPassword,
     resendConfirmation,
     updatePassword,
+    annullaRecovery,
     cambiaPassword,
     deleteAccount,
     signOut,
@@ -332,7 +368,7 @@ export function AuthProvider({ children }) {
     retryInit,
   }), [
     session, profile, team, caricando, authError, recovery, recoveryKind,
-    signIn, resetPassword, resendConfirmation, updatePassword, cambiaPassword, deleteAccount, signOut, signOutOvunque, refreshTeam, retryInit,
+    signIn, resetPassword, resendConfirmation, updatePassword, annullaRecovery, cambiaPassword, deleteAccount, signOut, signOutOvunque, refreshTeam, retryInit,
   ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

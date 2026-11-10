@@ -61,46 +61,24 @@ export const Conversations = {
 // file. Erano già una coppia condivisa fra due sezioni dello stesso file — lo
 // split le ha solo messe dove entrambe le vedono.
 
+const BLOCCO_PULIZIA = 1000;
+const MAX_GIRI_PULIZIA = 20;
+
 export const Messages = {
-  // Non chiamata da nessuna parte, DI PROPOSITO: è il secondo passo di ST-4
-  // (docs/archivio/audit/AUDIT_STRUTTURA_2026-08-10.md), la lettura per-conversazione che
-  // sostituirà il corpus intero di listAll() quando `messages` supererà la
-  // soglia scritta lì (~1500) — oggi 13. Rimossa una prima volta in questo
-  // stesso intervento (B-2, secondo audit del 14 agosto) scambiandola per
-  // codice morto: era una lettura degli USI nel repository, senza incrociare
-  // gli AUDIT che la citano per nome come preparazione dichiarata. Non
-  // toccare senza aver letto ST-4 (parte 2) per intero.
-  listForConversation: async (conversation_id, limit = 200) => {
+  // Una pagina di storia di UNA conversazione, la più recente prima di `fino`
+  // (compreso: chi chiama scarta i doppioni, così due messaggi con lo stesso
+  // istante a cavallo di pagina non si perdono). Torna in ordine di tempo.
+  // È il secondo passo di ST-4: la usa `caricaPrecedenti` di useChatData.
+  listForConversation: async (conversation_id, { fino = /** @type {string|null} */ (null), limit = 50 } = {}) => {
     const supabase = await getSupabase();
-    return supabase.from('messages').select('*')
+    let q = supabase.from('messages').select('*')
       .eq('conversation_id', conversation_id)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false }).order('id', { ascending: false })
       .limit(limit);
+    if (fino) q = q.lte('created_at', fino);
+    const { data, error } = await q;
+    return { data: data ? [...data].reverse() : data, error };
   },
-  // Carica i messaggi più RECENTI delle conv visibili in un solo round-trip:
-  // l'app raggruppa lato client per conversation_id. Le RLS già limitano
-  // la visibilità ai soli partecipanti.
-  // Nota: ordiniamo discendente per prendere gli ultimi `limit` (non i primi:
-  // con ascending una volta superato il totale cumulativo di `limit` messaggi
-  // su tutte le conversazioni visibili, i messaggi NUOVI smetterebbero di
-  // comparire perché la query restituirebbe sempre e solo i più vecchi).
-  // Poi si reinverte per ripristinare l'ordine cronologico atteso dai
-  // consumer (msgsByConv in VoyageDesk.jsx costruisce gli array assumendo
-  // ordine ascendente).
-  //
-  // B-2 dell'audit del 13 agosto: `.limit(2000)` dichiara un tetto oltre
-  // `db-max-rows` (1000 di default su Supabase, vedi lib/pagination.js), che
-  // PostgREST applica troncando la risposta a 1000 righe con HTTP 200 — SENZA
-  // errore. Il limite dichiarato non era mai stato davvero consegnato oltre
-  // le prime 1000 righe. `fetchRowsUpTo` pagina con `.range()` in blocchi da
-  // `PAGE_SIZE` (1000, lo stesso cap) finché non raggiunge `limit` o il
-  // database finisce le righe: con `limit` di default (2000) sono due
-  // richieste invece di una, ma è la differenza fra "i 2000 messaggi più
-  // recenti" dichiarati e "i 1000 più recenti, in silenzio".
-  // `.order('id')` come spareggio: fetchRowsUpTo pagina con `.range()`, che
-  // richiede una chiave d'ordinamento deterministica (vedi pagination.js) —
-  // senza, due messaggi con lo stesso `created_at` (stesso millisecondo, non
-  // impossibile con più mittenti) potrebbero ripetersi o saltare fra due pagine.
   listAll: async (limit = 2000) => {
     const supabase = await getSupabase();
     const { data, error } = await fetchRowsUpTo(
@@ -211,14 +189,20 @@ export const Messages = {
   // un errore qui non deve bloccare l'eliminazione della conversazione.
   removeConversationFiles: async (conversationId) => {
     const supabase = await getSupabase();
-    const { data, error } = await supabase.storage
-      .from('chat-files')
-      .list(conversationId, { limit: 1000 });
-    if (error) return { error };
-    if (!data?.length) return { error: null };
-    const paths = data.map(f => `${conversationId}/${f.name}`);
-    const { error: rmError } = await supabase.storage.from('chat-files').remove(paths);
-    return { error: rmError };
+    // B-2 · A blocchi finché l'elenco è vuoto: un solo giro lasciava orfani i
+    // file oltre il millesimo. Il tetto di giri ferma un elenco che non cala.
+    for (let giro = 0; giro < MAX_GIRI_PULIZIA; giro++) {
+      const { data, error } = await supabase.storage
+        .from('chat-files')
+        .list(conversationId, { limit: BLOCCO_PULIZIA });
+      if (error) return { error };
+      if (!data?.length) return { error: null };
+      const paths = data.map(f => `${conversationId}/${f.name}`);
+      const { error: rmError } = await supabase.storage.from('chat-files').remove(paths);
+      if (rmError) return { error: rmError };
+      if (data.length < BLOCCO_PULIZIA) return { error: null };
+    }
+    return { error: { message: 'pulizia allegati interrotta: troppi file' } };
   },
   // Signed URL temporanea (1h) per scaricare/visualizzare un allegato.
   // Cache in-memory condivisa con TaskFiles.getFileUrl (stessa fabbrica,

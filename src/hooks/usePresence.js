@@ -56,6 +56,8 @@ export function usePresence({ enabled, userId, team }) {
   // La maniglia del canale, per pubblicare da fuori dall'effetto (il toggle
   // "Occupato", che ha il proprio `useCallback`).
   const canaleRef = useRef(null);
+  const teamRef = useRef(team);
+  teamRef.current = team;
 
   // M-1 dell'audit del 16 agosto. Il nuovo valore si calcola dal REF e le
   // conseguenze (la pubblicazione sul canale, la scrittura su Supabase e
@@ -103,7 +105,7 @@ export function usePresence({ enabled, userId, team }) {
     // la sottoscrizione `users` di useAppHydration — e il canale ci scrive
     // sopra chi è collegato adesso.
     const base = {};
-    for (const u of team || []) base[u.id] = u;
+    for (const u of teamRef.current || []) base[u.id] = u;
     setPresenceMap(prev => ({ ...base, ...prev }));
 
     if (!myId) return;
@@ -177,7 +179,17 @@ export function usePresence({ enabled, userId, team }) {
       // Best-effort: segnala offline (logout, cambio utente).
       UsersAPI.setPresence(myId, 'offline').then(() => {});
     };
-  }, [enabled, userId, team]);
+    // M-1 · `team` NON è una dipendenza: un array nuovo con le stesse persone
+    // smontava il canale e scriveva offline/online su `users` (due eventi
+    // realtime per tutti). Lo snapshot lo aggiorna l'effetto qui sotto.
+  }, [enabled, userId]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const base = {};
+    for (const u of team || []) base[u.id] = u;
+    setPresenceMap(prev => ({ ...base, ...prev }));
+  }, [enabled, team]);
 
   return { presenceMap, myBusy, toggleMyBusy };
 }

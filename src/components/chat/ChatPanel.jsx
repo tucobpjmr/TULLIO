@@ -89,7 +89,7 @@ const vuotaLista = [];
 // c'entravano nulla. Come per le sei viste, il `memo` regge solo se reggono
 // anche le prop: `onClose` è ora un `useCallback` nel guscio e `commands` è
 // finalmente stabile (vedi la nota su `notif` in VoyageDeskInner.jsx).
-export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations: convProp, messages: msgProp, commands: commandsProp, onDeleteConversation, intent, tasks, currentUserId, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) {
+export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations: convProp, messages: msgProp, commands: commandsProp, storiaMessaggi = null, onDeleteConversation, intent, tasks, currentUserId, presenceMap, messageTemplates = [], loading = false, myBusy = false, onToggleBusy }) {
   const dispatch = useDispatch();
   const conferma = useConfirm();
   const { isMobile } = useViewport();
@@ -419,6 +419,7 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
               // dai comandi (ST-10): è precisamente il difetto che una seconda
               // implementazione "solo per i test" nasconde.
               commands={commands}
+              storia={commandsProp ? storiaMessaggi : null}
               onBack={() => pd({ type: "BACK" })}
               onDelete={onDeleteConversation ? () => handleDeleteConv(activeConv) : undefined}
               initialInput={prefillText}

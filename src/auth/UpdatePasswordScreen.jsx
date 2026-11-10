@@ -11,7 +11,7 @@ import { passwordValida } from '../lib/validators.js';
 const txtF13Op07 = { margin: '0 0 24px', fontSize: 13, opacity: 0.7 };
 
 export default function UpdatePasswordScreen() {
-  const { updatePassword, signOut, recoveryKind } = useAuth();
+  const { updatePassword, annullaRecovery, signOut, recoveryKind } = useAuth();
   const isInvite = recoveryKind === 'invite';
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -89,6 +89,14 @@ export default function UpdatePasswordScreen() {
             }}>
               {loading ? 'Salvataggio…' : 'Aggiorna password'}
             </button>
+            {/* M-2 · Via d'uscita. Per un invito «annullare» lascerebbe un
+                account senza password: lì si esce dalla sessione. */}
+            <button
+              type="button" disabled={loading} style={secondaryBtn}
+              onClick={() => { if (isInvite) signOut(); annullaRecovery(); }}
+            >
+              {isInvite ? 'Esci' : 'Annulla'}
+            </button>
           </>
         )}
       </form>
@@ -118,6 +126,12 @@ const inputStyle = {
   width: '100%', padding: '11px 12px', borderRadius: 10,
   border: '1px solid #334155', background: '#0f172a', color: '#e2e8f0',
   fontSize: 14, outline: 'none', boxSizing: 'border-box',
+};
+// Bordo e colore presi da ciò che la scheda ha già (inputStyle, wrapStyle).
+const secondaryBtn = {
+  width: '100%', marginTop: 10, padding: '10px 12px', borderRadius: 10,
+  border: inputStyle.border, background: 'transparent', color: 'inherit',
+  fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
 };
 const errStyle = {
   marginTop: 14, padding: '10px 12px', borderRadius: 8,

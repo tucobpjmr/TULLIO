@@ -15,7 +15,16 @@ import { fromDbConversation, fromDbMessage } from "../lib/mappers.js";
 import { scopeConversationsForUser } from "../lib/chatUtils.js";
 import { makeChatCommands } from "../components/chat/chatCommands.js";
 import { getUnreadCount } from "../components/chat/chatFormat.js";
+import { applicaRighe, fondiCorpus, aggiungiPagina } from "../components/chat/messaggiStato.js";
 import { useDebouncedTableSubscription } from "./useDebouncedTableSubscription.js";
+
+// A-2 · Tetto del corpus letto all'avvio (i messaggi più recenti di tutte le
+// conversazioni). Sotto il tetto in stato c'è tutto; sopra, la storia più
+// vecchia si carica a pagine, per conversazione aperta.
+export const TETTO_CORPUS = 2000;
+export const PAGINA_STORIA = 50;
+const RITARDO_RIGHE_MS = 50;
+const STORIA_VUOTA = { caricando: false, completa: false, errore: false };
 
 // A-2 dell'audit del 14 agosto (secondo passaggio). Messaggi la cui INSERT è
 // ancora in volo, raggruppati per conversazione — la stessa forma di
@@ -42,23 +51,13 @@ const messaggiInVolo = (mappaDalServer, inVolo) => {
   return out;
 };
 
-// ─── B-4 (audit di architettura del 16 agosto) · la soglia che scade da sola ─
-// `Messages.listAll()` rilegge TUTTI i messaggi a ogni evento su `messages`,
-// non quelli della conversazione toccata. Non è un difetto aperto: è il
-// secondo passo di ST-4, rimandato esplicitamente sotto una soglia. Misurato
-// in produzione il 18 agosto: **13 messaggi**, 12 negli ultimi trenta giorni
-// (~0,4 al giorno) — la soglia è a una decina d'anni di distanza, e finché è
-// così il corpus intero è la lettura più semplice e quella con meno modi di
-// sbagliare.
-//
-// ⚠️ Il problema di una decisione con una soglia è che la soglia vive in un
-// commento, e un commento non scade: il giorno in cui i messaggi diventassero
-// migliaia, nulla lo direbbe. Qui la soglia è un NUMERO che il codice
-// controlla, e quando viene superata lo dice — una volta per sessione, con il
-// nome del lavoro rimandato. È la stessa logica di ST-13 applicata a una
-// decisione invece che a un numero in un documento: farla scadere in modo
-// RUMOROSO invece che silenzioso.
-const SOGLIA_MESSAGGI_CORPUS = 1500;
+// ─── ST-4, secondo passo (A-2 dell'analisi del 10 novembre) ────────────────
+// Il corpus (i TETTO_CORPUS messaggi più recenti) si legge all'avvio e alla
+// ripresa: serve ad anteprime e non letti. Gli eventi di `messages` si
+// applicano riga per riga, e sopra il tetto la storia più vecchia si carica a
+// pagine per conversazione (`caricaPrecedenti`). Resta un limite dichiarato: i
+// NON LETTI più vecchi del corpus non entrano nel badge finché la
+// conversazione non si apre.
 
 export function useChatData({ enabled, team, currentUserId, mockConversations, mockMessages, onError, onSuccess, onConversationRead }) {
   // Loading: true finché non completa il primo reload da Supabase. Evita il
@@ -71,16 +70,14 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
   // rappresenta, che è già in `messages` via l'aggiornamento ottimistico di
   // sendMessage.
   const inVoloRef = useRef(new Map());
-  // B-4: la segnalazione della soglia parte una volta per sessione, non a ogni
-  // reload — altrimenti sarebbe rumore che si impara a saltare, cioè
-  // esattamente ciò che rende inutili gli avvisi.
-  const sogliaSegnalataRef = useRef(false);
   const marcaInVolo = useRef((convId, msg) => { inVoloRef.current.set(msg.id, { convId, msg }); }).current;
   const smarcaInVolo = useRef((msgId) => { inVoloRef.current.delete(msgId); }).current;
 
   // currentUserId "vivo": i comandi lo leggono al momento della chiamata invece
   // di riceverlo come dipendenza. Senza il ref, `commands` cambierebbe identità
   // a ogni cambio utente e ChatPanel — che lo memoizza — si invaliderebbe.
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
   const currentUserIdRef = useRef(currentUserId);
   useEffect(() => { currentUserIdRef.current = currentUserId; }, [currentUserId]);
   // In modalità Supabase partiamo da stato vuoto e idratiamo dal DB.
@@ -117,78 +114,157 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
     smarcaInVolo,
   }), [enabled, onError, onSuccess, onConversationRead, marcaInVolo, smarcaInVolo]);
 
-  // Idratazione chat (conversations + messages) + realtime.
-  // chatLoading parte da `useSupabase`: senza login è già false, quindi non
-  // serve azzerarlo qui (l'hook non gira affatto quando enabled=false).
-  //
-  // ST-4: un messaggio nuovo cambia i MESSAGGI e non l'elenco delle
-  // conversazioni (updated_at si muove solo su create/rename/pin, non su ogni
-  // invio) — stessa forma della correzione A-1 in useListeData.js. La chat è
-  // il sottosistema con la frequenza di scrittura più alta dell'app: prima di
-  // questa correzione ogni messaggio inviato da chiunque faceva ricaricare
-  // listMine() a ogni client connesso per niente.
-  // `tabelle === null` = idratazione iniziale (o ripresa dopo un buco di
-  // connessione), dove serve tutto.
-  useDebouncedTableSubscription(["conversations", "messages"], async (isCurrent, tabelle) => {
-    const soloMessaggi = tabelle !== null && tabelle.size > 0 && !tabelle.has("conversations");
-    const [convsRes, msgsRes] = await Promise.all([
-      soloMessaggi ? Promise.resolve({ data: null, error: null }) : ConversationsAPI.listMine(),
-      MessagesAPI.listAll(),
-    ]);
-    if (!isCurrent()) return;
-    if (convsRes.error) {
-      console.error("[chat] convs.list", convsRes.error);
-      onError(`Chat: caricamento conversazioni fallito: ${convsRes.error.message || ""}`);
+  // ─── A-2 · storia per conversazione ────────────────────────────────────────
+  // `corpusCompleto`: l'ultima rilettura stava sotto il tetto, quindi in stato
+  // c'è tutto e nessuna conversazione ha «precedenti» da caricare. Sopra il
+  // tetto, `storia[convId]` dice a che punto è ciascuna.
+  const [corpusCompleto, setCorpusCompleto] = useState(true);
+  const [storia, setStoria] = useState({});
+  const storiaRef = useRef(storia);
+  storiaRef.current = storia;
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const segnaStoria = useRef((convId, patch) => {
+    setStoria(prev => ({ ...prev, [convId]: { ...STORIA_VUOTA, ...prev[convId], ...patch } }));
+  }).current;
+
+  const caricaPrecedenti = useRef(async (convId) => {
+    const stato = storiaRef.current[convId] || STORIA_VUOTA;
+    if (!convId || stato.caricando || stato.completa) return;
+    segnaStoria(convId, { caricando: true, errore: false });
+    const piuVecchio = messagesRef.current[convId]?.[0]?.time ?? null;
+    let res;
+    try {
+      res = await MessagesAPI.listForConversation(convId, { fino: piuVecchio, limit: PAGINA_STORIA });
+    } catch (e) {
+      res = { data: null, error: e };
     }
-    if (msgsRes.error) {
-      console.error("[chat] msgs.list", msgsRes.error);
-      onError(`Chat: caricamento messaggi fallito: ${msgsRes.error.message || ""}`);
-    }
-    // A-1 · Una lettura fallita non sostituisce lo stato: scrivere `[]` e `{}`
-    // svuotava la chat proprio al rientro della rete. Resta ciò che c'era.
-    if (convsRes.error || msgsRes.error) {
-      setChatLoading(false);
+    if (res.error) {
+      console.error("[chat] msgs.precedenti", res.error);
+      onErrorRef.current(`Chat: caricamento dei messaggi precedenti fallito: ${res.error.message || ""}`);
+      segnaStoria(convId, { caricando: false, errore: true });
       return;
     }
-    const msgsByConv = {};
-    for (const r of msgsRes.data || []) {
-      // Vedi la nota gemella in useAppHydration: il mapper torna `null` per
-      // una riga assente, e saltarla costa meno di presumerla.
-      const m = fromDbMessage(r);
-      if (!m) continue;
-      (msgsByConv[m.conversation_id] ||= []).push(m);
-    }
-    // Se `soloMessaggi`, le conversazioni già in stato non sono state
-    // invalidate: non chiamare setConversationsRaw le lascia com'erano,
-    // invece di sostituirle con `[]` perché qui `convsRes.data` non arriva.
-    if (!soloMessaggi) {
-      setConversationsRaw((convsRes.data || []).map(fromDbConversation));
-    }
-    // A-2: un messaggio la cui INSERT è ancora in volo può non essere ancora
-    // nella risposta del server. Senza questa fusione, sostituire la mappa
-    // qui lo farebbe sparire dallo schermo di chi l'ha appena scritto, fino a
-    // quando (se mai) un altro reload arriva dopo il commit — l'eco della
-    // nostra stessa INSERT viene invece scartata da subscribeToTable.
-    setMessagesRaw(messaggiInVolo(msgsByConv, inVoloRef.current));
-    setChatLoading(false);
+    const pagina = (res.data || []).map(fromDbMessage).filter(Boolean);
+    // Contati sullo stato corrente, non dentro l'updater (che può girare dopo).
+    const noti = new Set((messagesRef.current[convId] || []).map(m => m.id));
+    const nuovi = pagina.filter(m => !noti.has(m.id)).length;
+    setMessagesRaw(prev => aggiungiPagina(prev, convId, pagina).mappa);
+    // Storia finita: pagina corta, o nessun messaggio che non avessimo già.
+    segnaStoria(convId, {
+      caricando: false,
+      completa: (res.data || []).length < PAGINA_STORIA || nuovi === 0,
+    });
+  }).current;
 
-    // La soglia di ST-4 passo 2, controllata invece che scritta e basta.
-    const totale = (msgsRes.data || []).length;
-    if (totale > SOGLIA_MESSAGGI_CORPUS && !sogliaSegnalataRef.current) {
-      sogliaSegnalataRef.current = true;
-      console.warn(
-        `[chat] ${totale} messaggi in stato, oltre la soglia dichiarata di ${SOGLIA_MESSAGGI_CORPUS}: ` +
-        "il corpus intero viene riletto a ogni evento su `messages`. È il momento previsto per il " +
-        "secondo passo di ST-4 — caricamento per conversazione aperta invece che per corpus " +
-        "(vedi Messages.listForConversation, già in lib/api.js e pronta allo scopo).",
-      );
-    }
-  }, { enabled, deps: [enabled] });
+  // ─── A-2 · eventi di `messages` applicati riga per riga ────────────────────
+  // Prima ogni evento rileggeva il corpus intero. Gli eventi vicini (un
+  // «segna letto» tocca molte righe) finiscono in un solo aggiornamento.
+  const righeInAttesa = useRef([]);
+  const timerRighe = useRef(null);
+  const reloadInVolo = useRef(0);
+  const convNote = useRef(new Set());
+  useEffect(() => () => clearTimeout(timerRighe.current), []);
 
-  // La lista chat è PERSONALE: mostra solo le conversazioni di cui l'utente è
-  // davvero partecipante (e scarta le dirette orfane → "Sconosciuto"). Vedi
-  // scopeConversationsForUser per il perché (RLS admin-see-all + invio bloccato
-  // sulle conversazioni di cui non si è partecipanti).
+  const applicaRigaMessaggio = (tbl, payload) => {
+    if (tbl !== "messages") return false;
+    // Durante una rilettura l'evento passa dal debounce: applicarlo qui
+    // scarterebbe la rilettura in volo (vedi `gen` nell'hook) senza rifarla.
+    if (reloadInVolo.current > 0) return false;
+    if (payload?.eventType === "DELETE") {
+      const id = payload.old?.id;
+      if (!id) return false;
+      righeInAttesa.current.push({ tipo: "del", id, convId: payload.old.conversation_id ?? null });
+    } else {
+      const m = fromDbMessage(payload?.new);
+      if (!m?.id || !m.conversation_id) return false;
+      righeInAttesa.current.push({ tipo: payload.eventType === "INSERT" ? "ins" : "upd", m });
+    }
+    clearTimeout(timerRighe.current);
+    timerRighe.current = setTimeout(() => {
+      const righe = righeInAttesa.current;
+      righeInAttesa.current = [];
+      setMessagesRaw(prev => applicaRighe(prev, righe));
+    }, RITARDO_RIGHE_MS);
+    return true;
+  };
+
+  // Idratazione chat (conversations + messages) + realtime.
+  // `tabelle === null`: idratazione iniziale o ripresa, serve tutto.
+  // Solo `messages` (un evento che `applicaRigaMessaggio` non ha potuto
+  // applicare): si rilegge il corpus, non le conversazioni (ST-4).
+  // Solo `conversations`: si rileggono le conversazioni; il corpus solo se ne
+  // compare una mai vista, i cui messaggi non sono passati dal canale.
+  useDebouncedTableSubscription(["conversations", "messages"], async (isCurrent, tabelle) => {
+    const soloMessaggi = tabelle !== null && tabelle.size > 0 && !tabelle.has("conversations");
+    const soloConversazioni = tabelle !== null && tabelle.size > 0 && !tabelle.has("messages");
+    reloadInVolo.current += 1;
+    try {
+      /** @type {{data: any[]|null, error: any}} */
+      let convsRes = { data: null, error: null };
+      /** @type {{data: any[]|null, error: any}|null} */
+      let msgsRes = null;
+      if (soloConversazioni) {
+        convsRes = await ConversationsAPI.listMine();
+        const nuova = !convsRes.error && (convsRes.data || []).some(c => !convNote.current.has(c.id));
+        if (nuova) msgsRes = await MessagesAPI.listAll(TETTO_CORPUS);
+      } else {
+        [convsRes, msgsRes] = await Promise.all([
+          soloMessaggi ? Promise.resolve({ data: null, error: null }) : ConversationsAPI.listMine(),
+          MessagesAPI.listAll(TETTO_CORPUS),
+        ]);
+      }
+      if (!isCurrent()) return;
+      if (convsRes.error) {
+        console.error("[chat] convs.list", convsRes.error);
+        onError(`Chat: caricamento conversazioni fallito: ${convsRes.error.message || ""}`);
+      }
+      if (msgsRes?.error) {
+        console.error("[chat] msgs.list", msgsRes.error);
+        onError(`Chat: caricamento messaggi fallito: ${msgsRes.error.message || ""}`);
+      }
+      // A-1 · Una lettura fallita non sostituisce lo stato: scrivere `[]` e `{}`
+      // svuotava la chat proprio al rientro della rete. Resta ciò che c'era.
+      if (convsRes.error || msgsRes?.error) {
+        setChatLoading(false);
+        return;
+      }
+      if (!soloMessaggi) {
+        convNote.current = new Set((convsRes.data || []).map(c => c.id));
+        setConversationsRaw((convsRes.data || []).map(fromDbConversation));
+      }
+      if (msgsRes) {
+        const msgsByConv = {};
+        for (const r of msgsRes.data || []) {
+          const m = fromDbMessage(r);
+          if (!m) continue;
+          (msgsByConv[m.conversation_id] ||= []).push(m);
+        }
+        const troncato = (msgsRes.data || []).length >= TETTO_CORPUS;
+        // Le righe in attesa sono più vecchie di questa lettura: la contiene già.
+        righeInAttesa.current = [];
+        // A-2 (14 agosto): un messaggio la cui INSERT è in volo può mancare
+        // dalla risposta; `messaggiInVolo` lo tiene a schermo.
+        setMessagesRaw(prev => messaggiInVolo(fondiCorpus(prev, msgsByConv, { troncato }), inVoloRef.current));
+        setCorpusCompleto(!troncato);
+        // Corpus intero: nessuna storia a pagine da ricordare.
+        if (!troncato) setStoria(prev => (Object.keys(prev).length ? {} : prev));
+      }
+      setChatLoading(false);
+    } finally {
+      reloadInVolo.current -= 1;
+    }
+  }, { enabled, deps: [enabled], applyRow: applicaRigaMessaggio });
+
+  const storiaMessaggi = useMemo(
+    () => ({ corpusCompleto, perConv: storia }),
+    [corpusCompleto, storia],
+  );
+  const comandi = useMemo(
+    () => ({ ...chatCommands, caricaPrecedenti: enabled ? caricaPrecedenti : undefined }),
+    [chatCommands, enabled, caricaPrecedenti],
+  );
+
   const chatConversations = useMemo(() => {
     if (!enabled) return conversations;
     const teamIds = new Set((team || []).map(m => m.id));
@@ -220,7 +296,8 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
   return {
     conversations: chatConversations,
     messages,
-    commands: chatCommands,
+    commands: comandi,
+    storiaMessaggi,
     unreadChat,
     loading: chatLoading,
   };

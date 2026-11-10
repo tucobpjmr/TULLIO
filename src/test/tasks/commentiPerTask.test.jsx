@@ -100,6 +100,23 @@ describe("A-1 — reload dei commenti ristretto ai task dell'evento", () => {
     expect(TasksAPI.list).not.toHaveBeenCalled();
   });
 
+  // B-3 dell'analisi del 10 novembre: gli id si azzeravano prima della lettura,
+  // e una lettura fallita li perdeva (il giro dopo ricadeva sul corpus, o non
+  // partiva affatto).
+  it("una lettura fallita non perde gli id: il giro dopo li richiede insieme ai nuovi", async () => {
+    montaHydration();
+    await waitFor(() => expect(TasksAPI.list).toHaveBeenCalledTimes(1));
+    vi.clearAllMocks();
+    TaskThreadsAPI.commentsForTasks.mockResolvedValueOnce({ data: null, error: { message: "rete" } });
+
+    await act(async () => { emetti("comments", conTaskId("t1")); await new Promise(r => setTimeout(r, 250)); });
+    await act(async () => { emetti("comments", conTaskId("t2")); await new Promise(r => setTimeout(r, 250)); });
+
+    expect(TaskThreadsAPI.commentsForTasks).toHaveBeenCalledTimes(2);
+    expect(TaskThreadsAPI.commentsForTasks.mock.calls[1][0].sort()).toEqual(["t1", "t2"]);
+    expect(TaskThreadsAPI.comments).not.toHaveBeenCalled();
+  });
+
   it("dispatcha MERGE_TASK_COMMENTS, non SET_TASK_THREADS", async () => {
     const { dispatch } = montaHydration();
     await waitFor(() => expect(TasksAPI.list).toHaveBeenCalledTimes(1));

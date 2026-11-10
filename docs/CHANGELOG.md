@@ -1,5 +1,57 @@
 # CHANGELOG — VoyageDesk
 
+## 10 novembre (ii) — analisi del 10 novembre: A-2, M-2, B-1…B-4
+
+**A-2 · La chat non rilegge più il corpus a ogni messaggio** (secondo passo
+di ST-4, senza migrazioni).
+- Gli eventi realtime di `messages` si applicano riga per riga
+  (`components/chat/messaggiStato.js`): INSERT aggiunge, UPDATE sostituisce
+  solo ciò che è in stato, DELETE toglie. Eventi vicini finiscono in un solo
+  aggiornamento. Un evento senza riga leggibile ricade sulla rilettura.
+- Un evento su `conversations` rilegge solo le conversazioni; il corpus solo
+  se ne compare una mai vista.
+- Sopra il tetto del corpus (2000 messaggi recenti, `TETTO_CORPUS`) la storia
+  più vecchia si carica a pagine da 50 per conversazione aperta
+  (`Messages.listForConversation`, `commands.caricaPrecedenti`): da sola se in
+  stato ci sono meno di 50 messaggi, con «Carica messaggi precedenti» quando
+  la finestra arriva in cima. Una rilettura del corpus non butta via le pagine
+  già caricate. Sotto il tetto l'interfaccia non cambia.
+- ⚠️ Limite che resta: i NON LETTI più vecchi del corpus non entrano nel badge
+  finché la conversazione non si apre. Chiuderlo richiede un conteggio lato
+  server (una RPC, quindi una migrazione). Anche la ricerca dentro la
+  conversazione vede solo i messaggi caricati.
+- L'avviso in console sopra i 1500 messaggi è tolto: il lavoro che annunciava
+  è questo.
+
+**M-2 · «Imposta password» solo da un link vero, con una via d'uscita.**
+`type=recovery|invite` nell'URL vale solo accanto a un token; `AuthGate`
+mostra la schermata solo con una sessione; la schermata ha «Annulla» (recupero)
+o «Esci» (invito: annullare lascerebbe un account senza password).
+⚠️ Resta da verificare in dashboard che «Require current password» sia accesa
+su produzione e staging (vedi A-3 del 6 novembre).
+
+**B-1 · Allegati orfani.** Se la riga `task_files` non si inserisce, il file
+appena caricato si toglie dal bucket. In `remove` l'errore dello storage si
+scrive in console.
+
+**B-2 · Letture intere.** `ListeAPI.movimenti` pagina con `fetchAllRows`
+(ordine chiuso su `id`); `removeConversationFiles` continua oltre i primi
+1000 file.
+
+**B-3 · Commenti.** Se la lettura dei thread fallisce, gli id tornano nel set
+e il giro dopo li richiede.
+
+**B-4 · Ctrl+K** trova il campo di ricerca per id (`ID_RICERCA_GLOBALE`), non
+per il testo del placeholder.
+
+**Budget del bundle.** First load autenticato 138,74 kB (era 137,31): codice
+nuovo, nessun chunk lazy rientrato. Soglia da 138 a 140, con la misura scritta
+accanto in `scripts/verifica-bundle/index.js`.
+
+Test: 50 casi nuovi, 2 aggiornati. Suite: 2466 passati, 45 saltati
+(integrazione). Lint, tipi, `verifica:convenzioni`, build e `verifica:bundle`
+verdi. Non provato in browser.
+
 ## 10 novembre — analisi del 10 novembre: A-1, M-1, M-3
 
 **A-1 · Un errore di rete non svuota più la chat.** Se `listMine` o `listAll`
@@ -28,7 +80,7 @@ negativo: sul codice precedente ne falliscono 8. Suite: 2416 passati, 45
 saltati (integrazione). Lint, tipi e `verifica:convenzioni` verdi. Non provato
 in browser.
 
-Restano aperti dell'analisi: A-2, M-2, B-1…B-4.
+Gli altri rilievi (A-2, M-2, B-1…B-4) sono nella voce qui sopra.
 
 ## 7 novembre — analisi del 6 novembre: M-4 e B-1…B-4
 

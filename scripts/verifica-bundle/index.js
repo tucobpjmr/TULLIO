@@ -138,7 +138,13 @@ const SOGLIA_APP_KB = 57;
 // causa che questo script esiste per intercettare): è la stessa quantità di
 // componenti eager di prima, ognuno con qualche byte in più per la tastiera.
 // Stesso margine +6 kB delle altre soglie di questo file.
-const SOGLIA_AUTENTICATO_KB = 138;
+// ─── 10 novembre · A-2 (storia della chat per conversazione) ───────────────
+// Misurato 138,74 kB (era 137,31): +1,4 kB di codice nuovo nell'app e
+// nell'ingresso (eventi di `messages` riga per riga, pagine di storia, uscita
+// da «imposta password»). Nessun chunk lazy è rientrato: l'elenco dei chunk
+// del first load è lo stesso di prima. Il margine era sceso a 0,7 kB; torna a
+// poco più di 1 kB, non ai +6 di partenza.
+const SOGLIA_AUTENTICATO_KB = 140;
 
 const kb = (bytes) => bytes / 1000;
 

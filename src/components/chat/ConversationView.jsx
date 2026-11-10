@@ -21,7 +21,7 @@
 // Qui restano la composizione e il JSX, e due ref soli: `scrollRef` e
 // `fileInputRef`, che sono ref a NODI DEL DOM — cioè l'unico tipo di ref che
 // una vista ha ragione di avere.
-import { useReducer, useRef, useMemo } from "react";
+import { useReducer, useRef, useMemo, useEffect } from "react";
 import { Avatar } from "../ui/Avatar.jsx";
 import { Icona } from "../ui/Icona.jsx";
 import { typingUserIds, buildTypingLabel } from "../../lib/typingUtils.js";
@@ -49,7 +49,15 @@ import {
 } from "./conversationViewStyles.js";
 
 // ─── CHAT: CONVERSATION VIEW ───────────────────────────────────────────────
-export const ConversationView = ({ conv, messages, commands, onBack, onDelete, initialInput, initialTaskRef, onInitialInputConsumed }) => {
+const colCentro = { display: "flex", justifyContent: "center", margin: "6px 0 14px" };
+const btnPrecedenti = {
+  background: "var(--card)", color: "var(--text)",
+  border: "1px solid var(--border)", borderRadius: 10,
+  padding: "8px 18px", cursor: "pointer",
+  fontSize: 12.5, fontWeight: 600, fontFamily: "inherit",
+};
+
+export const ConversationView = ({ conv, messages, commands, storia = /** @type {any} */ (null), onBack, onDelete, initialInput, initialTaskRef, onInitialInputConsumed }) => {
   const [cv, cvd] = useReducer(convViewReducer, convViewInitial);
   // Il composer riceve `cv` intero e si destruttura da sé i campi che usa
   // (input, recording, replyingTo, showAttach, showTemplates); da M-5
@@ -85,7 +93,8 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
 
   // Scendere in fondo e segnare come letto: la stessa regola vista da due
   // lati, «la conversazione aperta è la conversazione letta».
-  useLetturaConversazione({ convId: conv.id, msgs, myId, commands, scrollRif: scrollRef });
+  const prependManualeRif = useRef(false);
+  useLetturaConversazione({ convId: conv.id, msgs, myId, commands, scrollRif: scrollRef, prependManualeRif });
 
   // ── Typing indicator realtime (broadcast) ────────────────────────────────
   // Tre effetti, quattro ref e la mappa dei typer stavano qui: sono usciti
@@ -115,6 +124,26 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
   const { visibili, finestra } = useElencoMessaggi({
     msgs, convId: conv.id, msgSearch, showPinnedOnly,
   });
+
+  // A-2 · Storia a pagine. Senza `storia` (mock, pannello isolato) o con il
+  // corpus intero in stato non c'è niente da caricare.
+  const { caricaPrecedenti } = commands;
+  const statoStoria = storia?.perConv?.[conv.id];
+  const storiaCompleta = !storia || !caricaPrecedenti || storia.corpusCompleto || !!statoStoria?.completa;
+  const storiaInCarico = !!statoStoria?.caricando;
+  const storiaInErrore = !!statoStoria?.errore;
+  const pochi = msgs.length < PAGINA_MESSAGGI;
+  // All'apertura: una conversazione con pochi messaggi in stato può averne
+  // altri più vecchi del corpus. Dopo un errore non si ritenta da soli.
+  useEffect(() => {
+    if (storiaCompleta || storiaInCarico || storiaInErrore || !pochi) return;
+    caricaPrecedenti(conv.id);
+  }, [conv.id, storiaCompleta, storiaInCarico, storiaInErrore, pochi, caricaPrecedenti]);
+  const caricaAltri = async () => {
+    prependManualeRif.current = true;
+    await caricaPrecedenti(conv.id);
+    finestra.ancora();
+  };
 
   const otherTypingMember = conv.participants.find(p => p !== myId);
   // Presenza reale dell'interlocutore (solo conv dirette): guida il pallino
@@ -237,6 +266,13 @@ export const ConversationView = ({ conv, messages, commands, onBack, onDelete, i
             fondo — e non è un'eccezione alla convenzione ma la stessa
             convenzione applicata a un elenco che si legge dall'ultima riga.
             La meccanica resta una sola: si passa l'array ROVESCIATO. */}
+        {!storiaCompleta && finestra.restanti <= 0 && (
+          <div style={colCentro}>
+            <button type="button" onClick={caricaAltri} disabled={storiaInCarico} style={btnPrecedenti}>
+              {storiaInCarico ? "Caricamento…" : "Carica messaggi precedenti"}
+            </button>
+          </div>
+        )}
         <MostraAltri
           finestra={finestra}
           azione={`Mostra altri ${Math.min(PAGINA_MESSAGGI, finestra.restanti)} messaggi`}

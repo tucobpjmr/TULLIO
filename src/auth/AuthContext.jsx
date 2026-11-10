@@ -52,10 +52,17 @@ async function withRetry(fn, label) {
 // PASSWORD_RECOVERY (arrivano come SIGNED_IN con `type=invite`): senza questo
 // l'invitato non vedrebbe mai «imposta password». Letto prima che
 // detectSessionInUrl ripulisca l'hash.
-function detectAuthLinkType() {
-  if (typeof window === 'undefined') return null;
-  const fromStr = (s) => new URLSearchParams((s || '').replace(/^[#?]/, '')).get('type');
-  const t = fromStr(window.location.hash) || fromStr(window.location.search);
+//
+// M-2 · `type` vale solo accanto a un token: un `?type=recovery` scritto a
+// mano (o in un link malevolo) non deve aprire «imposta password».
+const CHIAVI_TOKEN = ['access_token', 'token_hash', 'token', 'code'];
+export function detectAuthLinkType(posizione = typeof window === 'undefined' ? null : window.location) {
+  if (!posizione) return null;
+  const fromStr = (s) => {
+    const p = new URLSearchParams((s || '').replace(/^[#?]/, ''));
+    return CHIAVI_TOKEN.some((k) => p.get(k)) ? p.get('type') : null;
+  };
+  const t = fromStr(posizione.hash) || fromStr(posizione.search);
   return t === 'invite' || t === 'recovery' ? t : null;
 }
 
@@ -298,6 +305,19 @@ export function AuthProvider({ children }) {
     return res;
   }, []);
 
+  // M-2 · Uscita da «imposta password» senza cambiarla: prima la schermata non
+  // aveva una via d'uscita. Toglie anche `type` dall'URL, o un ricarico la riapre.
+  const annullaRecovery = useCallback(() => {
+    setRecovery(false);
+    setRecoveryKind(null);
+    if (typeof window === 'undefined') return;
+    const p = new URLSearchParams(window.location.search);
+    if (!p.has('type')) return;
+    p.delete('type');
+    const qs = p.toString();
+    window.history.replaceState(window.history.state, '', window.location.pathname + (qs ? `?${qs}` : ''));
+  }, []);
+
   const refreshTeam = useCallback(() => caricaProfilo(session?.user?.id), [session, caricaProfilo]);
 
   // Retry quando la session stessa non è mai arrivata: tutta la sequenza init.
@@ -339,6 +359,7 @@ export function AuthProvider({ children }) {
     resetPassword,
     resendConfirmation,
     updatePassword,
+    annullaRecovery,
     cambiaPassword,
     deleteAccount,
     signOut,
@@ -347,7 +368,7 @@ export function AuthProvider({ children }) {
     retryInit,
   }), [
     session, profile, team, caricando, authError, recovery, recoveryKind,
-    signIn, resetPassword, resendConfirmation, updatePassword, cambiaPassword, deleteAccount, signOut, signOutOvunque, refreshTeam, retryInit,
+    signIn, resetPassword, resendConfirmation, updatePassword, annullaRecovery, cambiaPassword, deleteAccount, signOut, signOutOvunque, refreshTeam, retryInit,
   ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -34,7 +34,7 @@ import { LazyFallback } from "./components/ui/LazyFallback.jsx";
 import { StatoEntita } from "./components/ui/StatoEntita.jsx";
 import { LazyPanel } from "./components/ui/LazyPanel.jsx";
 import { KeyboardHelpOverlay } from "./components/ui/KeyboardHelpOverlay.jsx";
-import { Topbar } from "./components/shell/Topbar.jsx";
+import { Topbar, ID_RICERCA_GLOBALE } from "./components/shell/Topbar.jsx";
 import { Sidebar } from "./components/shell/Sidebar.jsx";
 import { BottomNav } from "./components/shell/BottomNav.jsx";
 import { FAB } from "./components/shell/FAB.jsx";
@@ -225,7 +225,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       const inInput = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        document.querySelector("input[placeholder*='Cerca']")?.focus();
+        document.getElementById(ID_RICERCA_GLOBALE)?.focus();
         return;
       }
       if (inInput) return;
@@ -362,6 +362,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
               conversations={chat.conversations}
               messages={chat.messages}
               commands={chat.commands}
+              storiaMessaggi={chat.storiaMessaggi}
               onDeleteConversation={chat.commands.removeConversation}
               intent={ui.intentoChat}
               tasks={state.tasks}

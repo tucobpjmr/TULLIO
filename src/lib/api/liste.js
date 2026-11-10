@@ -184,10 +184,11 @@ export const ListeAPI = {
 
   movimenti: async (listaId) => {
     const supabase = await getSupabase();
-    return supabase.from('movimenti_lista').select('*')
+    // B-2 · A pagine: una lettura sola si ferma a 1000 righe senza dirlo.
+    return fetchAllRows(() => supabase.from('movimenti_lista').select('*', WITH_COUNT)
       .eq('lista_id', listaId)
       .is('deleted_at', null)
-      .order('data_movimento').order('created_at');
+      .order('data_movimento').order('created_at').order('id'));
   },
 
   history: async (listaId, limit = 50) => {

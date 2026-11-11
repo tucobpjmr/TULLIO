@@ -3,7 +3,8 @@
 // e i due campi in linea della testata. Ognuno ha stato e salvataggio propri e
 // con gli altri condivide solo il `dispatch`.
 import { useEffect, useId, useRef, useState } from "react";
-import { METODI, parseImporto, todayISO } from "./listeFormato.js";
+import { METODI, metodoConBanca, parseImporto, todayISO } from "./listeFormato.js";
+import { BancaSelect } from "./modals/BancaSelect.jsx";
 import { useListeWrite } from "./listePersistence.js";
 import { useSalvataggioLista } from "./useSalvataggioLista.js";
 import { SegnoSeg } from "./modals/SegnoSeg.jsx";
@@ -34,6 +35,7 @@ export function AddMovBox({ listaId, onSaved, onClose, onBulk }) {
   const [segno, setSegno] = useState(1);
   const [imp, setImp] = useState("");
   const [metodo, setMetodo] = useState("");
+  const [banca, setBanca] = useState(null);
   // Criticità #10: un messaggio PER CAMPO, non un toast che li nomina tutti e
   // tre e sparisce da solo lasciando il form identico a com'era.
   const [errori, setErrori] = useState({});
@@ -63,8 +65,8 @@ export function AddMovBox({ listaId, onSaved, onClose, onBulk }) {
     async (payload) => (await esegui("registraMovimento", payload)).ok,
     {
       // Il riquadro resta aperto e pronto per il movimento successivo:
-      // azzeriamo solo descrizione e importo, data e metodo si ripetono quasi
-      // sempre.
+      // azzeriamo solo descrizione e importo, data, metodo e banca si
+      // ripetono quasi sempre.
       alSuccesso: () => {
         setDesc("");
         setImp("");
@@ -90,6 +92,7 @@ export function AddMovBox({ listaId, onSaved, onClose, onBulk }) {
     salva({
       listaId, data, descrizione: desc.trim(), importo: parseImporto(imp, segno),
       metodo: metodo || null,
+      banca: metodoConBanca(metodo) ? banca : null,
     });
   };
 
@@ -151,6 +154,12 @@ export function AddMovBox({ listaId, onSaved, onClose, onBulk }) {
             {METODI.map((v) => <option key={v || "none"} value={v}>{v ? v.toUpperCase() : "—"}</option>)}
           </select>
         </div>
+        {metodoConBanca(metodo) && (
+          <div className="lv-field">
+            <label htmlFor="mv-banca">Banca</label>
+            <BancaSelect id="mv-banca" value={banca} onChange={setBanca} />
+          </div>
+        )}
         <div className="lv-field" style={rowEnd}>
           <button type="submit" className="lv-btn primary" style={wFull} disabled={inVolo}>
             {inVolo ? "Registro…" : "Registra"}

@@ -1,6 +1,7 @@
 // Editor di cella del foglio movimenti (estratto da ListaDetail.jsx).
 import { useEffect, useRef, useState } from "react";
-import { METODI, parseImporto } from "./listeFormato.js";
+import { METODI, metodoConBanca, parseImporto } from "./listeFormato.js";
+import { BancaSelect } from "./modals/BancaSelect.jsx";
 import { useListeWrite } from "./listePersistence.js";
 import { useSalvataggioLista } from "./useSalvataggioLista.js";
 import { AzioniModifica } from "./AzioniModifica.jsx";
@@ -10,6 +11,7 @@ import { useDispatch } from "../../state/DispatchContext.jsx";
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
 const mb8 = { marginBottom: 8 };
+const mt8 = { marginTop: 8 };
 
 // Modifica in linea: un campo per volta. La riga toccata viene sostituita da
 // un editor a tutta larghezza — su schermo stretto un input dentro la cella
@@ -26,6 +28,7 @@ export function CellEditor({ movimento, campo, onSaved, onCancel }) {
     if (campo === "importo") return Math.abs(Number(movimento.importo)).toFixed(2).replace(".", ",");
     return movimento.metodo || "";
   });
+  const [banca, setBanca] = useState(movimento.banca || null);
   const inputRef = useRef(null);
   const esegui = useListeWrite();
 
@@ -44,11 +47,13 @@ export function CellEditor({ movimento, campo, onSaved, onCancel }) {
   );
 
   const save = () => {
-    // Si modifica un campo per volta: gli altri tre restano quelli del record.
+    // Si modifica un campo per volta: gli altri restano quelli del record
+    // (la banca va col metodo, e si modifica insieme a lui).
     let data = movimento.data_movimento;
     let descrizione = movimento.descrizione;
     let importo = Number(movimento.importo);
     let metodo = movimento.metodo || null;
+    let bancaFinale = movimento.banca || null;
 
     if (campo === "data") {
       if (!value) return err("Inserisci una data");
@@ -62,9 +67,11 @@ export function CellEditor({ movimento, campo, onSaved, onCancel }) {
       importo = n;
     } else {
       metodo = value || null;
+      bancaFinale = banca;
     }
+    if (!metodoConBanca(metodo)) bancaFinale = null;
 
-    salva({ id: movimento.id, data, descrizione, importo, metodo });
+    salva({ id: movimento.id, data, descrizione, importo, metodo, banca: bancaFinale });
   };
 
   const onKeyDown = (e) => {
@@ -83,9 +90,17 @@ export function CellEditor({ movimento, campo, onSaved, onCancel }) {
             </div>
           )}
           {campo === "metodo" ? (
-            <select id="lv-cell-input" ref={inputRef} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onKeyDown}>
-              {METODI.map((v) => <option key={v || "none"} value={v}>{v ? v.toUpperCase() : "—"}</option>)}
-            </select>
+            <>
+              <select id="lv-cell-input" ref={inputRef} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onKeyDown}>
+                {METODI.map((v) => <option key={v || "none"} value={v}>{v ? v.toUpperCase() : "—"}</option>)}
+              </select>
+              {metodoConBanca(value) && (
+                <>
+                  <label htmlFor="lv-cell-banca" style={mt8}>Banca</label>
+                  <BancaSelect id="lv-cell-banca" value={banca} onChange={setBanca} />
+                </>
+              )}
+            </>
           ) : (
             <input
               id="lv-cell-input"

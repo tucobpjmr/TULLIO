@@ -1,5 +1,19 @@
 # CHANGELOG — VoyageDesk
 
+## 11 novembre — banca di appoggio per POS e bonifico (Liste)
+
+**Nuovo campo «Banca» nei movimenti** (BNL / BANCO NAPOLI).
+- Compare solo con metodo POS o BONIFICO, ed è facoltativo: i movimenti già
+  registrati restano senza banca.
+- Si gestisce in «Nuovo movimento», «Modifica movimento», modifica rapida del
+  metodo e «Inserisci più movimenti insieme» (comune a tutte le righe).
+- Tabella e copia agente Word mostrano «POS · BNL», «BONIFICO · BANCO NAPOLI».
+- Migrazione `20261111115942_movimenti_lista_banca.sql` (applicata l'11/11): colonna `banca` con
+  vincolo (solo `bnl`/`banco_napoli`, solo con `pos`/`bonifico`), `p_banca`
+  nelle tre RPC di scrittura (prima di `p_origin`), `importa_backup` la
+  ripristina.
+- Test: `src/test/liste/bancaMovimento.test.jsx`.
+
 ## 10 novembre (iii) — un evento realtime non butta più via un reload
 
 **Il primo caricamento non si perde più** (`useDebouncedTableSubscription`).

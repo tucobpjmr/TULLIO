@@ -73,6 +73,20 @@ export const saldoClass = (v) => (v > EPS ? 'pos' : v < -EPS ? 'neg' : 'zero');
 
 export const METODI = ['', 'pos', 'bonifico', 'contanti', 'assegno', 'altro'];
 
+// Banca di appoggio: facoltativa, e solo per POS e bonifico (vincolo
+// movimenti_lista_banca_check sul database).
+export const BANCHE = ['', 'bnl', 'banco_napoli'];
+export const BANCA_LABEL = { bnl: 'BNL', banco_napoli: 'BANCO NAPOLI' };
+export const metodoConBanca = (metodo) => metodo === 'pos' || metodo === 'bonifico';
+
+// "POS · BNL", "BONIFICO", "" — una banca rimasta su un metodo che non la
+// prevede non si mostra.
+export const etichettaMetodo = (metodo, banca) => {
+  if (!metodo) return '';
+  const base = metodo.toUpperCase();
+  return metodoConBanca(metodo) && BANCA_LABEL[banca] ? `${base} · ${BANCA_LABEL[banca]}` : base;
+};
+
 export const ACTION_LABELS = {
   lista_creata: 'ha creato la lista',
   lista_modificata: 'ha modificato i dati della lista',

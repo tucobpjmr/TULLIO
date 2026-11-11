@@ -273,7 +273,7 @@ export const ListeAPI = {
     return supabase.rpc('ripristina_lista', { p_id: id, p_origin: getClientId() });
   },
 
-  addMovimento: async ({ listaId, data, descrizione, importo, metodo = null }) => {
+  addMovimento: async ({ listaId, data, descrizione, importo, metodo = null, banca = null }) => {
     const supabase = await getSupabase();
     return supabase.rpc('registra_movimento_lista', {
       p_lista_id: listaId,
@@ -281,24 +281,26 @@ export const ListeAPI = {
       p_descrizione: descrizione,
       p_importo: importo,
       p_metodo: metodo,
+      p_banca: banca,
       p_origin: getClientId(),
     });
   },
 
-  // p_movimenti: array di { descrizione, importo }. Data e metodo sono comuni
-  // a tutte le righe; il segno dell'importo è per riga.
-  addMovimenti: async ({ listaId, data, movimenti, metodo = null }) => {
+  // p_movimenti: array di { descrizione, importo }. Data, metodo e banca sono
+  // comuni a tutte le righe; il segno dell'importo è per riga.
+  addMovimenti: async ({ listaId, data, movimenti, metodo = null, banca = null }) => {
     const supabase = await getSupabase();
     return supabase.rpc('registra_movimenti_lista', {
       p_lista_id: listaId,
       p_data: data,
       p_movimenti: movimenti,
       p_metodo: metodo,
+      p_banca: banca,
       p_origin: getClientId(),
     });
   },
 
-  modificaMovimento: async ({ id, data, descrizione, importo, metodo = null }) => {
+  modificaMovimento: async ({ id, data, descrizione, importo, metodo = null, banca = null }) => {
     const supabase = await getSupabase();
     return supabase.rpc('modifica_movimento_lista', {
       p_id: id,
@@ -306,6 +308,7 @@ export const ListeAPI = {
       p_descrizione: descrizione,
       p_importo: importo,
       p_metodo: metodo,
+      p_banca: banca,
       p_origin: getClientId(),
     });
   },

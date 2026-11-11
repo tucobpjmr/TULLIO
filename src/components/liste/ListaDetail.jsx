@@ -3,7 +3,7 @@
 // movimenti e storico delle modifiche. Porting di `listaView()` della SPA
 // vanilla, con lo stato dei campi in useState invece che in variabili globali.
 import { useEffect, useMemo, useState } from "react";
-import { actionLabel, eur, fmtDate, sommaImporti } from "./listeFormato.js";
+import { actionLabel, etichettaMetodo, eur, fmtDate, sommaImporti } from "./listeFormato.js";
 import { BottoneOcchio, MASCHERA } from "./BottoneOcchio.jsx";
 import { SaldoNascosto } from "./SaldoNascosto.jsx";
 import { docHtml, downloadBlob } from "./listeDocumenti.js";
@@ -301,13 +301,13 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
                             onClick={handleEditMetodo}
                             onKeyDown={attivaConTastiera(handleEditMetodo)}
                           >
-                            {m.metodo ? m.metodo.toUpperCase() : "+ metodo"}
+                            {m.metodo ? etichettaMetodo(m.metodo, m.banca) : "+ metodo"}
                           </span>
                         </td>
                         {importiVisibili
                           ? cell(m, "importo", `imp lv-num ${Number(m.importo) > 0 ? "pos" : "neg"}`, eur(m.importo))
                           : cell(m, "importo", "imp lv-num nascosto", MASCHERA)}
-                        {cell(m, "metodo", "met", m.metodo || "")}
+                        {cell(m, "metodo", "met", etichettaMetodo(m.metodo, m.banca))}
                         <td className="act">
                           <button className="lv-icon-btn" title="Modifica tutti i campi" aria-label="Modifica movimento" onClick={() => setModal({ mov: m })}>✎</button>
                           <button className="lv-icon-btn" title="Elimina" aria-label="Elimina movimento" onClick={() => eliminaMov(m)}>✕</button>
@@ -394,9 +394,9 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
           onClose={() => setModal(null)}
           onSave={{
             ...helper,
-            run: async ({ data, movimenti: righe, metodo }) => {
+            run: async ({ data, movimenti: righe, metodo, banca }) => {
               const { ok, data: n } = await esegui("registraMovimenti", {
-                listaId: lista.id, data, movimenti: righe, metodo,
+                listaId: lista.id, data, movimenti: righe, metodo, banca,
               });
               if (!ok) return false;
               dispatch({ type: "SHOW_TOAST", payload: { type: "success", message: `${n} movimenti registrati` } });

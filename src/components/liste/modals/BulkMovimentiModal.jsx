@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { eur, parseImporto, sommaImporti, todayISO } from "../listeFormato.js";
+import { eur, metodoConBanca, parseImporto, sommaImporti, todayISO } from "../listeFormato.js";
+import { BancaSelect } from "./BancaSelect.jsx";
 import { LvOverlay } from "./LvOverlay.jsx";
 import { MetodoSelect } from "./MetodoSelect.jsx";
 import { SegnoSeg } from "./SegnoSeg.jsx";
@@ -31,7 +32,7 @@ function erroriRiga(r) {
 }
 
 // ─── Inserimento multiplo ──────────────────────────────────────────────────
-// Data e metodo valgono per tutte le righe, il segno è per riga. Una sola RPC
+// Data, metodo e banca valgono per tutte le righe, il segno è per riga. Una sola RPC
 // (registra_movimenti_lista) scrive tutte le righe in un'unica transazione.
 let bulkRowSeq = 0;
 const emptyBulkRow = () => ({ key: ++bulkRowSeq, desc: "", imp: "", segno: 1 });
@@ -39,6 +40,7 @@ const emptyBulkRow = () => ({ key: ++bulkRowSeq, desc: "", imp: "", segno: 1 });
 export function BulkMovimentiModal({ onSave, onClose }) {
   const [data, setData] = useState(todayISO());
   const [metodo, setMetodo] = useState(null);
+  const [banca, setBanca] = useState(null);
   const [rows, setRows] = useState(() => [emptyBulkRow(), emptyBulkRow(), emptyBulkRow()]);
   const [erroreData, setErroreData] = useState(null);
   const [erroriRighe, setErroriRighe] = useState({});
@@ -131,7 +133,7 @@ export function BulkMovimentiModal({ onSave, onClose }) {
     }
     setErroriRighe({});
     setAvviso(null);
-    salva({ data, movimenti, metodo });
+    salva({ data, movimenti, metodo, banca: metodoConBanca(metodo) ? banca : null });
   };
 
   return (
@@ -157,6 +159,12 @@ export function BulkMovimentiModal({ onSave, onClose }) {
             <label htmlFor="bulk-met">Metodo (comune)</label>
             <MetodoSelect id="bulk-met" value={metodo} onChange={setMetodo} />
           </div>
+          {metodoConBanca(metodo) && (
+            <div className="lv-field">
+              <label htmlFor="bulk-banca">Banca (comune)</label>
+              <BancaSelect id="bulk-banca" value={banca} onChange={setBanca} />
+            </div>
+          )}
         </div>
         <div>
           {rows.map((r) => {

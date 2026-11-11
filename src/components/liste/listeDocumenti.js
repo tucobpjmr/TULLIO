@@ -14,7 +14,7 @@
 // li ha verificati uno per uno. Un sesto punto aggiunto senza `escHtml`
 // sarebbe l'unico sink di HTML grezzo dell'app.
 import { dataNumerica } from "../../lib/dates.js";
-import { actionLabel, eur, fmtDate, intestazioneLista, sommaImporti } from "./listeFormato.js";
+import { actionLabel, etichettaMetodo, eur, fmtDate, intestazioneLista, sommaImporti } from "./listeFormato.js";
 
 // Qui si costruisce HTML come stringa (non JSX): a differenza del rendering
 // React, non c'è escaping automatico, quindi va fatto a mano prima di
@@ -39,7 +39,7 @@ export const docHtml = (lista, movimenti, storico, usersById = {}, saldoEsatto) 
       <td style="width:90px">${fmtDate(m.data_movimento)}</td>
       <td>${escHtml(m.descrizione)}</td>
       <td style="width:110px;text-align:right">${Number(m.importo) < 0 ? '-' : ''}€ ${Math.abs(Number(m.importo)).toLocaleString('it-IT', { minimumFractionDigits: 2 })}</td>
-      <td style="width:80px">${m.metodo ? escHtml(m.metodo.toUpperCase()) : ''}</td>
+      <td style="width:130px">${escHtml(etichettaMetodo(m.metodo, m.banca))}</td>
     </tr>`).join('');
   const saldo = saldoEsatto !== undefined ? saldoEsatto : sommaImporti(movimenti.map((m) => m.importo));
   const storicoHtml = storico && storico.length ? `

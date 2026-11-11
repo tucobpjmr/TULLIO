@@ -1,5 +1,6 @@
 import { useId, useRef, useState } from "react";
-import { parseImporto } from "../listeFormato.js";
+import { metodoConBanca, parseImporto } from "../listeFormato.js";
+import { BancaSelect } from "./BancaSelect.jsx";
 import { LvOverlay } from "./LvOverlay.jsx";
 import { MetodoSelect } from "./MetodoSelect.jsx";
 import { SegnoSeg } from "./SegnoSeg.jsx";
@@ -30,6 +31,7 @@ export function EditMovimentoModal({ movimento, onSave, onClose }) {
   const [segno, setSegno] = useState(Number(movimento.importo) < 0 ? -1 : 1);
   const [imp, setImp] = useState(Math.abs(Number(movimento.importo)).toFixed(2).replace(".", ","));
   const [metodo, setMetodo] = useState(movimento.metodo || null);
+  const [banca, setBanca] = useState(movimento.banca || null);
   const [errori, setErrori] = useState({});
   const dataRef = useRef(null);
   const descRef = useRef(null);
@@ -57,7 +59,7 @@ export function EditMovimentoModal({ movimento, onSave, onClose }) {
       return;
     }
     setErrori({});
-    salva({ id: movimento.id, data, descrizione: desc.trim(), importo: parseImporto(imp, segno), metodo });
+    salva({ id: movimento.id, data, descrizione: desc.trim(), importo: parseImporto(imp, segno), metodo, banca: metodoConBanca(metodo) ? banca : null });
   };
 
   return (
@@ -106,6 +108,12 @@ export function EditMovimentoModal({ movimento, onSave, onClose }) {
           <label htmlFor="ed-met">Metodo</label>
           <MetodoSelect id="ed-met" value={metodo} onChange={setMetodo} />
         </div>
+        {metodoConBanca(metodo) && (
+          <div className="row lv-field">
+            <label htmlFor="ed-banca">Banca</label>
+            <BancaSelect id="ed-banca" value={banca} onChange={setBanca} />
+          </div>
+        )}
         <div className="actions">
           <button type="button" className="lv-btn" onClick={onClose}>Annulla</button>
           <button type="submit" className="lv-btn primary" disabled={inVolo}>

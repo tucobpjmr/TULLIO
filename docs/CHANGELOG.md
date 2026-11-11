@@ -8,7 +8,7 @@
 - Si gestisce in «Nuovo movimento», «Modifica movimento», modifica rapida del
   metodo e «Inserisci più movimenti insieme» (comune a tutte le righe).
 - Tabella e copia agente Word mostrano «POS · BNL», «BONIFICO · BANCO NAPOLI».
-- Migrazione `20261111120000_movimenti_lista_banca.sql`: colonna `banca` con
+- Migrazione `20261111115942_movimenti_lista_banca.sql` (applicata l'11/11): colonna `banca` con
   vincolo (solo `bnl`/`banco_napoli`, solo con `pos`/`bonifico`), `p_banca`
   nelle tre RPC di scrittura (prima di `p_origin`), `importa_backup` la
   ripristina.

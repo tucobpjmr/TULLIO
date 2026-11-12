@@ -200,6 +200,10 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
             <button className="lv-icon-btn" title="Modifica dati lista" aria-label="Modifica dati lista" onClick={() => setModal("editLista")}>✎</button>
             <button className="lv-icon-btn" title="Sposta su un altro cliente" aria-label="Sposta la lista su un altro cliente" onClick={() => setModal("spostaTitolare")}>⇄</button>
           </div>
+          <div className="sub">
+            <TitoloTestata lista={lista} onSaved={() => onReload(TABELLE_LISTA)} />
+            <span className={`lv-badge ${lista.stato}`}>{lista.stato}</span>
+          </div>
           <div className="lv-benef-row">
             {beneficiari.map((b) => (
               <span key={b.client_id} className="lv-benef-chip">
@@ -216,10 +220,6 @@ export function ListaDetail({ lista, movimenti, history, usersById, onReload, on
             <button type="button" className="lv-tit-btn add" onClick={() => setModal("addBeneficiario")}>
               + cointestatario
             </button>
-          </div>
-          <div className="sub">
-            <TitoloTestata lista={lista} onSaved={() => onReload(TABELLE_LISTA)} />
-            <span className={`lv-badge ${lista.stato}`}>{lista.stato}</span>
           </div>
         </div>
         <div className="lv-saldo-box">

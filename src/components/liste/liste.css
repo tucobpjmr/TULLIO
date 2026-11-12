@@ -96,6 +96,8 @@
 /* cointestatari: chip con nome + rimozione, e bottone "+ cointestatario"
    che riusa lo stile di .lv-tit-btn.add (stessa affordance "aggiungi") */
 .lv-root .lv-benef-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 2px}
+.lv-root .lv-benef-row .lv-tit-btn.add{background:var(--lv-surface)}
+.lv-root .lv-benef-row .lv-tit-btn.add:hover{background:#F1F5F9}
 .lv-root .lv-benef-chip{display:inline-flex;align-items:center;gap:4px;background:#F1F5F9;color:var(--lv-ink);border-radius:99px;padding:4px 4px 4px 12px;font-size:13px;font-weight:500}
 .lv-root .lv-benef-chip .rm{border:none;background:none;color:var(--lv-muted);width:20px;height:20px;border-radius:50%;font-size:11px;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0}
 .lv-root .lv-benef-chip .rm:hover{background:#E3E6EA;color:var(--lv-neg)}

@@ -1,6 +1,6 @@
 # CHANGELOG — VoyageDesk
 
-## 15 novembre — analisi del 14 novembre: A-1, M-1, B-1, B-3 e B-4
+## 15 novembre — analisi del 14 novembre: A-1, M-1, M-2, M-3, M-4, B-1…B-5
 
 **A-1 · Il rollback di un task riassegnato non veniva applicato.**
 - Il rollback di `UPDATE_TASK` era un'altra `UPDATE_TASK`, giudicata da
@@ -58,6 +58,15 @@
   di `components/ui/` importa `lib/api` o `lib/supabase`.
 - Resta fuori: `Avatar`, `CategoryChip` e `MentionText` leggono ancora
   `useAppData` (team e categorie già in memoria, nessuna rete).
+
+**B-5 · «Crea più task» rifiutato a un driver.**
+- La tab «Manuale» partiva da "booking" fisso ed elencava tutte le categorie.
+  Il pulsante lo vede anche un driver, che può creare solo "transfer": la
+  guardia di `ADD_TASKS_BULK` rifiutava il batch. Ora usa
+  `io.categorieDisponibili()`, come `QuickAddTask`.
+- `VoyageDeskInner`: il JSX della Dashboard, ripetuto in tre rami, sta in una
+  funzione `dashboard()`.
+- Test: `src/test/tasks/bulkCategorieRuolo.test.jsx` (3 casi).
 
 ## 11 novembre — banca di appoggio per POS e bonifico (Liste)
 

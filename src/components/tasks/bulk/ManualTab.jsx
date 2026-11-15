@@ -38,9 +38,14 @@ const txtBoldWarning = { color: "var(--warning)", fontWeight: 600 };
 
 // ─── BULK: MANUAL TAB ──────────────────────────────────────────────────────
 export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }) => {
-  const { categories, currentUserId, getAssignableTeam } = useAppData();
+  const { currentUserId, getAssignableTeam, io } = useAppData();
+  // Le categorie che il RUOLO può creare, come in QuickAddTask (B-5 del 14
+  // novembre): con `categories` intere e "booking" fisso, un driver partiva da
+  // una categoria che la guardia di ADD_TASKS_BULK gli rifiuta.
+  const categories = io.categorieDisponibili();
+  const primaCategoria = Object.keys(categories)[0] || "booking";
   const { isMobile } = useViewport();
-  const [common, setCommon] = useState({ title: "", description: "", client: "", category: "booking", priority: "medium", assignee: "", praticaRef: "", contact: "", dueDate: "" });
+  const [common, setCommon] = useState({ title: "", description: "", client: "", category: primaCategoria, priority: "medium", assignee: "", praticaRef: "", contact: "", dueDate: "" });
   const cli = useClientSuggestions(clients, common.client);
   const pickClient = (c) => {
     setCommon(p => ({ ...p, client: c.name, contact: p.contact.trim() ? p.contact : clientContact(c) }));

@@ -32,7 +32,7 @@ const rowCenterMiddle = {
 };
 
 // ─── ADMIN TAB: SISTEMA / STATS ────────────────────────────────────────────
-export const AdminStatsTab = ({ messageTemplates = [] }) => {
+export const AdminStatsTab = ({ messageTemplates = [], templatesLoading = false }) => {
   const { team, categories } = useAppData();
   const tasks = useTasks();
   // A-3. Il tasso di completamento è un rapporto fra due conteggi sullo stesso
@@ -155,7 +155,7 @@ export const AdminStatsTab = ({ messageTemplates = [] }) => {
       </div>
 
       {/* Template messaggi chat (v2.8) */}
-      <MessageTemplatesSection templates={messageTemplates} />
+      <MessageTemplatesSection templates={messageTemplates} loading={templatesLoading} />
     </div>
   );
 };

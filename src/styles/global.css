@@ -100,6 +100,14 @@
   --card: #ffffff;
   --card2: #F7F6F2;
   --heading: var(--navy);
+  /* Riquadro d'avviso (riuscita parziale, nome cambiato, righe scartate).
+     Al buio resta un fondo ambra SCURO: un giallo pallido fisso sotto
+     --text chiaro era illeggibile (M-1 del 14 novembre). */
+  --avviso-bg: #FEF3C7;
+  --avviso-bordo: rgba(200,131,42,0.35);
+  /* --warning su --avviso-bg fa 2,8:1: per il TESTO del riquadro serve un
+     ambra più scuro (5,3:1). --warning resta per icone e bordi. */
+  --avviso-testo: #8A5A12;
   /* ─── M-4 dell'audit del 10 settembre · i due token del focus ───
      L'anello di focus era scritto in duro nella regola :focus-visible —
      `outline: var(--navy)` più un alone `#fff` — e quei due valori sono
@@ -170,6 +178,9 @@
     --card: #131C2F;
     --card2: #1A2440;
     --heading: #EDF0F7;
+    --avviso-bg: #3A2D12;
+    --avviso-bordo: rgba(224,165,66,0.45);
+    --avviso-testo: #E0A542;
     --focus: var(--gold-light);
     --focus-alone: #0E1524;
     color-scheme: dark;
@@ -198,6 +209,9 @@
   --card: #131C2F;
   --card2: #1A2440;
   --heading: #EDF0F7;
+  --avviso-bg: #3A2D12;
+  --avviso-bordo: rgba(224,165,66,0.45);
+  --avviso-testo: #E0A542;
   --focus: var(--gold-light);
   --focus-alone: #0E1524;
   color-scheme: dark;

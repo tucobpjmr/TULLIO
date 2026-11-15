@@ -44,7 +44,14 @@ function setup({ uid = "admin1", tasks = [], clients = [], enabled = true } = {}
   return { dispatch: view.result.current, rawDispatch, state, view };
 }
 
-const azioniDispatchate = (rawDispatch) => rawDispatch.mock.calls.map(([a]) => a);
+// Senza `meta.ora` e `meta.seme`: il timbro che `applica` mette su ogni azione
+// (B-2 del 14 novembre, state/istante.js) non è ciò che questi test guardano.
+const senzaIstante = ({ meta, ...azione }) => {
+  if (!meta) return azione;
+  const { ora: _ora, seme: _seme, ...resto } = meta;
+  return Object.keys(resto).length ? { ...azione, meta: resto } : azione;
+};
+const azioniDispatchate = (rawDispatch) => rawDispatch.mock.calls.map(([a]) => senzaIstante(a));
 const nessunaChiamataApi = () =>
   [...Object.values(TasksAPI), ...Object.values(ClientsAPI)].every(fn => fn.mock.calls.length === 0);
 
@@ -142,7 +149,10 @@ describe("useSyncedDispatch — difesa in profondità sui permessi", () => {
     const { dispatch, rawDispatch } = setup({ uid: "junior1" });
     const originale = { type: "ADD_TASK", payload: task({ id: "temp-1", category: "admin" }) };
     await act(async () => { await dispatch(originale); });
-    expect(azioniDispatchate(rawDispatch)[0]).toBe(originale);
+    // Stesso payload come OGGETTO: quello normalizzato sarebbe una copia con
+    // un uuid nuovo al posto di "temp-1".
+    expect(rawDispatch.mock.calls[0][0].payload).toBe(originale.payload);
+    expect(azioniDispatchate(rawDispatch)[0]).toEqual(originale);
   });
 
   it("task altrui in coda globale: il Junior non lo cancella nemmeno sul server", async () => {

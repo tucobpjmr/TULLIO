@@ -25,6 +25,7 @@
 import { useCallback, useRef } from "react";
 import { PERSISTENCE } from "../state/persistence.js";
 import { ADMIN_ONLY_ACTIONS, reducer } from "../state/reducer.js";
+import { conIstante } from "../state/istante.js";
 import { isAdmin } from "../lib/permissions.js";
 
 // C-1 dell'audit del 14 agosto (secondo passaggio): una scrittura respinta
@@ -69,7 +70,11 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true, coda = /
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const applica = useCallback((azione) => {
+  // B-2 del 14 novembre · Le due esecuzioni ricevono la STESSA azione, con
+  // istante e seme già fissati (state/istante.js): senza, orari e id generati
+  // dentro il reducer differivano fra il ref e lo stato di React.
+  const applica = useCallback((grezza) => {
+    const azione = conIstante(grezza);
     rawDispatch(azione);
     stateRef.current = reducer(stateRef.current, azione);
   }, [rawDispatch]);

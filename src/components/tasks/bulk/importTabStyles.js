@@ -18,7 +18,7 @@ export const boxF12Bold = {
   color: "var(--heading)", fontFamily: "inherit",
 };
 export const boxF13Danger = { background: "#FEE2E2", border: "1px solid rgba(192,57,43,0.3)", color: "var(--danger)", padding: "12px 14px", borderRadius: 10, fontSize: 13 };
-export const boxF12Warning = { background: "#FEF3C7", border: "1px solid rgba(200,131,42,0.35)", color: "var(--warning)", padding: "12px 14px", borderRadius: 10, fontSize: 12, lineHeight: 1.6 };
+export const boxF12Warning = { background: "var(--avviso-bg)", border: "1px solid var(--avviso-bordo)", color: "var(--avviso-testo)", padding: "12px 14px", borderRadius: 10, fontSize: 12, lineHeight: 1.6 };
 export const txtBoldMb2 = { fontWeight: 700, marginBottom: 2 };
 export const mt4Op085 = { marginTop: 4, opacity: 0.85 };
 export const rowCenterBetween = { display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface2)", borderRadius: 8, padding: "10px 14px" };

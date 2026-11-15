@@ -15,6 +15,7 @@
 // avrebbe diviso su due file una decisione di autorizzazione oggi presa in un
 // punto solo — esattamente il costo che questa estrazione deve evitare.
 import { pushToast } from "./toastQueue.js";
+import { semeDi } from "./istante.js";
 
 /**
  * @param {any} state
@@ -32,7 +33,7 @@ export function messageTemplatesReducer(state, action) {
       // giusta. In modalità demo (dispatch non sincronizzato, niente
       // persistence.normalize) il payload non ha id: si genera un
       // placeholder locale, come prima di questa correzione.
-      const tpl = { id: action.payload.id || ("mt" + Date.now()), label: label.trim(), text: text.trim() };
+      const tpl = { id: action.payload.id || ("mt-" + semeDi(action)), label: label.trim(), text: text.trim() };
       return {
         ...state,
         messageTemplates: [...(state.messageTemplates || []), tpl],

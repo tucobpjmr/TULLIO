@@ -102,6 +102,26 @@ describe("reducer — task lifecycle (admin)", () => {
     expect(next.tasks[0].status).toBe("todo");
     expect(next.lastAction).toBeNull();
   });
+
+  // B-1 dell'analisi del 14 novembre: lo swipe «Completa» valorizza
+  // completedAt, e l'annulla lo lasciava lì su un task di nuovo aperto.
+  it("UNDO_LAST_ACTION dopo uno swipe a «done» rimette completedAt a null", () => {
+    s = reducer(s, { type: "ADD_TASK", payload: task({ status: "inprogress", completedAt: null }) });
+    s = reducer(s, { type: "MOVE_TASK", payload: { taskId: UUID, newStatus: "done" }, swipe: true });
+    expect(s.tasks[0].completedAt).not.toBeNull();
+    const next = reducer(s, { type: "UNDO_LAST_ACTION" });
+    expect(next.tasks[0].status).toBe("inprogress");
+    expect(next.tasks[0].completedAt).toBeNull();
+  });
+
+  it("UNDO_LAST_ACTION su un task già completato rimette la data ORIGINALE", () => {
+    const ORIGINALE = "2026-10-01T10:00:00.000Z";
+    s = reducer(s, { type: "ADD_TASK", payload: task({ status: "done", completedAt: ORIGINALE }) });
+    s = reducer(s, { type: "MOVE_TASK", payload: { taskId: UUID, newStatus: "todo" }, swipe: true });
+    expect(s.tasks[0].completedAt).toBeNull();
+    const next = reducer(s, { type: "UNDO_LAST_ACTION" });
+    expect(next.tasks[0].completedAt).toBe(ORIGINALE);
+  });
 });
 
 describe("reducer — permessi", () => {

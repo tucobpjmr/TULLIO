@@ -1,7 +1,7 @@
 // ─── AVATAR IMG ────────────────────────────────────────────────────────────
 // Estratto da Avatar.jsx (B-3 dell'audit del 13 agosto: un file, un
 // componente — vedi docs/CLAUDE.md). Nessun cambiamento di comportamento.
-import { useAvatarSrc } from "./Avatar.jsx";
+import { useAvatarSrc } from "../../hooks/useAvatarSrc.js";
 
 // Solo l'<img> risolta, con stile a carico del chiamante: serve dove la foto
 // è renderizzata con una grafica propria e montare <Avatar> cambierebbe

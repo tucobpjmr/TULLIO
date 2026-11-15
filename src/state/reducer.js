@@ -19,6 +19,8 @@ import { dinegoVista } from "./visteRiservate.js";
 import { LOGGED_ACTIONS, buildLogEntry } from "./activityLog.js";
 // La politica della coda dei toast ha un file suo (toastQueue.js).
 import { pushToast, marcaToast, ritiraToast } from "./toastQueue.js";
+// B-2 del 14 novembre: orario e seme vengono dall'azione (vedi istante.js).
+import { adessoISO, semeDi } from "./istante.js";
 import { applyRestoreBackupRollback } from "./restoreBackupRollback.js";
 import { fondiScrittureInVolo, applicaRigaRealtime, fondiThreadCommenti } from "./pendingWrites.js";
 import { campiPrima } from "./campiPrima.js";
@@ -34,9 +36,9 @@ const DEMO_CURRENT_USER = "marco";
 
 // completedAt coerente lato app (UI ottimistica e demo). Sul DB lo decide il
 // trigger set_task_completed_at. Ritorna un patch ({ completedAt } o {}).
-const completedAtPatch = (prevStatus, nextStatus) => {
+const completedAtPatch = (prevStatus, nextStatus, action) => {
   if (nextStatus === undefined || nextStatus === prevStatus) return {};
-  if (nextStatus === "done") return { completedAt: new Date().toISOString() };
+  if (nextStatus === "done") return { completedAt: adessoISO(action) };
   return { completedAt: null };
 };
 
@@ -107,7 +109,7 @@ function baseReducer(state, action) {
       // dopo 60 s. Si azzera tornando a un non-admin.
       const prevIsAdmin = isAdmin(state.team, state.currentUserId);
       const adminRollbackTo = elevated && !prevIsAdmin ? state.currentUserId : null;
-      const adminSwitchedAt = elevated && !prevIsAdmin ? new Date().toISOString() : null;
+      const adminSwitchedAt = elevated && !prevIsAdmin ? adessoISO(action) : null;
       const toasts = elevated
         ? pushToast(state.toasts, { message: `⚠️ Ora stai usando l'app come ${m.name} (Admin). Rollback automatico in 60s.`, type: "warning" })
         : pushToast(state.toasts, { message: `Ora stai usando l'app come ${m.name} (${roleLabel(m)})`, type: "success" });
@@ -179,14 +181,14 @@ function baseReducer(state, action) {
       const prevStatus = prev?.status;
       const tasks = state.tasks.map(t =>
         t.id === action.payload.taskId
-          ? { ...t, status: action.payload.newStatus, ...completedAtPatch(t.status, action.payload.newStatus) }
+          ? { ...t, status: action.payload.newStatus, ...completedAtPatch(t.status, action.payload.newStatus, action) }
           : t
       );
       const toasts = action.swipe
         ? pushToast(state.toasts, { message: `✓ Spostato in "${STATUS_LABELS[action.payload.newStatus]}"`, type: "success", undoable: true })
         : pushToast(state.toasts, { message: `Task spostato in "${STATUS_LABELS[action.payload.newStatus]}"`, type: "success" });
       const lastAction = action.swipe
-        ? { type: "MOVE_TASK", taskId: action.payload.taskId, prevStatus, newStatus: action.payload.newStatus }
+        ? { type: "MOVE_TASK", taskId: action.payload.taskId, prevStatus, prevCompletedAt: prev.completedAt ?? null, newStatus: action.payload.newStatus }
         : state.lastAction;
       return { ...state, tasks, toasts, lastAction };
     }
@@ -215,7 +217,7 @@ function baseReducer(state, action) {
       if (!prev) return state;
       if (!canEditTask(state.team, prev, uid)) return _denied();
       const statusPatch = "status" in action.payload
-        ? completedAtPatch(prev.status, action.payload.status)
+        ? completedAtPatch(prev.status, action.payload.status, action)
         : {};
       const tasks = state.tasks.map(t => t.id === action.payload.id ? { ...t, ...action.payload, ...statusPatch } : t);
       // Il pannello aperto lo riallinea il wrapper (conSelezionatoAllineato).
@@ -228,6 +230,19 @@ function baseReducer(state, action) {
         ? { type: "UPDATE_TASK", taskId: action.payload.id, prevSnapshot: campiPrima(prev, valoriSwipe), valoriSwipe }
         : state.lastAction;
       return { ...state, tasks, toasts, lastAction };
+    }
+    // A-1 del 14 novembre · Compensazione di una scrittura task fallita o in
+    // conflitto: rimette la riga com'era (o com'è sul server). ⛔ Niente
+    // controllo di permesso: il verdetto si darebbe sullo stato OTTIMISTICO, e
+    // dopo una riassegnazione il task non è più «mio» — UPDATE_TASK veniva
+    // negato e a schermo restava un dato che il database non ha. I commenti
+    // restano quelli attuali: uno arrivato durante la scrittura non si perde.
+    case "ROLLBACK_TASK": {
+      const riga = action.payload;
+      if (!riga?.id || !state.tasks.some(t => t.id === riga.id)) return state;
+      const tasks = state.tasks.map(t =>
+        t.id === riga.id ? { ...t, ...riga, comments: t.comments } : t);
+      return { ...state, tasks };
     }
     case "ADD_COMMENT": {
       const prev = state.tasks.find(t => t.id === action.payload.taskId);
@@ -258,7 +273,7 @@ function baseReducer(state, action) {
       if (!prev) return state;
       if (!canEditTask(state.team, prev, uid)) return _denied();
       const tasks = state.tasks.map(t =>
-        t.id === action.payload ? { ...t, deletedAt: new Date().toISOString() } : t
+        t.id === action.payload ? { ...t, deletedAt: adessoISO(action) } : t
       );
       const selectedTask = state.selectedTask?.id === action.payload ? null : state.selectedTask;
       const toasts = action.swipe
@@ -497,7 +512,9 @@ function baseReducer(state, action) {
       const la = state.lastAction;
       if (!la) return state;
       if (la.type === "MOVE_TASK") {
-        const tasks = state.tasks.map(t => t.id === la.taskId ? { ...t, status: la.prevStatus } : t);
+        // B-1 del 14 novembre: anche `completedAt`, che MOVE_TASK ricalcola.
+        const tasks = state.tasks.map(t => t.id === la.taskId
+          ? { ...t, status: la.prevStatus, completedAt: la.prevCompletedAt ?? null } : t);
         return { ...state, tasks, toasts: pushToast(state.toasts, { message: "Azione annullata", type: "success" }), lastAction: null };
       }
       if (la.type === "DELETE_TASK") {
@@ -554,14 +571,17 @@ const ADMIN_ONLY_ACTIONS = new Set([
 
 // Wrapper che aggiunge automaticamente al log le azioni rilevanti
 function reducer(state, action) {
+  // B-2 del 14 novembre · L'id dei toast nuovi deriva dall'azione: due giri
+  // del reducer sulla stessa azione danno lo stesso stato (vedi istante.js).
+  const chiave = `${action.meta?.ora ?? Date.now()}-${semeDi(action)}`;
   // Pre-check permessi Admin (centralizzato — non sporca i singoli case)
   if (ADMIN_ONLY_ACTIONS.has(action.type) && !isAdmin(state.team, state.currentUserId)) {
-    return { ...state, toasts: pushToast(state.toasts, { message: "Solo Admin può eseguire questa azione", type: "error" }) };
+    return marcaToast(state.toasts, { ...state, toasts: pushToast(state.toasts, { message: "Solo Admin può eseguire questa azione", type: "error" }) }, action.type, chiave);
   }
   // B-2 · Ogni toast porta l'azione che l'ha prodotto (vedi toastQueue.js).
   // A-1 · Il task aperto resta la riga di `tasks` (conSelezionatoAllineato).
   const next = conSelezionatoAllineato(
-    marcaToast(state.toasts, baseReducer(state, action), action.type),
+    marcaToast(state.toasts, baseReducer(state, action), action.type, chiave),
     state,
   );
 
@@ -617,12 +637,9 @@ function makeInitialState({ team, currentUserId } = {}) {
     adminRollbackTo: null,    // userId a cui tornare automaticamente
     adminSwitchedAt: null,    // ISO timestamp del momento in cui si è entrati come Admin
     // Template dei messaggi chat ({ id, label, text }), gestiti da Admin.
-    messageTemplates: [
-      { id: "mt1", label: "Conferma ricezione documenti", text: "Buongiorno, abbiamo ricevuto i documenti. Le confermeremo a breve i dettagli della pratica." },
-      { id: "mt2", label: "Richiesta passaporti", text: "Buongiorno, per procedere con la prenotazione le servono i dati anagrafici completi e copia dei passaporti di tutti i partecipanti. Grazie!" },
-      { id: "mt3", label: "Sollecito acconto", text: "Le ricordiamo che la scadenza per il versamento dell'acconto è imminente. Resto a disposizione per qualsiasi chiarimento." },
-      { id: "mt4", label: "Voucher pronto", text: "I documenti di viaggio (voucher hotel, biglietti, assicurazione) sono pronti. Li trova in allegato o può ritirarli in agenzia." },
-    ],
+    // B-3 del 14 novembre: in produzione partono VUOTI e arrivano dal
+    // database (SET_MESSAGE_TEMPLATES). Quelli d'esempio sono del demo.
+    messageTemplates: demo ? demo.messageTemplates : [],
   };
 }
 

@@ -102,6 +102,7 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 **Stili**
 - **Stili**: z-index, bottoni e campi da `src/styles/tokens.js`. ⛔ Mai uno `zIndex` numerico inline. ⛔ Mai uno `style={{…}}` di soli valori costanti (`STILE_INLINE_COSTANTE`): va in una `const` di modulo, nel `*Styles.js` accanto o in `styles/common.js` se la forma ricorre in tre o più file (misurato per VALORE: «forme di stile identiche in 3+ file» e «forme già in common.js riscritte altrove», attesi 0). Restano **333 style inline dinamici**.
 - **Stili condivisi**: `src/styles/common.js` si importa **qualificato** — `import * as stiliComuni from "…/styles/common.js"`. ⛔ Mai un import nominato da lì (`VIETATO_COMMON_NOMINATO`).
+- **Nome di una costante di stile = il suo ruolo** (`rigaAllegato`, `avvisoParziale`), non la forma (`rowCenterGap10`): la forma la dice il valore. Le vecchie si rinominano quando si tocca il file, non in massa (M-4 del 14 novembre).
 - **CSS globale**: `src/styles/global.css` (e `components/liste/liste.css`). ⛔ Niente `<style>` in JSX o in `index.html`: la CSP è `style-src 'self'`.
 
 **Dominio**
@@ -183,6 +184,7 @@ codice nuovo:
 | `--heading` | `var(--navy)` | `#EDF0F7` |
 | `--border` | `#E0DDD5` | `#26314C` |
 | `--focus` / `--focus-alone` | `var(--navy)` / `#fff` | `var(--gold-light)` / `#0E1524` |
+| `--avviso-bg` / `--avviso-testo` (riquadro d'avviso) | `#FEF3C7` / `#8A5A12` | `#3A2D12` / `#E0A542` |
 
 ## Breakpoints responsive
 
@@ -431,6 +433,7 @@ src/
 │   └── mentions.js          findMentions() — parser @menzioni (caveat #2, gemello DB)
 ├── hooks/                   (sessione 18)
 │   ├── useDebouncedTableSubscription.js   idratazione+subscribe realtime debounced (caveat #10)
+│   ├── useAvatarSrc.js                    photo_url → src di <img> (signed URL del bucket privato)
 │   └── useSyncedDispatch.js               reducer + persistenza Supabase (orchestratore)
 ├── state/                   (Phase 2b–2d)
 │   ├── mockData.js          INITIAL_TEAM/CATEGORIES/TASKS/NOTICES + MOCK_NOTIFICATIONS
@@ -450,7 +453,7 @@ src/
 │   │   ├── ErrorBoundary.jsx      primo livello (main.jsx/AuthGate) — via d'uscita: ricarica
 │   │   ├── ViewErrorBoundary.jsx  la sola vista attiva — riarmo su `viewKey`, uscita: Dashboard
 │   │   └── OverlayErrorBoundary.jsx  i modali lazy — riarmo su `resetKey`, uscita: chiudi
-│   ├── ui/                  trasversale: nessuna conoscenza del dominio
+│   ├── ui/                  trasversale: nessuna conoscenza del dominio, nessuna rete (VIETATO_DATA_LAYER_IN_UI)
 │   │   ├── Viewport.jsx     ViewportContext / useViewport / ViewportProvider
 │   │   ├── CropModal.jsx    ritaglia un'immagine e non sa di cosa sia
 │   │   ├── Avatar.jsx

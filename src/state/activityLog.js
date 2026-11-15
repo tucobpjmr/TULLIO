@@ -16,6 +16,7 @@
 // chiama. Toglierla non distribuisce la macchina a stati su due file — le
 // toglie di mezzo il suo dizionario.
 import { STATUS_LABELS } from "../lib/taskConstants.js";
+import { adessoISO, semeDi } from "./istante.js";
 import { getMember } from "../lib/permissions.js";
 
 // Azioni che generano una voce nel log attività
@@ -31,7 +32,7 @@ export const LOGGED_ACTIONS = new Set([
 
 export const buildLogEntry = (action, state) => {
   const t = action.type;
-  const stamp = new Date().toISOString();
+  const stamp = adessoISO(action);
   const taskOf = id => state.tasks.find(x => x.id === id)?.title || id;
   const map = {
     ADD_TASK: () => `Creato task "${action.payload.title}"`,
@@ -59,5 +60,5 @@ export const buildLogEntry = (action, state) => {
     UPDATE_MESSAGE_TEMPLATE: () => `Template messaggio modificato`,
     DELETE_MESSAGE_TEMPLATE: () => `Template messaggio rimosso`,
   };
-  return { id: `log-${stamp}-${Math.random().toString(36).slice(2,7)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
+  return { id: `log-${stamp}-${semeDi(action)}`, time: stamp, type: t, text: (map[t] || (() => t))() };
 };

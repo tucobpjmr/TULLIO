@@ -131,7 +131,7 @@ describe("i campi confrontati", () => {
 
   it("la compensazione di un conflitto non porta via i commenti a schermo", () => {
     const undo = compensazioneConflitto({ error: { code: CODICE_CONFLITTO }, riga: taskApp() });
-    expect(undo.type).toBe("UPDATE_TASK");
+    expect(undo.type).toBe("ROLLBACK_TASK");
     expect("comments" in undo.payload).toBe(false);
     expect(compensazioneConflitto({ error: { message: "altro" } })).toBeNull();
   });
@@ -167,7 +167,7 @@ describe("useSyncedDispatch — M-2, due «prendi in carico» insieme", () => {
 
     expect(esito.error.code).toBe(CODICE_CONFLITTO);
     const compensazione = azioni(rawDispatch).find((a) => a.meta?.compensazione);
-    expect(compensazione).toMatchObject({ type: "UPDATE_TASK", payload: { id: ID, assignees: ["agente2"] } });
+    expect(compensazione).toMatchObject({ type: "ROLLBACK_TASK", payload: { id: ID, assignees: ["agente2"] } });
     expect(azioni(rawDispatch).some((a) => a.type === "RETRACT_TOASTS")).toBe(true);
     const errore = azioni(rawDispatch).find((a) => a.type === "SHOW_TOAST" && a.payload.type === "error");
     expect(errore.payload.message).toMatch(/preso in carico/);

@@ -19,6 +19,8 @@ import { dinegoVista } from "./visteRiservate.js";
 import { LOGGED_ACTIONS, buildLogEntry } from "./activityLog.js";
 // La politica della coda dei toast ha un file suo (toastQueue.js).
 import { pushToast, marcaToast, ritiraToast } from "./toastQueue.js";
+// B-2 del 14 novembre: orario e seme vengono dall'azione (vedi istante.js).
+import { adessoISO, semeDi } from "./istante.js";
 import { applyRestoreBackupRollback } from "./restoreBackupRollback.js";
 import { fondiScrittureInVolo, applicaRigaRealtime, fondiThreadCommenti } from "./pendingWrites.js";
 import { campiPrima } from "./campiPrima.js";
@@ -34,9 +36,9 @@ const DEMO_CURRENT_USER = "marco";
 
 // completedAt coerente lato app (UI ottimistica e demo). Sul DB lo decide il
 // trigger set_task_completed_at. Ritorna un patch ({ completedAt } o {}).
-const completedAtPatch = (prevStatus, nextStatus) => {
+const completedAtPatch = (prevStatus, nextStatus, action) => {
   if (nextStatus === undefined || nextStatus === prevStatus) return {};
-  if (nextStatus === "done") return { completedAt: new Date().toISOString() };
+  if (nextStatus === "done") return { completedAt: adessoISO(action) };
   return { completedAt: null };
 };
 
@@ -107,7 +109,7 @@ function baseReducer(state, action) {
       // dopo 60 s. Si azzera tornando a un non-admin.
       const prevIsAdmin = isAdmin(state.team, state.currentUserId);
       const adminRollbackTo = elevated && !prevIsAdmin ? state.currentUserId : null;
-      const adminSwitchedAt = elevated && !prevIsAdmin ? new Date().toISOString() : null;
+      const adminSwitchedAt = elevated && !prevIsAdmin ? adessoISO(action) : null;
       const toasts = elevated
         ? pushToast(state.toasts, { message: `⚠️ Ora stai usando l'app come ${m.name} (Admin). Rollback automatico in 60s.`, type: "warning" })
         : pushToast(state.toasts, { message: `Ora stai usando l'app come ${m.name} (${roleLabel(m)})`, type: "success" });
@@ -179,7 +181,7 @@ function baseReducer(state, action) {
       const prevStatus = prev?.status;
       const tasks = state.tasks.map(t =>
         t.id === action.payload.taskId
-          ? { ...t, status: action.payload.newStatus, ...completedAtPatch(t.status, action.payload.newStatus) }
+          ? { ...t, status: action.payload.newStatus, ...completedAtPatch(t.status, action.payload.newStatus, action) }
           : t
       );
       const toasts = action.swipe
@@ -215,7 +217,7 @@ function baseReducer(state, action) {
       if (!prev) return state;
       if (!canEditTask(state.team, prev, uid)) return _denied();
       const statusPatch = "status" in action.payload
-        ? completedAtPatch(prev.status, action.payload.status)
+        ? completedAtPatch(prev.status, action.payload.status, action)
         : {};
       const tasks = state.tasks.map(t => t.id === action.payload.id ? { ...t, ...action.payload, ...statusPatch } : t);
       // Il pannello aperto lo riallinea il wrapper (conSelezionatoAllineato).
@@ -271,7 +273,7 @@ function baseReducer(state, action) {
       if (!prev) return state;
       if (!canEditTask(state.team, prev, uid)) return _denied();
       const tasks = state.tasks.map(t =>
-        t.id === action.payload ? { ...t, deletedAt: new Date().toISOString() } : t
+        t.id === action.payload ? { ...t, deletedAt: adessoISO(action) } : t
       );
       const selectedTask = state.selectedTask?.id === action.payload ? null : state.selectedTask;
       const toasts = action.swipe
@@ -569,14 +571,17 @@ const ADMIN_ONLY_ACTIONS = new Set([
 
 // Wrapper che aggiunge automaticamente al log le azioni rilevanti
 function reducer(state, action) {
+  // B-2 del 14 novembre · L'id dei toast nuovi deriva dall'azione: due giri
+  // del reducer sulla stessa azione danno lo stesso stato (vedi istante.js).
+  const chiave = `${action.meta?.ora ?? Date.now()}-${semeDi(action)}`;
   // Pre-check permessi Admin (centralizzato — non sporca i singoli case)
   if (ADMIN_ONLY_ACTIONS.has(action.type) && !isAdmin(state.team, state.currentUserId)) {
-    return { ...state, toasts: pushToast(state.toasts, { message: "Solo Admin può eseguire questa azione", type: "error" }) };
+    return marcaToast(state.toasts, { ...state, toasts: pushToast(state.toasts, { message: "Solo Admin può eseguire questa azione", type: "error" }) }, action.type, chiave);
   }
   // B-2 · Ogni toast porta l'azione che l'ha prodotto (vedi toastQueue.js).
   // A-1 · Il task aperto resta la riga di `tasks` (conSelezionatoAllineato).
   const next = conSelezionatoAllineato(
-    marcaToast(state.toasts, baseReducer(state, action), action.type),
+    marcaToast(state.toasts, baseReducer(state, action), action.type, chiave),
     state,
   );
 

@@ -68,6 +68,19 @@
   funzione `dashboard()`.
 - Test: `src/test/tasks/bulkCategorieRuolo.test.jsx` (3 casi).
 
+**B-2 · Il reducer «puro» generava orari e id da solo.**
+- `applica` (`useSyncedDispatch`) esegue il reducer due volte per azione: una
+  per React, una per il proprio ref. Con `Date.now()` e `Math.random()` dentro
+  il reducer, le due copie avevano `completedAt`, `deletedAt`, id dei toast e
+  voci del log diversi fino al render successivo (e così il doppio giro di
+  StrictMode in sviluppo).
+- Nuovo `src/state/istante.js`: `applica` mette `meta.ora` e `meta.seme`
+  sull'azione, il reducer li legge (`adessoISO`, `semeDi`). Gli id dei toast
+  nuovi li assegna `marcaToast` dall'azione, senza toccare i 45 `pushToast`.
+  Senza timbro (demo, dispatch grezzi) si ripiega sull'orologio, come prima.
+- Test: `src/test/state/reducerDeterministico.test.jsx` (4 casi, uno è il
+  controllo positivo); l'helper di `syncedDispatch.test.jsx` ignora il timbro.
+
 ## 11 novembre — banca di appoggio per POS e bonifico (Liste)
 
 **Nuovo campo «Banca» nei movimenti** (BNL / BANCO NAPOLI).

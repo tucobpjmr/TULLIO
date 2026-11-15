@@ -121,8 +121,9 @@ export async function scriviTaskConfrontato(id, patch, attesi) {
  */
 export function compensazioneConflitto(res) {
   if (res?.error?.code !== CODICE_CONFLITTO || !res.riga) return null;
-  // I commenti non viaggiano con la riga di `tasks`: senza toglierli, lo
-  // spread di UPDATE_TASK svuoterebbe il thread a schermo.
+  // I commenti non viaggiano con la riga di `tasks`: ROLLBACK_TASK tiene
+  // comunque quelli a schermo. ROLLBACK_TASK e non UPDATE_TASK: vedi il case
+  // nel reducer (A-1 del 14 novembre).
   const { comments: _commenti, ...riga } = res.riga;
-  return { type: "UPDATE_TASK", payload: riga };
+  return { type: "ROLLBACK_TASK", payload: riga };
 }

@@ -43,7 +43,7 @@ const txtF12Danger = { fontSize: 12, color: "var(--danger)", marginTop: 6 };
 // messaggio d'errore direbbe il contrario di quello che è successo.
 const txtF12Avviso = {
   marginTop: 10, padding: "8px 10px", borderRadius: 8,
-  background: "#FEF3C7", border: "1px solid rgba(200,131,42,0.35)",
+  background: "var(--avviso-bg)", border: "1px solid var(--avviso-bordo)",
   fontSize: 12, lineHeight: 1.4, color: "var(--text)",
 };
 const rowGap10Mt20 = { display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" };

@@ -117,7 +117,7 @@ export function ClienteModal({ cliente, onSave, onClose, liste = /** @type {Cont
       </div>
       <form onSubmit={handleSubmit}>
         {cliente && (nListe > 0 || nTask > 0) && (
-          <div style={{ ...noticeStyle, marginBottom: 14, background: nomeCambiato ? "#FEF3C7" : "var(--surface2)", borderColor: nomeCambiato ? "rgba(200,131,42,0.35)" : "var(--border)" }}>
+          <div style={{ ...noticeStyle, marginBottom: 14, background: nomeCambiato ? "var(--avviso-bg)" : "var(--surface2)", borderColor: nomeCambiato ? "var(--avviso-bordo)" : "var(--border)" }}>
             <div style={txtBoldMb4}>
               {nomeCambiato ? "⚠️ Stai cambiando un nome condiviso" : "Questa scheda è collegata"}
             </div>

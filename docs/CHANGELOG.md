@@ -1,5 +1,34 @@
 # CHANGELOG — VoyageDesk
 
+## 15 novembre — analisi del 14 novembre: A-1 e M-1
+
+**A-1 · Il rollback di un task riassegnato non veniva applicato.**
+- Il rollback di `UPDATE_TASK` era un'altra `UPDATE_TASK`, giudicata da
+  `canEditTask` sullo stato ottimistico. Un agente che riassegnava un proprio
+  task a un collega non era più assegnatario: se la scrittura falliva, il
+  reducer negava il rollback e a schermo restava un dato che il database non
+  aveva, fino al reload. Lo stesso valeva per la compensazione di un conflitto
+  e per l'annullamento fallito di uno swipe.
+- Nuova azione di compensazione `ROLLBACK_TASK` (reducer): rimette la riga
+  senza controllo di permesso e tiene i commenti arrivati nel frattempo. La
+  usano `UPDATE_TASK.rollback`, `UNDO_LAST_ACTION.rollback` e
+  `compensazioneConflitto`.
+- Test: `src/test/state/rollbackTask.test.jsx` (7 casi, il primo è il
+  controllo positivo che mostra il rifiuto della vecchia strada).
+
+**M-1 · Riquadro d'avviso illeggibile al buio (e poco leggibile in chiaro).**
+- Il fondo giallo `#FEF3C7` era scritto in duro in cinque punti, con testo da
+  token: al buio il testo diventava quasi bianco su fondo chiaro.
+- Nuovi token `--avviso-bg`, `--avviso-bordo`, `--avviso-testo` in
+  `styles/global.css`, nei tre blocchi del tema. Usati in `QuickAddTask`,
+  `ClienteModal`, `clientStyles`, `importTabStyles`, `clientImportModalStyles`.
+- Il test ha trovato anche un difetto del tema CHIARO: `--warning` sul fondo
+  d'avviso fa 2,8:1. I due riquadri d'import usano ora `--avviso-testo`
+  (5,3:1 in chiaro, 6,2:1 al buio).
+- Colori in duro fuori da `src/styles/`: 292 → 287 (ratchet abbassato).
+- Test: due casi nuovi in `src/test/ui/tema.test.js` (contrasto AA nei tre
+  blocchi, nessun `#FEF3C7` nei componenti).
+
 ## 11 novembre — banca di appoggio per POS e bonifico (Liste)
 
 **Nuovo campo «Banca» nei movimenti** (BNL / BANCO NAPOLI).

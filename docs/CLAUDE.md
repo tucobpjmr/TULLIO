@@ -183,6 +183,7 @@ codice nuovo:
 | `--heading` | `var(--navy)` | `#EDF0F7` |
 | `--border` | `#E0DDD5` | `#26314C` |
 | `--focus` / `--focus-alone` | `var(--navy)` / `#fff` | `var(--gold-light)` / `#0E1524` |
+| `--avviso-bg` / `--avviso-testo` (riquadro d'avviso) | `#FEF3C7` / `#8A5A12` | `#3A2D12` / `#E0A542` |
 
 ## Breakpoints responsive
 

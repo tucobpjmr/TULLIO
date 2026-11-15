@@ -229,6 +229,19 @@ function baseReducer(state, action) {
         : state.lastAction;
       return { ...state, tasks, toasts, lastAction };
     }
+    // A-1 del 14 novembre · Compensazione di una scrittura task fallita o in
+    // conflitto: rimette la riga com'era (o com'è sul server). ⛔ Niente
+    // controllo di permesso: il verdetto si darebbe sullo stato OTTIMISTICO, e
+    // dopo una riassegnazione il task non è più «mio» — UPDATE_TASK veniva
+    // negato e a schermo restava un dato che il database non ha. I commenti
+    // restano quelli attuali: uno arrivato durante la scrittura non si perde.
+    case "ROLLBACK_TASK": {
+      const riga = action.payload;
+      if (!riga?.id || !state.tasks.some(t => t.id === riga.id)) return state;
+      const tasks = state.tasks.map(t =>
+        t.id === riga.id ? { ...t, ...riga, comments: t.comments } : t);
+      return { ...state, tasks };
+    }
     case "ADD_COMMENT": {
       const prev = state.tasks.find(t => t.id === action.payload.taskId);
       if (!prev) return state;

@@ -2,7 +2,7 @@
 // L'orchestratore: compone hook e viste. VoyageDesk.jsx è il wrapper che
 // fornisce ViewportProvider.
 
-import { useReducer, useEffect, useCallback, lazy, Suspense, Profiler } from "react";
+import { useReducer, useEffect, useCallback, useRef, lazy, Suspense, Profiler } from "react";
 
 // ── Stato ──────────────────────────────────────────────────────────────────
 import { registraSinkErrori } from "./lib/errorReporting.js";
@@ -126,12 +126,16 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   if (import.meta.env.DEV && modalitaDemo) demo = demoState();
 
   // M-2 · La coda delle scritture offline, passata a `dispatch`. `api` ha
-  // identità stabile, quindi `dispatch` resta stabile.
+  // identità stabile, quindi `dispatch` resta stabile. Il reload a fine giro
+  // (A-1 del 15 novembre) nasce più sotto, con l'idratazione: passa da un ref.
+  const ricaricaTaskRif = useRef(/** @type {(() => void)|null} */ (null));
+  const ricaricaDopoCoda = useCallback(() => ricaricaTaskRif.current?.(), []);
   const { api: codaScritture, inAttesa: scrittureInAttesa } = useCodaScritture({
     enabled: useSupabase,
     uid: state.currentUserId,
     state,
     rawDispatch,
+    dopoDrenaggio: ricaricaDopoCoda,
   });
 
   // Il registry (state/persistence.js) orchestrato da questo hook: ritorna
@@ -151,7 +155,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // `caricamento`: un flag per entità (scheletro, non vuoto). A-3 ·
   // `erroriCaricamento` è il terzo stato, `entita → { messaggio, riprova }`:
   // un fetch fallito non deve sembrare un elenco vuoto.
-  const { caricamento, erroriCaricamento, caricamentoClienti, storicoTask, clientiCompleti } = useAppHydration({
+  const { caricamento, erroriCaricamento, caricamentoClienti, storicoTask, clientiCompleti, ricaricaTask } = useAppHydration({
     enabled: useSupabase,
     currentUserId: initialCurrentUserId,
     dispatch: rawDispatch,
@@ -159,6 +163,7 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     // B-1 · Il team già letto da AuthContext: l'idratazione non lo rilegge.
     teamIniziale: initialTeam,
   });
+  ricaricaTaskRif.current = ricaricaTask;
 
   const notif = useNotifications({ enabled: useSupabase, onError: showError });
 

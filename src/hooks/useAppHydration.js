@@ -504,6 +504,9 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   return {
     caricamento,
     erroriCaricamento,
+    // A-1 del 15 novembre · Il reload dei task, per chi scrive fuori da
+    // `useSyncedDispatch` e non riceve l'eco: la coda offline a fine giro.
+    ricaricaTask: ricaricaTasks,
     caricamentoClienti: caricandoClienti,
     storicoTask: { richiedi: caricaStorico, caricando: caricandoStorico },
     clientiCompleti: { richiedi: caricaClienti, caricando: caricandoClienti },

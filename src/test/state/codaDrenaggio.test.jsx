@@ -32,7 +32,7 @@ vi.mock("../../lib/api.js", () => {
   };
 });
 
-const { useCodaScritture } = await import("../../hooks/useCodaScritture.js");
+const { useCodaScritture, RITENTA_CODA_MS } = await import("../../hooks/useCodaScritture.js");
 const { Tasks: TasksAPI } = await import("../../lib/api.js");
 const idb = /** @type {any} */ (await import("../../lib/depositoIdb.js"));
 const condiviso = idb.__condiviso;
@@ -58,13 +58,15 @@ const semina = (over = {}) => condiviso.aggiungi({
   ...over,
 });
 
-function monta(state = STATO) {
+function monta(state = STATO, { dopoDrenaggio } = {}) {
   const rawDispatch = vi.fn();
   const view = renderHook(() => useCodaScritture({
-    enabled: true, uid: "u1", state, rawDispatch,
+    enabled: true, uid: "u1", state, rawDispatch, dopoDrenaggio,
   }));
   return { view, rawDispatch };
 }
+
+const tipi = (rawDispatch) => rawDispatch.mock.calls.map(([a]) => a.type);
 
 const toastDi = (rawDispatch, tipo) => rawDispatch.mock.calls
   .map(([a]) => a)
@@ -196,5 +198,92 @@ describe("quando il server rifiuta davvero", () => {
     await waitFor(() => expect(view.result.current.inAttesa).toBe(0));
     expect(toastDi(rawDispatch, "error")).toEqual([]);
     expect(toastDi(rawDispatch, "success").length).toBe(1);
+  });
+});
+
+// ─── A-1 del 15 novembre · RIGIOCARE SENZA FARSI SOVRASCRIVERE ─────────────
+describe("le voci rigiocate sono scritture in volo", () => {
+  it("marca gli id prima di inviare e li smarca dopo", async () => {
+    await semina();
+    let marcatoQuandoParte = false;
+    let rawDispatchRif = null;
+    TasksAPI.update.mockImplementationOnce(() => {
+      marcatoQuandoParte = tipi(rawDispatchRif).includes("MARK_PENDING_WRITE");
+      return Promise.resolve({ error: null });
+    });
+    const { view, rawDispatch } = monta();
+    rawDispatchRif = rawDispatch;
+
+    await waitFor(() => expect(view.result.current.inAttesa).toBe(0));
+    expect(marcatoQuandoParte).toBe(true);
+    const marca = rawDispatch.mock.calls.map(([a]) => a).find(a => a.type === "MARK_PENDING_WRITE");
+    const smarca = rawDispatch.mock.calls.map(([a]) => a).find(a => a.type === "UNMARK_PENDING_WRITE");
+    expect(marca.payload).toEqual([uuid(1)]);
+    expect(smarca.payload).toEqual([uuid(1)]);
+  });
+
+  it("smarca anche le voci rimaste in coda quando la rete cade a metà", async () => {
+    await semina({ azione: { type: "MOVE_TASK", payload: { taskId: uuid(1), newStatus: "inprogress" } } });
+    await semina({ azione: { type: "MOVE_TASK", payload: { taskId: uuid(2), newStatus: "done" } } });
+    await semina({ azione: { type: "MOVE_TASK", payload: { taskId: uuid(3), newStatus: "done" } } });
+    TasksAPI.update
+      .mockImplementationOnce(() => Promise.resolve({ error: null }))
+      .mockImplementationOnce(() => Promise.reject(new TypeError("Failed to fetch")));
+    const { view, rawDispatch } = monta();
+
+    await waitFor(() => expect(view.result.current.inAttesa).toBe(2));
+    const conta = (tipo) => rawDispatch.mock.calls
+      .map(([a]) => a).filter(a => a.type === tipo).flatMap(a => a.payload).sort();
+    expect(conta("UNMARK_PENDING_WRITE")).toEqual(conta("MARK_PENDING_WRITE"));
+    expect(conta("MARK_PENDING_WRITE")).toEqual([uuid(1), uuid(2), uuid(3)].sort());
+  });
+
+  it("a fine giro chiede il reload, perché l'eco delle voci viene scartata", async () => {
+    await semina();
+    const dopoDrenaggio = vi.fn();
+    const { view } = monta(STATO, { dopoDrenaggio });
+
+    await waitFor(() => expect(view.result.current.inAttesa).toBe(0));
+    await waitFor(() => expect(dopoDrenaggio).toHaveBeenCalledTimes(1));
+  });
+
+  it("ma non lo chiede se la coda era vuota", async () => {
+    const dopoDrenaggio = vi.fn();
+    const { view } = monta(STATO, { dopoDrenaggio });
+    await waitFor(() => expect(view.result.current.inAttesa).toBe(0));
+    await act(async () => { await view.result.current.api.drena(); });
+    expect(dopoDrenaggio).not.toHaveBeenCalled();
+  });
+});
+
+// ─── A-2 del 15 novembre · UNA CODA CHE NON ASPETTA L'EVENTO `online` ──────
+describe("quando il guasto non spegne `navigator.onLine`", () => {
+  it("ritenta da sola a intervalli finché c'è qualcosa in attesa", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await semina();
+      TasksAPI.update.mockImplementationOnce(() => Promise.reject(new TypeError("Failed to fetch")));
+      const { view } = monta();
+
+      await waitFor(() => expect(TasksAPI.update).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(view.result.current.inAttesa).toBe(1));
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(RITENTA_CODA_MS); });
+      await waitFor(() => expect(TasksAPI.update).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(view.result.current.inAttesa).toBe(0));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ritenta al ritorno in primo piano", async () => {
+    await semina();
+    TasksAPI.update.mockImplementationOnce(() => Promise.reject(new TypeError("Failed to fetch")));
+    const { view } = monta();
+    await waitFor(() => expect(view.result.current.inAttesa).toBe(1));
+
+    await act(async () => { document.dispatchEvent(new Event("visibilitychange")); });
+    await waitFor(() => expect(TasksAPI.update).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(view.result.current.inAttesa).toBe(0));
   });
 });

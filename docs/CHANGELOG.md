@@ -1,5 +1,26 @@
 # CHANGELOG — VoyageDesk
 
+## 15 novembre — coda offline e dettaglio Liste (audit stato e flusso dati)
+
+**A-1 · Le modifiche fatte offline non spariscono più dallo schermo** (`useCodaScritture`).
+- Prima: al ritorno della rete il drenaggio e il reload di ripresa partivano
+  insieme. Le voci rigiocate non erano «in volo», quindi il reload riportava a
+  schermo la riga vecchia; l'eco della scrittura (nostro `origin_client`)
+  veniva scartata e nessuno correggeva.
+- Ora gli id di tutte le voci si marcano a inizio giro e si smarcano a voce
+  chiusa (anche su guasto); a fine giro `dopoDrenaggio` ricarica i task
+  (`ricaricaTask` di `useAppHydration`).
+
+**A-2 · La coda non resta più ferma** quando il guasto non spegne
+`navigator.onLine` (timeout, `Failed to fetch`): con voci in attesa si ritenta
+ogni `RITENTA_CODA_MS` (30 s) e al ritorno in primo piano.
+
+**A-3 · Il dettaglio di una Lista segue il realtime** (`ListeViaggio`).
+- Prima: il saldo (dalla home) si aggiornava, i movimenti no.
+- Ora un canale sulle tre tabelle del modulo, filtrato sulla lista aperta
+  (`eventoDellaLista.js`), ricarica il dettaglio; anche dopo un buco di connessione.
+- Test: `src/test/state/codaDrenaggio.test.jsx`, `src/test/liste/eventoDellaLista.test.js`.
+
 ## 11 novembre — banca di appoggio per POS e bonifico (Liste)
 
 **Nuovo campo «Banca» nei movimenti** (BNL / BANCO NAPOLI).

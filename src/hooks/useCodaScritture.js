@@ -32,6 +32,19 @@ import { testoEccezione } from "../lib/errori.js";
  * @property {boolean} persistente
  */
 
+// Gli id che la entry dichiara (`entityId`), come in useSyncedDispatch. Una
+// entry che lancia non deve fermare il drenaggio: niente marca, e basta.
+const idsDellaVoce = (voce, stato, uid) => {
+  try {
+    const ids = PERSISTENCE[voce.tipo]?.entityId?.(voce.azione, stato, uid);
+    return [].concat(ids ?? []).filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+
+export const RITENTA_CODA_MS = 30_000;
+
 const plurale = (n, uno, molti) => (n === 1 ? uno : `${n} ${molti}`);
 
 /**
@@ -40,8 +53,11 @@ const plurale = (n, uno, molti) => (n === 1 ? uno : `${n} ${molti}`);
  * @param {string|null} opzioni.uid
  * @param {any} opzioni.state        lo stato vivo, per `persist` (letto da un ref).
  * @param {(azione: any) => void} opzioni.rawDispatch
+ * @param {() => void} [opzioni.dopoDrenaggio] reload chiesto a fine giro, se
+ *   almeno una voce è partita: l'eco delle voci rigiocate viene scartata
+ *   (`origin_client`), quindi senza reload nessuno riporta lo stato al server.
  */
-export function useCodaScritture({ enabled, uid, state, rawDispatch }) {
+export function useCodaScritture({ enabled, uid, state, rawDispatch, dopoDrenaggio }) {
   // Stessa tecnica — e stessa giustificazione — di useSyncedDispatch: lo stato
   // si legge da un ref assegnato in render, così l'API resta stabile. Il ref
   // non viene mai letto DURANTE il render, solo dentro le callback.
@@ -49,6 +65,8 @@ export function useCodaScritture({ enabled, uid, state, rawDispatch }) {
   statoRif.current = state;
   const uidRif = useRef(uid);
   uidRif.current = uid;
+  const dopoDrenaggioRif = useRef(dopoDrenaggio);
+  dopoDrenaggioRif.current = dopoDrenaggio;
 
   const coda = useMemo(() => apriCodaDispositivo(), []);
   const [inAttesa, setInAttesa] = useState(0);
@@ -73,14 +91,32 @@ export function useCodaScritture({ enabled, uid, state, rawDispatch }) {
     inCorso.current = true;
     let riuscite = 0;
     const perse = [];
+    // A-1 del 15 novembre · Gli id di TUTTE le voci restano «in volo» finché
+    // la loro scrittura non torna: il reload di riconnessione (+300 ms) parte
+    // insieme al drenaggio e, senza marca, riporterebbe a schermo la riga
+    // pre-scrittura. Ogni voce si smarca appena chiusa, anche su guasto.
+    const marcate = new Map();
+    const smarca = (idVoce) => {
+      const ids = marcate.get(idVoce);
+      if (!ids) return;
+      marcate.delete(idVoce);
+      rawDispatch({ type: "UNMARK_PENDING_WRITE", payload: ids });
+    };
     try {
       const voci = await coda.elenco(u);
+      for (const voce of voci) {
+        const ids = idsDellaVoce(voce, statoRif.current, u);
+        if (ids.length) {
+          marcate.set(voce.id, ids);
+          rawDispatch({ type: "MARK_PENDING_WRITE", payload: ids });
+        }
+      }
       for (const voce of voci) {
         const spec = PERSISTENCE[voce.tipo];
         // Una entry sparita dal registry (o senza `persist`) non è
         // rigiocabile: toglierla è l'unica mossa che non lascia la coda
         // bloccata su di lei per sempre.
-        if (!spec?.persist) { await coda.rimuovi(voce.id); continue; }
+        if (!spec?.persist) { smarca(voce.id); await coda.rimuovi(voce.id); continue; }
         try {
           const res = await spec.persist(statoRif.current, voce.azione, u);
           const err = erroreDiScrittura(res);
@@ -100,9 +136,13 @@ export function useCodaScritture({ enabled, uid, state, rawDispatch }) {
           }
           perse.push({ voce, err: e });
           await coda.rimuovi(voce.id);
+        } finally {
+          smarca(voce.id);
         }
       }
     } finally {
+      // Su guasto di rete il giro esce a metà: le voci rimaste si smarcano qui.
+      for (const idVoce of [...marcate.keys()]) smarca(idVoce);
       inCorso.current = false;
       await aggiornaConteggio();
       if (riuscite > 0) {
@@ -124,6 +164,7 @@ export function useCodaScritture({ enabled, uid, state, rawDispatch }) {
         if (undo) rawDispatch({ ...undo, meta: { ...undo.meta, compensazione: true } });
         rawDispatch(toastErrore(testoEccezione(err, "modifica in attesa rifiutata dal server")));
       }
+      if (riuscite > 0 || perse.length > 0) dopoDrenaggioRif.current?.();
     }
   }, [enabled, coda, aggiornaConteggio, rawDispatch]);
 
@@ -138,6 +179,21 @@ export function useCodaScritture({ enabled, uid, state, rawDispatch }) {
     window.addEventListener("online", suOnline);
     return () => window.removeEventListener("online", suOnline);
   }, [enabled, uid, drena, aggiornaConteggio]);
+
+  // A-2 del 15 novembre · L'evento `online` non basta: un timeout o un
+  // `Failed to fetch` con `navigator.onLine === true` accoda (guastoDiRete), e
+  // per quella coda nessun `online` arriverà mai. Finché c'è qualcosa in
+  // attesa si ritenta a intervalli e al ritorno in primo piano.
+  useEffect(() => {
+    if (!enabled || inAttesa === 0) return undefined;
+    const timer = setInterval(() => { drena(); }, RITENTA_CODA_MS);
+    const suVisibile = () => { if (document.visibilityState === "visible") drena(); };
+    document.addEventListener("visibilitychange", suVisibile);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", suVisibile);
+    };
+  }, [enabled, inAttesa, drena]);
 
   const api = useMemo(() => ({
     /**

@@ -1,6 +1,6 @@
 # CHANGELOG — VoyageDesk
 
-## 15 novembre — analisi del 14 novembre: A-1 e M-1
+## 15 novembre — analisi del 14 novembre: A-1, M-1 e B-1
 
 **A-1 · Il rollback di un task riassegnato non veniva applicato.**
 - Il rollback di `UPDATE_TASK` era un'altra `UPDATE_TASK`, giudicata da
@@ -28,6 +28,15 @@
 - Colori in duro fuori da `src/styles/`: 292 → 287 (ratchet abbassato).
 - Test: due casi nuovi in `src/test/ui/tema.test.js` (contrasto AA nei tre
   blocchi, nessun `#FEF3C7` nei componenti).
+
+**B-1 · L'annulla dello swipe «Completa» lasciava la data di completamento.**
+- `MOVE_TASK` ricalcola `completedAt`, ma `UNDO_LAST_ACTION` rimetteva solo lo
+  stato: il task tornava aperto con una data di completamento. Ora
+  `lastAction` porta `prevCompletedAt` e l'annulla la rimette (stesso
+  trattamento che il ramo `UPDATE_TASK` aveva già con `campiPrima`). Sul
+  database era già corretto: lo gestisce il trigger.
+- Test: due casi in `src/test/state/reducer.test.js` (verso «done» e da
+  «done», con la data ORIGINALE).
 
 ## 11 novembre — banca di appoggio per POS e bonifico (Liste)
 

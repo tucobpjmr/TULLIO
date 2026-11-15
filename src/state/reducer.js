@@ -186,7 +186,7 @@ function baseReducer(state, action) {
         ? pushToast(state.toasts, { message: `✓ Spostato in "${STATUS_LABELS[action.payload.newStatus]}"`, type: "success", undoable: true })
         : pushToast(state.toasts, { message: `Task spostato in "${STATUS_LABELS[action.payload.newStatus]}"`, type: "success" });
       const lastAction = action.swipe
-        ? { type: "MOVE_TASK", taskId: action.payload.taskId, prevStatus, newStatus: action.payload.newStatus }
+        ? { type: "MOVE_TASK", taskId: action.payload.taskId, prevStatus, prevCompletedAt: prev.completedAt ?? null, newStatus: action.payload.newStatus }
         : state.lastAction;
       return { ...state, tasks, toasts, lastAction };
     }
@@ -510,7 +510,9 @@ function baseReducer(state, action) {
       const la = state.lastAction;
       if (!la) return state;
       if (la.type === "MOVE_TASK") {
-        const tasks = state.tasks.map(t => t.id === la.taskId ? { ...t, status: la.prevStatus } : t);
+        // B-1 del 14 novembre: anche `completedAt`, che MOVE_TASK ricalcola.
+        const tasks = state.tasks.map(t => t.id === la.taskId
+          ? { ...t, status: la.prevStatus, completedAt: la.prevCompletedAt ?? null } : t);
         return { ...state, tasks, toasts: pushToast(state.toasts, { message: "Azione annullata", type: "success" }), lastAction: null };
       }
       if (la.type === "DELETE_TASK") {

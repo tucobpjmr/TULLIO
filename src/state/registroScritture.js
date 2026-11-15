@@ -61,7 +61,9 @@ export const CAMPI_COMUNI = ["persist", "guard", "mapError"];
 // prima» rifiuta di fare — lì il dato è denaro (acconti, saldi di un buono
 // viaggio) e un saldo mostrato che il database non ha è un difetto di
 // un'altra categoria. M-2 dell'audit del 10 settembre.
-export const CAMPI_OTTIMISTICI = ["normalize", "rollback", "entityId", "offline"];
+// `rigaServer` pure: allinea lo stato alla riga confermata DOPO lo stato
+// ottimistico, che nella famiglia «conferma prima» non esiste.
+export const CAMPI_OTTIMISTICI = ["normalize", "rollback", "entityId", "offline", "rigaServer"];
 export const CAMPI_CONFERMA_PRIMA = ["successMsg"];
 
 /**

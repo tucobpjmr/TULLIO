@@ -467,13 +467,16 @@ describe("persistence — rollback dichiarati", () => {
         .toEqual({ type: "ROLLBACK_TASKS_BULK", payload: [uuid(1)] });
     });
 
-    it("UPDATE_TASK riporta indietro la riga INTERA pre-dispatch", () => {
-      const originale = task({ id: uuid(1), title: "Volo Roma" });
+    // M-3 · Solo i campi toccati: la riga intera cancellerebbe una modifica
+    // successiva allo stesso task, ancora valida.
+    it("UPDATE_TASK riporta indietro i soli campi che aveva cambiato", () => {
+      const originale = task({ id: uuid(1), title: "Volo Roma", priority: "high" });
       const state = statoCon([originale], "admin1");
       const action = { type: "UPDATE_TASK", payload: { id: uuid(1), title: "Volo Milano" } };
       expect(PERSISTENCE.UPDATE_TASK.rollback(state, action))
-        .toEqual({ type: "UPDATE_TASK", payload: originale });
+        .toEqual({ type: "UPDATE_TASK", payload: { id: uuid(1), title: "Volo Roma" } });
     });
+
 
     it("MOVE_TASK torna alla colonna di partenza — il sintomo che l'audit segnalava", () => {
       const originale = task({ id: uuid(1), status: "todo" });

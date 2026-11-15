@@ -21,6 +21,19 @@ ogni `RITENTA_CODA_MS` (30 s) e al ritorno in primo piano.
   (`eventoDellaLista.js`), ricarica il dettaglio; anche dopo un buco di connessione.
 - Test: `src/test/state/codaDrenaggio.test.jsx`, `src/test/liste/eventoDellaLista.test.js`.
 
+**M-3 · Scritture sulla stessa riga in fila** (`useSyncedDispatch`).
+- Prima: due modifiche rapide allo stesso task partivano insieme. Se la seconda
+  arrivava prima, scattava un falso «conflitto con un collega»; se la prima
+  falliva, il rollback rimetteva la riga intera e cancellava anche la seconda.
+- Ora le scritture con gli stessi id aspettano l'esito della precedente, e il
+  rollback di `UPDATE_TASK` rimette solo i campi toccati (`campiPrima`).
+
+**M-1 · Si applica la riga restituita dal server** (`rigaServer`, nuovo campo
+delle entry ottimistiche). Su `UPDATE_TASK` e `MOVE_TASK` riusciti, dopo lo
+smarcamento si applica `MERGE_TASK_ROW` con la riga della risposta: recupera
+l'evento di un collega scartato mentre la riga era in volo.
+- Test: `src/test/state/scrittureInFila.test.jsx`.
+
 ## 11 novembre — banca di appoggio per POS e bonifico (Liste)
 
 **Nuovo campo «Banca» nei movimenti** (BNL / BANCO NAPOLI).

@@ -74,6 +74,22 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true, coda = /
     stateRef.current = reducer(stateRef.current, azione);
   }, [rawDispatch]);
 
+  // M-3 (audit del 15 novembre) · Una catena di scritture per riga. Due
+  // modifiche rapide allo stesso task partivano in parallelo: se la seconda
+  // arrivava prima, il confronto sui valori attesi segnalava un falso conflitto
+  // con un collega. Ora la seconda parte quando la prima ha avuto l'esito.
+  const catene = useRef(/** @type {Map<string, Promise<unknown>>} */ (new Map()));
+  const inFila = useCallback((ids, scrivi) => {
+    const prima = ids.map((id) => catene.current.get(id)).filter(Boolean);
+    const p = (prima.length ? Promise.allSettled(prima) : Promise.resolve()).then(scrivi);
+    ids.forEach((id) => catene.current.set(id, p));
+    const pulisci = () => ids.forEach((id) => {
+      if (catene.current.get(id) === p) catene.current.delete(id);
+    });
+    p.then(pulisci, pulisci);
+    return p;
+  }, []);
+
   return useCallback((action) => {
     if (!enabled) {
       rawDispatch(action);
@@ -213,7 +229,12 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true, coda = /
       return fail(err, fallback, res);
     };
 
-    return Promise.resolve()
+    // M-1 (audit del 15 novembre) · l'action con la riga restituita dal server,
+    // applicata dopo lo smarcamento: recupera l'evento di un collega scartato
+    // mentre la riga era in volo. Con un'altra scrittura ancora in fila sulla
+    // stessa riga il reducer la scarta, e vale la riga dell'ultima.
+    let allinea = null;
+    const scrivi = () => Promise.resolve()
       .then(() => spec.persist(s, toDispatch, uid))
       .then((res) => {
         // supabase-js ritorna { error, count? }; le entry che usano
@@ -222,7 +243,9 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true, coda = /
         // mirata a una riga" come un rifiuto, non solo un `error` esplicito —
         // vedi il commento sull'import in cima al file.
         const err = erroreDiScrittura(res);
-        return err ? accodaOppureFallisci(err, "errore sconosciuto", res) : { error: null };
+        if (err) return accodaOppureFallisci(err, "errore sconosciuto", res);
+        allinea = spec.rigaServer?.(res) ?? null;
+        return { error: null };
       })
       .catch((e) => accodaOppureFallisci(e, "errore di rete"))
       // finally e non .then(): un errore di rete che lasciasse l'id marcato per
@@ -232,6 +255,8 @@ export function useSyncedDispatch(state, rawDispatch, { enabled = true, coda = /
       // fail(), così nemmeno la compensazione può essere sovrascritta.
       .finally(() => {
         if (ids.length) applica({ type: "UNMARK_PENDING_WRITE", payload: ids });
+        if (allinea) applica(allinea);
       });
-  }, [enabled, rawDispatch, applica, coda]);
+    return ids.length ? inFila(ids, scrivi) : scrivi();
+  }, [enabled, rawDispatch, applica, coda, inFila]);
 }

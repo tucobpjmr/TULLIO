@@ -1,6 +1,6 @@
 # CHANGELOG — VoyageDesk
 
-## 15 novembre — analisi del 14 novembre: A-1, M-1, B-1 e B-3
+## 15 novembre — analisi del 14 novembre: A-1, M-1, B-1, B-3 e B-4
 
 **A-1 · Il rollback di un task riassegnato non veniva applicato.**
 - Il rollback di `UPDATE_TASK` era un'altra `UPDATE_TASK`, giudicata da
@@ -48,6 +48,16 @@
   fetch non torna (prima avrebbe detto «Nessun template»), e un errore di
   caricamento compare nel riquadro della vista Admin.
 - Test: `src/test/admin/templateMessaggi.test.jsx` (4 casi).
+
+**B-4 · `ui/Avatar.jsx` importava il data layer.**
+- `useAvatarSrc` (signed URL dell'avatar) chiamava `Users.getAvatarUrl` da
+  dentro `components/ui/`, che deve restare senza rete. Spostato in
+  `src/hooks/useAvatarSrc.js`; `Avatar`, `AvatarImg` e `ProfileEditor` lo
+  importano da lì. Nessun cambiamento di comportamento.
+- Nuova regola in `eslint.config.js` (`VIETATO_DATA_LAYER_IN_UI`): nessun file
+  di `components/ui/` importa `lib/api` o `lib/supabase`.
+- Resta fuori: `Avatar`, `CategoryChip` e `MentionText` leggono ancora
+  `useAppData` (team e categorie già in memoria, nessuna rete).
 
 ## 11 novembre — banca di appoggio per POS e bonifico (Liste)
 

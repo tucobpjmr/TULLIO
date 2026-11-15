@@ -406,6 +406,18 @@ const VIETATI_MODULI_API_INTERNI = {
     'dispatch() — cioè senza guard di permesso, rollback e tag origin_client.',
 };
 
+// components/ui/ è trasversale e senza rete (B-4 dell'analisi del 14
+// novembre): un componente lì che importa il data layer non si può montare in
+// un test senza finto Supabase, e porta il dominio dove docs/CLAUDE.md dice che
+// non c'è. Se gli serve un dato remoto lo legge da un hook di src/hooks/, come
+// Avatar fa con useAvatarSrc.
+const VIETATO_DATA_LAYER_IN_UI = {
+  group: ['**/lib/api', '**/lib/api.js', '**/lib/api/*', '**/lib/supabase', '**/lib/supabase.js'],
+  message:
+    'components/ui/ non chiama la rete: sposta la lettura in un hook di ' +
+    'src/hooks/ (vedi useAvatarSrc) e usa quello.',
+};
+
 // Su `Users` la granularità dell'import non basta: lo stesso namespace porta
 // operazioni legittime dal componente (invito via Edge Function, avatar sul
 // bucket, presence, preferenze personali) e mutazioni del team che appartengono
@@ -563,6 +575,21 @@ export default [
         ],
       }],
       'no-restricted-properties': ['error', ...VIETATE_MUTAZIONI_TEAM],
+    },
+  },
+  // Stesso elenco del blocco sopra più VIETATO_DATA_LAYER_IN_UI: le opzioni non
+  // si fondono fra blocchi (vedi l'ATTENZIONE sopra), quindi vanno ripetute.
+  {
+    files: ['src/components/ui/**/*.{js,jsx}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          VIETATO_APPGLOBALS, VIETATE_ENTITA_DELLO_STATE,
+          VIETATI_IMPORT_LISTE_EAGER, VIETATO_MOCKDATA_DIRETTO,
+          VIETATO_LISTEAPI_DA_FUORI, VIETATI_MODULI_API_INTERNI,
+          VIETATO_XLSX_FUORI_DAL_WORKER, VIETATO_DATA_LAYER_IN_UI,
+        ],
+      }],
     },
   },
   // state/demoState.js è l'unico punto ammesso a importare mockData.js

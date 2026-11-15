@@ -432,6 +432,7 @@ src/
 │   └── mentions.js          findMentions() — parser @menzioni (caveat #2, gemello DB)
 ├── hooks/                   (sessione 18)
 │   ├── useDebouncedTableSubscription.js   idratazione+subscribe realtime debounced (caveat #10)
+│   ├── useAvatarSrc.js                    photo_url → src di <img> (signed URL del bucket privato)
 │   └── useSyncedDispatch.js               reducer + persistenza Supabase (orchestratore)
 ├── state/                   (Phase 2b–2d)
 │   ├── mockData.js          INITIAL_TEAM/CATEGORIES/TASKS/NOTICES + MOCK_NOTIFICATIONS
@@ -451,7 +452,7 @@ src/
 │   │   ├── ErrorBoundary.jsx      primo livello (main.jsx/AuthGate) — via d'uscita: ricarica
 │   │   ├── ViewErrorBoundary.jsx  la sola vista attiva — riarmo su `viewKey`, uscita: Dashboard
 │   │   └── OverlayErrorBoundary.jsx  i modali lazy — riarmo su `resetKey`, uscita: chiudi
-│   ├── ui/                  trasversale: nessuna conoscenza del dominio
+│   ├── ui/                  trasversale: nessuna conoscenza del dominio, nessuna rete (VIETATO_DATA_LAYER_IN_UI)
 │   │   ├── Viewport.jsx     ViewportContext / useViewport / ViewportProvider
 │   │   ├── CropModal.jsx    ritaglia un'immagine e non sa di cosa sia
 │   │   ├── Avatar.jsx

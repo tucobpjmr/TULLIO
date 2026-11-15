@@ -1,6 +1,6 @@
 # CHANGELOG — VoyageDesk
 
-## 15 novembre — analisi del 14 novembre: A-1, M-1 e B-1
+## 15 novembre — analisi del 14 novembre: A-1, M-1, B-1 e B-3
 
 **A-1 · Il rollback di un task riassegnato non veniva applicato.**
 - Il rollback di `UPDATE_TASK` era un'altra `UPDATE_TASK`, giudicata da
@@ -37,6 +37,17 @@
   database era già corretto: lo gestisce il trigger.
 - Test: due casi in `src/test/state/reducer.test.js` (verso «done» e da
   «done», con la data ORIGINALE).
+
+**B-3 · Template di messaggio finti in produzione.**
+- `makeInitialState` scriveva quattro template d'esempio (`mt1`…`mt4`) anche
+  con un utente vero. Fino al primo fetch, e per sempre se il fetch falliva,
+  l'admin vedeva template che nel database non esistono.
+- Gli esempi stanno ora in `mockData.js` (`INITIAL_MESSAGE_TEMPLATES`) e
+  arrivano solo dal demo; in produzione l'elenco parte vuoto.
+- La sezione Admin «Template di messaggio» mostra uno scheletro finché il
+  fetch non torna (prima avrebbe detto «Nessun template»), e un errore di
+  caricamento compare nel riquadro della vista Admin.
+- Test: `src/test/admin/templateMessaggi.test.jsx` (4 casi).
 
 ## 11 novembre — banca di appoggio per POS e bonifico (Liste)
 

@@ -632,12 +632,9 @@ function makeInitialState({ team, currentUserId } = {}) {
     adminRollbackTo: null,    // userId a cui tornare automaticamente
     adminSwitchedAt: null,    // ISO timestamp del momento in cui si è entrati come Admin
     // Template dei messaggi chat ({ id, label, text }), gestiti da Admin.
-    messageTemplates: [
-      { id: "mt1", label: "Conferma ricezione documenti", text: "Buongiorno, abbiamo ricevuto i documenti. Le confermeremo a breve i dettagli della pratica." },
-      { id: "mt2", label: "Richiesta passaporti", text: "Buongiorno, per procedere con la prenotazione le servono i dati anagrafici completi e copia dei passaporti di tutti i partecipanti. Grazie!" },
-      { id: "mt3", label: "Sollecito acconto", text: "Le ricordiamo che la scadenza per il versamento dell'acconto è imminente. Resto a disposizione per qualsiasi chiarimento." },
-      { id: "mt4", label: "Voucher pronto", text: "I documenti di viaggio (voucher hotel, biglietti, assicurazione) sono pronti. Li trova in allegato o può ritirarli in agenzia." },
-    ],
+    // B-3 del 14 novembre: in produzione partono VUOTI e arrivano dal
+    // database (SET_MESSAGE_TEMPLATES). Quelli d'esempio sono del demo.
+    messageTemplates: demo ? demo.messageTemplates : [],
   };
 }
 

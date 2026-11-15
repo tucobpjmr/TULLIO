@@ -8,6 +8,7 @@ import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 import { obbligatorio, primoCampoInvalido, validaCampi } from "../../../lib/validators.js";
 import { useDispatch } from "../../../state/DispatchContext.jsx";
 import * as stiliComuni from "../../../styles/common.js";
+import { SkeletonRows } from "../../ui/SkeletonRows.jsx";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -57,7 +58,7 @@ const boxF12Danger = { background: "var(--card)", border: "1px solid var(--borde
 // contenere niente": passarle i template veri era un errore di tipo appena
 // acceso `strictNullChecks` (M-3 dell'audit del 10 settembre). Il ripiego resta
 // la lista vuota, il tipo dice di COSA.
-export const MessageTemplatesSection = ({ templates = /** @type {Template[]} */ ([]) }) => {
+export const MessageTemplatesSection = ({ templates = /** @type {Template[]} */ ([]), loading = false }) => {
   const dispatch = useDispatch();
   const conferma = useConfirm();
   const [editingId, setEditingId] = useState(null);
@@ -166,7 +167,11 @@ export const MessageTemplatesSection = ({ templates = /** @type {Template[]} */ 
         </div>
       )}
 
-      {templates.length === 0 ? (
+      {/* B-3 del 14 novembre: finché il primo fetch non torna, «nessun
+          template» sarebbe un vuoto che non si conosce. */}
+      {loading ? (
+        <SkeletonRows count={3} avatar={false} label="Caricamento dei template di messaggio" />
+      ) : templates.length === 0 ? (
         <div style={txtF13Muted}>
           Nessun template. Crea il primo per velocizzare le risposte ricorrenti.
         </div>

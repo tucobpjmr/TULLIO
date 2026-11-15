@@ -102,7 +102,7 @@ const ENTITA_PER_VISTA = {
   clienti: [["clients", "l'anagrafica clienti"]],
   archivio: [["tasks", "l'archivio"]],
   trash: [["tasks", "il cestino"]],
-  admin: [["team", "il team"], ["categories", "le categorie"]],
+  admin: [["team", "il team"], ["categories", "le categorie"], ["messageTemplates", "i template di messaggio"]],
 };
 
 
@@ -267,7 +267,8 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       // verrà impostata domani.
       case "admin":      return canAccessAdmin(state.team, state.currentUserId)
         ? <AdminView agencyName={state.agencyName} notices={state.notices}
-                     activityLog={state.activityLog} messageTemplates={state.messageTemplates} />
+                     activityLog={state.activityLog} messageTemplates={state.messageTemplates}
+                     templatesLoading={caricamento.messageTemplates} />
         : <Dashboard onOpenChat={ui.apriChatCon} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={caricamento.tasks} noticesLoading={caricamento.notices} />;
       case "liste":      return <ListeViaggio listeTarget={state.listeTarget} />;
       default:           return <Dashboard onOpenChat={ui.apriChatCon} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={caricamento.tasks} noticesLoading={caricamento.notices} />;

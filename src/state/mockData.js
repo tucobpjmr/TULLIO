@@ -67,6 +67,14 @@ export const INITIAL_TASKS = [
 ];
 
 // ─── AVVISI BACHECA MOCK ──────────────────────────────────────────────────────
+// Template di messaggio d'esempio: solo per il demo (demoState.js).
+export const INITIAL_MESSAGE_TEMPLATES = [
+  { id: "mt1", label: "Conferma ricezione documenti", text: "Buongiorno, abbiamo ricevuto i documenti. Le confermeremo a breve i dettagli della pratica." },
+  { id: "mt2", label: "Richiesta passaporti", text: "Buongiorno, per procedere con la prenotazione le servono i dati anagrafici completi e copia dei passaporti di tutti i partecipanti. Grazie!" },
+  { id: "mt3", label: "Sollecito acconto", text: "Le ricordiamo che la scadenza per il versamento dell'acconto è imminente. Resto a disposizione per qualsiasi chiarimento." },
+  { id: "mt4", label: "Voucher pronto", text: "I documenti di viaggio (voucher hotel, biglietti, assicurazione) sono pronti. Li trova in allegato o può ritirarli in agenzia." },
+];
+
 export const INITIAL_NOTICES = [
   {
     id: "n1",

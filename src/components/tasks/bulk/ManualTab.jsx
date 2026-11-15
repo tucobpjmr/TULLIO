@@ -8,8 +8,9 @@ import { clientContact } from "../../../lib/taskUtils.js";
 import { nuovoTask } from "../../../lib/tasks/nuovoTask.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
 import { DateTimePicker, formatPickerValue } from "../../ui/DateTimePicker.jsx";
-import { TaskFiles } from "../../../lib/api.js";
-import { MAX_TASK_FILE_SIZE, formatFileSize, isWithinSizeLimit } from "../../../lib/fileUtils.js";
+// M-2 del 14 novembre: filtro per dimensione e upload dopo la creazione sono
+// condivisi con QuickAddTask.
+import { separaPerDimensione, testoScartati, caricaAllegati } from "../../../lib/tasks/allegatiInCreazione.js";
 import { bulkInputStyle, bulkTextareaStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
 import { RowAttachments } from "./RowAttachments.jsx";
 import { useClientSuggestions, ClientSuggestions } from "../../ui/ClientAutocomplete.jsx";
@@ -17,23 +18,23 @@ import * as stiliComuni from "../../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
-const colGap16 = { display: "flex", flexDirection: "column", gap: 16 };
-const colGap8Mb8 = { display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 };
-const boxR10 = { background: "var(--surface2)", borderRadius: 10, padding: "12px 14px" };
-const gridGap6F10 = { display: "grid", gridTemplateColumns: "26px 1fr 130px 100px 120px 130px 28px", gap: 6, fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "0 4px", letterSpacing: 0.5 };
-const txtF11Bold = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", flexShrink: 0 };
-const txtF105Bold = { fontSize: 10.5, color: "var(--warning)", fontWeight: 600 };
-const grid2ColGap8 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 };
-const gridCenterGap6 = { display: "grid", gridTemplateColumns: "26px 1fr 130px 100px 120px 130px 28px", gap: 6, alignItems: "center" };
-const txtF11Muted = { fontSize: 11, color: "var(--text-muted)", textAlign: "center" };
-const gridColumn2 = { gridColumn: "2 / -2" };
-const boxF125Bold = {
+const colonnaTab = { display: "flex", flexDirection: "column", gap: 16 };
+const campiComuni = { display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 };
+const riquadroComuni = { background: "var(--surface2)", borderRadius: 10, padding: "12px 14px" };
+const intestazioneGriglia = { display: "grid", gridTemplateColumns: "26px 1fr 130px 100px 120px 130px 28px", gap: 6, fontSize: 10, fontWeight: 700, color: "var(--text-muted)", padding: "0 4px", letterSpacing: 0.5 };
+const numeroRigaMobile = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", flexShrink: 0 };
+const avvisoRigaSenzaTitolo = { fontSize: 10.5, color: "var(--warning)", fontWeight: 600 };
+const campiRigaMobile = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 };
+const rigaGriglia = { display: "grid", gridTemplateColumns: "26px 1fr 130px 100px 120px 130px 28px", gap: 6, alignItems: "center" };
+const numeroRiga = { fontSize: 11, color: "var(--text-muted)", textAlign: "center" };
+const sottoIlTitolo = { gridColumn: "2 / -2" };
+const bottoneAggiungiRiga = {
   background: "transparent", border: "1px dashed var(--border)", borderRadius: 8,
   padding: "9px", cursor: "pointer", fontSize: 12.5, fontWeight: 600,
   color: "var(--text-muted)", marginTop: 4,
 };
-const rowCenterBetween = { display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTop: "1px solid var(--border)", flexWrap: "wrap", gap: 8 };
-const txtBoldWarning = { color: "var(--warning)", fontWeight: 600 };
+const piedeTab = { display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTop: "1px solid var(--border)", flexWrap: "wrap", gap: 8 };
+const testoAvviso = { color: "var(--warning)", fontWeight: 600 };
 
 
 // ─── BULK: MANUAL TAB ──────────────────────────────────────────────────────
@@ -68,13 +69,10 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
   // fallirebbe comunque, ma solo a task già create.
   // Restituisce i file entro il limite e aggiorna l'avviso sugli scartati.
   const filtraPerDimensione = (fileList) => {
-    const arr = Array.from(fileList || []);
-    if (!arr.length) return [];
-    const tooBig = arr.filter(f => !isWithinSizeLimit(f.size));
-    setAvvisoDimensioni(tooBig.length
-      ? `${tooBig.map(f => `"${f.name}"`).join(", ")} super${tooBig.length === 1 ? "a" : "ano"} il limite di ${formatFileSize(MAX_TASK_FILE_SIZE)} per file`
-      : "");
-    return arr.filter(f => isWithinSizeLimit(f.size));
+    const { validi, scartati } = separaPerDimensione(fileList);
+    if (!validi.length && !scartati.length) return [];
+    setAvvisoDimensioni(testoScartati(scartati));
+    return validi;
   };
   const addRowFiles = (key, fileList) => {
     const ok = filtraPerDimensione(fileList);
@@ -163,20 +161,9 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
       // l'unico segnale era un toast che passava inosservato.
       if (result?.error) return result;
 
-      for (const { task, files } of prepared.filter(p => p.files.length > 0)) {
-        for (const f of files) {
-          const { error } = await TaskFiles.upload(f, task.id, { uploadedBy: currentUserId });
-          // `avviso` e non `error`: le task ESISTONO già. Il ramo precedente
-          // rimetteva `busyRef` a false, quindi «Crea» tornava premibile e un
-          // secondo tentativo creava un SECONDO batch identico. `avviso` alza
-          // `bloccato` e non lo riabbassa: il pannello resta aperto per dire
-          // dov'è finito l'allegato mancante, e la creazione non riparte.
-          if (error) return {
-            avviso: `Task create, ma l'upload di "${f.name}" su "${task.title}" è fallito. Riprova dal dettaglio della task.`,
-          };
-        }
-      }
-      return { error: null };
+      // Perché `avviso` e non `error` su un upload fallito: vedi caricaAllegati.
+      return caricaAllegati(prepared, currentUserId, (f, task) =>
+        `Task create, ma l'upload di "${f.name}" su "${task.title}" è fallito. Riprova dal dettaglio della task.`);
     },
     {
       alSuccesso: onClose,
@@ -186,12 +173,12 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
   );
 
   return (
-    <div style={colGap16}>
-      <div style={boxR10}>
+    <div style={colonnaTab}>
+      <div style={riquadroComuni}>
         <div style={stiliComuni.etichettaSezione}>
           IMPOSTAZIONI COMUNI (usate se la riga non specifica)
         </div>
-        <div style={colGap8Mb8}>
+        <div style={campiComuni}>
           <input
             value={common.title}
             onChange={e => setCommon({ ...common, title: e.target.value })}
@@ -260,7 +247,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
 
       <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 10 : 6 }}>
         {!isMobile && (
-          <div style={gridGap6F10}>
+          <div style={intestazioneGriglia}>
             <div>#</div><div>TITOLO *</div><div>CATEGORIA</div><div>PRIORITÀ</div><div>ASSEGNATO</div><div>SCADENZA</div><div></div>
           </div>
         )}
@@ -272,7 +259,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
               borderRadius: 10, padding: 10, background: "var(--surface)", display: "flex", flexDirection: "column", gap: 8,
             }}>
               <div style={stiliComuni.rowCenterGap8}>
-                <span style={txtF11Bold}>#{idx + 1}</span>
+                <span style={numeroRigaMobile}>#{idx + 1}</span>
                 <input value={r.title} onChange={e => updateRow(r.key, "title", e.target.value)} placeholder={common.title.trim() ? `${common.title.trim()} (comune)` : "Titolo task..."} style={{
                   ...bulkInputStyle, flex: 1,
                   borderColor: rowMissingTitle(r) ? "var(--warning)" : "var(--border)",
@@ -283,9 +270,9 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
                 }}>✕</button>
               </div>
               {rowMissingTitle(r) && (
-                <div style={txtF105Bold}>⚠ Aggiungi un titolo o questa riga verrà ignorata</div>
+                <div style={avvisoRigaSenzaTitolo}>⚠ Aggiungi un titolo o questa riga verrà ignorata</div>
               )}
-              <div style={grid2ColGap8}>
+              <div style={campiRigaMobile}>
                 <select value={r.category} onChange={e => updateRow(r.key, "category", e.target.value)} style={bulkInputStyle}>
                   <option value="">{commonCatLabel} (comune)</option>
                   {Object.entries(categories).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
@@ -321,8 +308,8 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
               />
             </div>
           ) : (
-            <div key={r.key} style={gridCenterGap6}>
-              <div style={txtF11Muted}>{idx + 1}</div>
+            <div key={r.key} style={rigaGriglia}>
+              <div style={numeroRiga}>{idx + 1}</div>
               <input value={r.title} onChange={e => updateRow(r.key, "title", e.target.value)} placeholder={common.title.trim() ? `${common.title.trim()} (comune)` : "Titolo task..."} style={{
                 ...bulkInputStyle,
                 borderColor: rowMissingTitle(r) ? "var(--warning)" : "var(--border)",
@@ -366,22 +353,22 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
                 onAdd={fl => addRowFiles(r.key, fl)}
                 onRemove={i => removeRowFile(r.key, i)}
                 disabled={busy}
-                style={gridColumn2}
+                style={sottoIlTitolo}
               />
             </div>
           )
         ))}
-        <button onClick={addRow} style={boxF125Bold}>+ Aggiungi riga</button>
+        <button onClick={addRow} style={bottoneAggiungiRiga}>+ Aggiungi riga</button>
       </div>
 
-      <div style={rowCenterBetween}>
+      <div style={piedeTab}>
         <div style={stiliComuni.colGap2F12}>
           <span>
             {validRows.length} task da creare
             {totalFiles > 0 && ` · ${totalFiles} allegat${totalFiles === 1 ? "o" : "i"}`}
           </span>
           {ignoredRows.length > 0 && (
-            <span style={txtBoldWarning}>
+            <span style={testoAvviso}>
               ⚠ {ignoredRows.length} rig{ignoredRows.length === 1 ? "a" : "he"} senza titolo {ignoredRows.length === 1 ? "verrà ignorata" : "verranno ignorate"}
               {ignoredRows.some(r => r.files.length > 0) && " (allegati compresi)"}
             </span>
@@ -391,7 +378,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
           {/* Riuscito a metà: le task ci sono, un allegato no. Non è un errore
               da riprovare — è un'istruzione su dove recuperare il pezzo
               mancante — quindi ha il colore dell'avviso e non del pericolo. */}
-          {avviso && <span style={txtBoldWarning}>{avviso}</span>}
+          {avviso && <span style={testoAvviso}>{avviso}</span>}
         </div>
         <div style={stiliComuni.rowGap8}>
           {/* «Annulla» resta premibile anche da `bloccato`: è la sola via

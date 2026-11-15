@@ -28,6 +28,7 @@ export const TaskFiles = {
 
   // Upload: 1) carica nel bucket, 2) inserisce la riga metadati. `source`
   // permette di distinguere upload manuale da OneDrive/WhatsApp (Block 6/7).
+  /** @param {any} file @param {string} taskId @param {{ source?: string, uploadedBy?: string|null }} [opzioni] */
   upload: async (file, taskId, { source = 'upload', uploadedBy = null } = {}) => {
     const supabase = await getSupabase();
     const path = `${taskId}/${crypto.randomUUID()}-${sanitizeFileName(file.name)}`;

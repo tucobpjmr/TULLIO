@@ -8,8 +8,10 @@ import { nuovoTask } from "../../lib/tasks/nuovoTask.js";
 // B-2 (25 agosto): la tassonomia keyword→categoria è una regola di dominio
 // dell'agenzia, non una scelta di questo form. Vive in lib/tasks/.
 import { categoriaDaTitolo } from "../../lib/tasks/categoriaDaTitolo.js";
-import { TaskFiles } from "../../lib/api.js";
-import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit } from "../../lib/fileUtils.js";
+import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon } from "../../lib/fileUtils.js";
+// M-2 del 14 novembre: filtro per dimensione e upload dopo la creazione sono
+// condivisi con la tab «Manuale» del BulkTaskCreator.
+import { separaPerDimensione, testoScartati, caricaAllegati } from "../../lib/tasks/allegatiInCreazione.js";
 import { DateTimePicker } from "../ui/DateTimePicker.jsx";
 import { Modal } from "../ui/Modal.jsx";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
@@ -21,32 +23,32 @@ import * as stiliComuni from "../../styles/common.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
-const txtF20Bold = { fontSize: 20, fontWeight: 700 };
-const boxF18Muted = { background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)" };
-const boxF10Bold = {
+const titoloModale = { fontSize: 20, fontWeight: 700 };
+const bottoneChiudi = { background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)" };
+const badgeAuto = {
   marginLeft: 8, fontSize: 10, fontWeight: 700,
   background: "#E0F2FE", color: "#0369A1",
   padding: "1px 6px", borderRadius: 4,
 };
-const boxF11Mt5 = {
+const linkSuggerimento = {
   marginTop: 5, fontSize: 11, color: "#0369A1", background: "none",
   border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit",
 };
-const colGap6Mb8 = { display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 };
-const rowCenterGap10 = {
+const elencoAllegati = { display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 };
+const rigaAllegato = {
   display: "flex", alignItems: "center", gap: 10, padding: "6px 10px",
   background: "var(--surface2)", borderRadius: 8,
 };
-const txtF11Light = { fontSize: 11, color: "var(--text-light)", marginTop: 4 };
-const txtF12Danger = { fontSize: 12, color: "var(--danger)", marginTop: 6 };
+const notaAllegati = { fontSize: 11, color: "var(--text-light)", marginTop: 4 };
+const erroreAllegati = { fontSize: 12, color: "var(--danger)", marginTop: 6 };
 // L'avviso di riuscita parziale non è rosso: la task è stata creata, e un
 // messaggio d'errore direbbe il contrario di quello che è successo.
-const txtF12Avviso = {
+const avvisoParziale = {
   marginTop: 10, padding: "8px 10px", borderRadius: 8,
   background: "var(--avviso-bg)", border: "1px solid var(--avviso-bordo)",
   fontSize: 12, lineHeight: 1.4, color: "var(--text)",
 };
-const rowGap10Mt20 = { display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" };
+const barraAzioni = { display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" };
 
 // A-2 · L'etichetta dice `TITOLO *`, e l'asterisco è una promessa: prima
 // `if (!form.title.trim()) return;` la mancava in silenzio — nessun messaggio,
@@ -112,18 +114,10 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
   };
 
   const addFiles = (fileList) => {
-    const arr = Array.from(fileList || []);
-    if (!arr.length) return;
-    impostaErroreFile("");
-    const ok = [];
-    for (const f of arr) {
-      if (!isWithinSizeLimit(f.size)) {
-        impostaErroreFile(`"${f.name}" supera il limite di ${formatFileSize(MAX_TASK_FILE_SIZE)}`);
-        continue;
-      }
-      ok.push(f);
-    }
-    if (ok.length) setPendingFiles(prev => [...prev, ...ok]);
+    const { validi, scartati } = separaPerDimensione(fileList);
+    if (!validi.length && !scartati.length) return;
+    impostaErroreFile(testoScartati(scartati));
+    if (validi.length) setPendingFiles(prev => [...prev, ...validi]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -145,22 +139,11 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
       // Normalizzazione (trim, vuoto → null, data → ISO) e default vivono lì:
       // qui si passa il form così com'è.
       const task = nuovoTask(form);
-      const id = task.id;
       const res = await onAdd(task);
       if (res?.error) return res;
-
-      // Gli allegati dopo, in sequenza: l'upload passa dalla RLS del bucket,
-      // che parte dal task_id — senza la riga già scritta rifiuterebbe.
-      for (const f of pendingFiles) {
-        const { error } = await TaskFiles.upload(f, id, { uploadedBy: currentUserId });
-        // `avviso` e non `error`: la task ESISTE. Riprovare ne creerebbe una
-        // seconda, quindi il pannello resta aperto per dire dov'è finito
-        // l'allegato mancante, ma il bottone «Crea» non riparte.
-        if (error) {
-          return { avviso: `Task creata, ma l'allegato "${f.name}" non è stato caricato. Riprova dal dettaglio della task: la task è salva.` };
-        }
-      }
-      return { error: null };
+      // Perché `avviso` e non `error` su un upload fallito: vedi caricaAllegati.
+      return caricaAllegati([{ task, files: pendingFiles }], currentUserId, (f) =>
+        `Task creata, ma l'allegato "${f.name}" non è stato caricato. Riprova dal dettaglio della task: la task è salva.`);
     },
     { alSuccesso: onClose },
   );
@@ -208,8 +191,8 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
     <Modal open onClose={onClose} labelledBy="quick-add-title" width={500} cardStyle={{ padding: 28 }}>
       <>
         <div style={stiliComuni.testataModale}>
-          <div id="quick-add-title" className="playfair" style={txtF20Bold}>Nuovo Task</div>
-          <button onClick={onClose} style={boxF18Muted}>✕</button>
+          <div id="quick-add-title" className="playfair" style={titoloModale}>Nuovo Task</div>
+          <button onClick={onClose} style={bottoneChiudi}>✕</button>
         </div>
 
         <div style={stiliComuni.colGap14}>
@@ -228,7 +211,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
               <label className="vd-field-label-lg" htmlFor={idCategoria}>
                 CATEGORIA
                 {suggested && (
-                  <span style={boxF10Bold}>💡 auto</span>
+                  <span style={badgeAuto}>💡 auto</span>
                 )}
               </label>
               <select
@@ -245,7 +228,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
                 <button
                   type="button"
                   onClick={() => { setCatManual(false); const s = categoriaDaTitolo(form.title, availableCats); if (s) setForm(p => ({ ...p, category: s })); }}
-                  style={boxF11Mt5}
+                  style={linkSuggerimento}
                 >
                   💡 Usa categoria suggerita: {availableCats[categoriaDaTitolo(form.title, availableCats)]?.label}
                 </button>
@@ -318,9 +301,9 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
           <div>
             <label className="vd-field-label-lg" htmlFor={idAllegati}>ALLEGATI</label>
             {pendingFiles.length > 0 && (
-              <div style={colGap6Mb8}>
+              <div style={elencoAllegati}>
                 {pendingFiles.map((f, i) => (
-                  <div key={i} style={rowCenterGap10}>
+                  <div key={i} style={rigaAllegato}>
                     <span style={stiliComuni.txtF16}>{fileIcon(f.type || f.name)}</span>
                     <div className="vd-flex-1-min0">
                       <div style={stiliComuni.nomeTroncatoF13}>{f.name}</div>
@@ -350,10 +333,10 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
                 cursor: busy ? "default" : "pointer", background: "transparent", fontFamily: "inherit",
               }}
             >📎 Aggiungi file</button>
-            <div style={txtF11Light}>
+            <div style={notaAllegati}>
               Immagini, video, audio e documenti · max {formatFileSize(MAX_TASK_FILE_SIZE)} per file.
             </div>
-            {erroreFile && <div style={txtF12Danger}>{erroreFile}</div>}
+            {erroreFile && <div style={erroreAllegati}>{erroreFile}</div>}
           </div>
         </div>
 
@@ -362,8 +345,8 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
             stato scritto niente e riprovare è la cosa da fare; con `avviso` la
             task c'è già e riprovare la duplicherebbe. */}
         <FieldError id="qat-save-err">{erroreSalvataggio}</FieldError>
-        {avviso && <div role="alert" style={txtF12Avviso}>{avviso}</div>}
-        <div style={rowGap10Mt20}>
+        {avviso && <div role="alert" style={avvisoParziale}>{avviso}</div>}
+        <div style={barraAzioni}>
           <button onClick={onClose} disabled={busy} style={{
             padding: "9px 18px", borderRadius: 8, border: "1px solid var(--border)",
             background: "transparent", cursor: busy ? "default" : "pointer", fontSize: 13, fontWeight: 500,

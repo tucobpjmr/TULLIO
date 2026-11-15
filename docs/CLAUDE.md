@@ -102,6 +102,7 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 **Stili**
 - **Stili**: z-index, bottoni e campi da `src/styles/tokens.js`. ⛔ Mai uno `zIndex` numerico inline. ⛔ Mai uno `style={{…}}` di soli valori costanti (`STILE_INLINE_COSTANTE`): va in una `const` di modulo, nel `*Styles.js` accanto o in `styles/common.js` se la forma ricorre in tre o più file (misurato per VALORE: «forme di stile identiche in 3+ file» e «forme già in common.js riscritte altrove», attesi 0). Restano **333 style inline dinamici**.
 - **Stili condivisi**: `src/styles/common.js` si importa **qualificato** — `import * as stiliComuni from "…/styles/common.js"`. ⛔ Mai un import nominato da lì (`VIETATO_COMMON_NOMINATO`).
+- **Nome di una costante di stile = il suo ruolo** (`rigaAllegato`, `avvisoParziale`), non la forma (`rowCenterGap10`): la forma la dice il valore. Le vecchie si rinominano quando si tocca il file, non in massa (M-4 del 14 novembre).
 - **CSS globale**: `src/styles/global.css` (e `components/liste/liste.css`). ⛔ Niente `<style>` in JSX o in `index.html`: la CSP è `style-src 'self'`.
 
 **Dominio**

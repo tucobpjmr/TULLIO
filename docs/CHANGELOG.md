@@ -81,6 +81,22 @@
 - Test: `src/test/state/reducerDeterministico.test.jsx` (4 casi, uno è il
   controllo positivo); l'helper di `syncedDispatch.test.jsx` ignora il timbro.
 
+**M-2 · «Crea task + carica allegati» scritto due volte.**
+- Filtro per dimensione, testo degli scartati e upload dopo la creazione
+  erano copiati in `QuickAddTask` e nella tab «Manuale» del BulkTaskCreator,
+  con testi già diversi per lo stesso scarto. Ora stanno in
+  `src/lib/tasks/allegatiInCreazione.js` (`separaPerDimensione`,
+  `testoScartati`, `caricaAllegati`).
+- Unico cambio visibile: `QuickAddTask` nomina TUTTI i file scartati, non solo
+  l'ultimo.
+- `TaskFiles.upload` dichiara il tipo di `uploadedBy` (prima dedotto `null`).
+- Test: `src/test/lib/allegatiInCreazione.test.js` (5 casi).
+
+**M-4 · Nomi di stile per forma.**
+- Regola in `docs/CLAUDE.md`: il nome di una costante di stile dice il ruolo,
+  e le vecchie si rinominano quando si tocca il file. Applicata ai due file di
+  M-2: 10 costanti in `QuickAddTask`, 13 in `ManualTab`.
+
 ## 11 novembre — banca di appoggio per POS e bonifico (Liste)
 
 **Nuovo campo «Banca» nei movimenti** (BNL / BANCO NAPOLI).

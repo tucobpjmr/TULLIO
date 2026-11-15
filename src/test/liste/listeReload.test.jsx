@@ -241,3 +241,36 @@ describe("ListeViaggio — loadDetail non sovrascrive il dettaglio dopo la chius
     expect(screen.queryByRole("heading", { level: 1, name: "MARIO ROSSI" })).toBeNull();
   });
 });
+
+// ─── D · M-3 del 14 novembre: la ricerca sopravvive al dettaglio ──────────
+// Con l'elenco estratto in ListeHome, lo stato della ricerca sta in
+// useHomeListe, chiamato da ListeViaggio: aprire una lista smonta ListeHome,
+// e tornando ricerca e filtro devono essere quelli lasciati.
+describe("ListeViaggio — tornando dal dettaglio, ricerca e filtro restano", () => {
+  const TEAM = [{ id: "marco", name: "Marco Rossi", role: "admin", active: true, pending: false }];
+  const lista = (id, nome) => ({
+    id, client_id: `c-${id}`, titolo: null, stato: "attiva",
+    clients: { name: nome }, lista_beneficiari: [],
+  });
+
+  it("apre MARIO ROSSI dalla ricerca, torna e vede ancora solo lui", async () => {
+    const MARIO = lista("l1", "MARIO ROSSI");
+    ListeAPIMock.list.mockResolvedValue({ data: [MARIO, lista("l2", "ANNA BIANCHI")], error: null });
+    ListeAPIMock.saldi.mockResolvedValue({ data: [], error: null });
+    ListeAPIMock.get.mockResolvedValue({ data: MARIO, error: null });
+
+    render(<ListeViaggio />, { team: TEAM, currentUserId: "marco" });
+    await screen.findByText("ANNA BIANCHI");
+    const cerca = () => screen.getByLabelText("Cerca lista per cliente, cointestatario o titolo");
+    fireEvent.change(cerca(), { target: { value: "rossi" } });
+    expect(screen.queryByText("ANNA BIANCHI")).toBeNull();
+
+    fireEvent.click(screen.getByText("MARIO ROSSI"));
+    await screen.findByLabelText("Torna a tutte le liste");
+    fireEvent.click(screen.getByLabelText("Torna a tutte le liste"));
+
+    await waitFor(() => expect(cerca()).toHaveValue("rossi"));
+    expect(screen.getByText("MARIO ROSSI")).toBeInTheDocument();
+    expect(screen.queryByText("ANNA BIANCHI")).toBeNull();
+  });
+});

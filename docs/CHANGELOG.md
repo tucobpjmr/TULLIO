@@ -97,6 +97,18 @@
   e le vecchie si rinominano quando si tocca il file. Applicata ai due file di
   M-2: 10 costanti in `QuickAddTask`, 13 in `ManualTab`.
 
+**M-3 · `ListeViaggio` faceva tutto (527 righe).**
+- Caricava il dettaglio chiamando `ListeAPI`, gestiva ricerca, filtri,
+  ordinamento e overlay, e disegnava quattro stati. Ora: `useDettaglioLista`
+  (dettaglio e guardia contro le risposte tardive), `useHomeListe` (stato e
+  calcoli dell'elenco), `ListeHome.jsx` (UI dell'elenco e azioni del cestino).
+  `ListeViaggio` compone: 304 righe. Nessun cambiamento di comportamento.
+- `useHomeListe` lo chiama `ListeViaggio`, non `ListeHome`: aprendo una lista
+  `ListeHome` si smonta, e ricerca e filtro andrebbero persi.
+- Test: un caso in `src/test/liste/listeReload.test.jsx` (la ricerca resta
+  dopo aver aperto e chiuso una lista); la guardia sul dettaglio era già
+  coperta dal caso C dello stesso file.
+
 ## 11 novembre — banca di appoggio per POS e bonifico (Liste)
 
 **Nuovo campo «Banca» nei movimenti** (BNL / BANCO NAPOLI).

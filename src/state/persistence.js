@@ -140,8 +140,10 @@ export const PERSISTENCE = {
     rollback: (s, a, res) => {
       const conflitto = compensazioneConflitto(res);
       if (conflitto) return conflitto;
+      // ROLLBACK_TASK, non UPDATE_TASK: il permesso si giudicherebbe sullo
+      // stato ottimistico (A-1 del 14 novembre).
       const prev = findTask(s, a.payload?.id);
-      return prev ? { type: "UPDATE_TASK", payload: { ...campiPrima(prev, a.payload), id: prev.id } } : null;
+      return prev ? { type: "ROLLBACK_TASK", payload: { ...campiPrima(prev, a.payload), id: prev.id } } : null;
     },
     mapError: (err) => err?.message || "task non aggiornato",
   },
@@ -244,7 +246,7 @@ export const PERSISTENCE = {
       if (la.type === "DELETE_TASK") return { type: "DELETE_TASK", payload: la.taskId };
       if (la.type === "UPDATE_TASK") {
         const cur = findTask(s, la.taskId);
-        return cur ? { type: "UPDATE_TASK", payload: cur } : null;
+        return cur ? { type: "ROLLBACK_TASK", payload: cur } : null;
       }
       return null;
     },

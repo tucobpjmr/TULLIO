@@ -10,7 +10,7 @@
 // Il CONTENUTO mantiene di proposito lo stile originale (blu #0F4C81, font
 // Inter, impaginazione "foglio cartaceo"); solo la chrome di navigazione —
 // breadcrumb e testata — segue lo stile Tullio (navy/oro, Playfair).
-import { memo, useCallback, useEffect, useId, useMemo, useReducer, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { useViewport } from "../ui/Viewport.jsx";
 import { Icona } from "../ui/Icona.jsx";
 import { useListeData } from "./useListeData.js";
@@ -19,36 +19,23 @@ import { useDebouncedTableSubscription } from "../../hooks/useDebouncedTableSubs
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
 import { useClientiCompleti } from "../../state/ClientiCompletiContext.jsx";
-import { ListeAPI } from "../../lib/api/liste.js";
 import { useListeWrite } from "./listePersistence.js";
 import { useStrumentiDati } from "./useStrumentiDati.js";
 import { overlayIniziale, overlayReducer } from "./listeReducers.js";
-import { terminiRicerca } from "../../lib/searchUtils.js";
 import "./liste.css";
-import { useConfirm } from "../../state/ConfirmContext.jsx";
 import { ListaDetail } from "./ListaDetail.jsx";
 import { ImportaBackupConfirmModal } from "./modals/ImportaBackupConfirmModal.jsx";
 import { NuovaListaModal } from "./modals/NuovaListaModal.jsx";
 import { ResetTotaleModal } from "./modals/ResetTotaleModal.jsx";
 import { StrumentiDatiModal } from "./modals/StrumentiDatiModal.jsx";
-// Filtro, insiemi e ordinamento della home + la riga dell'elenco: estratti da
-// questo file in A-4 (audit del 12 agosto), quando aveva raggiunto 495/500
-// righe. Pure funzioni e un componente senza stato proprio — nessun
-// consumatore oltre a questo modulo e ai test che li esercitano direttamente.
-import {
-  FILTRI, FILTRI_ALTROVE, filtraIndicizzate, indicizzaLista, ORDINAMENTI, ordinaListe,
-} from "./listeOrdinamento.js";
-import { useFinestra } from "../../hooks/useFinestra.js";
-import { ListaRow } from "./ListaRow.jsx";
+// M-3 del 14 novembre: dettaglio, stato dell'elenco e UI dell'elenco hanno un
+// file ciascuno. Qui resta la composizione: chi è aperto, gli overlay, la chrome.
+import { useDettaglioLista } from "./useDettaglioLista.js";
+import { useHomeListe } from "./useHomeListe.js";
+import { ListeHome } from "./ListeHome.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 
-// Stili costanti di questo file: allocati una volta a livello di modulo,
-// non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
-const rowMiddleGap8 = { display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginTop: 10 };
-const txtCenter = { padding: "14px 16px", textAlign: "center" };
-
-const HOME_PAGE_SIZE = 10;
 
 // ─── Modulo ────────────────────────────────────────────────────────────────
 // `memo` + lettura dal contesto: vedi state/TasksContext.jsx. Il modulo non
@@ -87,18 +74,7 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = /** @type
   const esegui = useListeWrite();
 
   const [listaApertaId, impostaListaAperta] = useState(null);
-  const [detail, setDetail] = useState(null); // { lista, movimenti, history }
-
-  // Quattro valori INDIPENDENTI dell'elenco: si cerca dentro un filtro, con un
-  // ordinamento, mostrando N righe. Restano useState separati di proposito —
-  // non sono una macchina a stati e accorparli è la parte del rilievo ST-7 che
-  // non va fatta (vedi il commento in listeReducers.js).
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("attive");
-  const [sort, setSort] = useState("recenti");
-  // M-4 dell'audit del 2 settembre: `htmlFor` esplicito invece della forma
-  // annidata, che si rompe in silenzio alla prima ristrutturazione del markup.
-  const idOrdina = useId();
+  const { detail, ricarica: ricaricaDettaglio } = useDettaglioLista(listaApertaId);
 
   // Gli overlay del modulo — nuova lista, strumenti dati, reset totale,
   // conferma del ripristino da backup — in UNA macchina a stati: erano quattro
@@ -108,7 +84,6 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = /** @type
   const [overlay, overlayDispatch] = useReducer(overlayReducer, overlayIniziale);
   const apriOverlay = (tipo, dati = null) => overlayDispatch({ type: "APRI", overlay: tipo, dati });
   const chiudiOverlay = () => overlayDispatch({ type: "CHIUDI" });
-  const conferma = useConfirm();
 
   // L'anagrafica clienti e il team sono già idratati nello state globale
   // dell'app (stesse tabelle `clients`/`users` del modulo): li riusiamo invece
@@ -123,43 +98,14 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = /** @type
     return m;
   }, [team]);
 
-  // Guardia di staleness del dettaglio: stessa disciplina di useListeData,
-  // generazione propria. Senza, il dettaglio di una lista chiusa (o
-  // sostituita da un'altra appena aperta) può arrivare in ritardo e
-  // sovrascrivere quello della lista che l'utente sta guardando ora — un
-  // `setDetail` di A che atterra dopo che si è già passati a B.
-  const detailGenRef = useRef(0);
-
-  const loadDetail = useCallback(async (id) => {
-    const mia = ++detailGenRef.current;
-    const [rLista, rMovs, rHist] = await Promise.all([
-      ListeAPI.get(id), ListeAPI.movimenti(id), ListeAPI.history(id),
-    ]);
-    if (mia !== detailGenRef.current) return; // una loadDetail più recente è già partita
-    const failed = [rLista, rMovs, rHist].find((r) => r.error);
-    if (failed) {
-      console.error("[liste] dettaglio", failed.error);
-      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Errore: ${failed.error.message}` } });
-      return;
-    }
-    setDetail({ lista: rLista.data, movimenti: rMovs.data || [], history: rHist.data || [] });
-  }, [dispatch]);
-
-  useEffect(() => {
-    // Chiusura: nessuna loadDetail in volo resta legittima. Bump esplicito
-    // (nessuna nuova loadDetail la farebbe da sola) così una risposta tardiva
-    // per la lista appena chiusa non può riapparire nel dettaglio.
-    if (!listaApertaId) { detailGenRef.current += 1; setDetail(null); return; }
-    loadDetail(listaApertaId);
-  }, [listaApertaId, loadDetail]);
 
   // A-3 del 15 novembre · Il dettaglio segue il realtime come la home: un
   // movimento di un collega aggiorna il saldo (home), e senza questo canale le
   // righe sotto restavano quelle dell'apertura. Anche la ripresa dopo un buco
-  // di connessione ricarica il dettaglio. Il primo caricamento è l'effetto qui sopra.
+  // di connessione ricarica il dettaglio. Il primo caricamento lo fa useDettaglioLista.
   useDebouncedTableSubscription(
     ["liste_viaggio", "movimenti_lista", "lista_beneficiari"],
-    () => (listaApertaId ? loadDetail(listaApertaId) : undefined),
+    () => ricaricaDettaglio(),
     {
       enabled: listeAllowed && !!listaApertaId,
       deps: [listeAllowed, listaApertaId],
@@ -190,8 +136,8 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = /** @type
   // anti-race qui non dipende più da questo argomento, viene dal generation
   // counter condiviso dentro useListeData stesso.
   const reloadAll = useCallback(async (tabelle = null) => {
-    await Promise.all([loadHome(undefined, tabelle), listaApertaId ? loadDetail(listaApertaId) : Promise.resolve()]);
-  }, [loadHome, loadDetail, listaApertaId]);
+    await Promise.all([loadHome(undefined, tabelle), ricaricaDettaglio()]);
+  }, [loadHome, ricaricaDettaglio]);
 
   // ── Strumenti dati: backup in giù, backup in su, reset totale ──
   // Un file suo (M-5, audit del 25 agosto): è l'unico dei quattro lavori di
@@ -210,87 +156,7 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = /** @type
     await loadHome();
   }, [dispatch, loadHome]);
 
-  // La ricerca si applica a TUTTI e quattro gli insiemi, non solo a quello
-  // selezionato: il filtro decide cosa si mostra, ma i conteggi degli altri
-  // servono per dire dove sono finiti i risultati che non si vedono.
-  // M-3 · L'indice di ricerca delle liste, ricostruito quando cambiano le
-  // liste e non a ogni battuta: la normalizzazione (accenti, apostrofi,
-  // variante senza spazi) e la raccolta dei cointestatari dipendono dalla
-  // RIGA, non da ciò che si digita.
-  const indiceListe = useMemo(() => liste.map((l) => ({ l, idx: indicizzaLista(l) })), [liste]);
-  const indiceCestino = useMemo(() => cestino.map((l) => ({ l, idx: indicizzaLista(l) })), [cestino]);
-
-  const risultati = useMemo(() => {
-    const termini = terminiRicerca(search);
-    // Un solo passaggio sull'indice, poi la partizione per stato: prima erano
-    // quattro filtri testuali completi sugli stessi dati (attive, esaurite,
-    // tutte, cestino), cioè le liste attive normalizzate due volte per battuta.
-    const tutte = filtraIndicizzate(indiceListe, termini);
-    return {
-      attive: tutte.filter((l) => l.stato === "attiva"),
-      esaurite: tutte.filter((l) => l.stato === "esaurita"),
-      tutte,
-      cestino: filtraIndicizzate(indiceCestino, termini),
-    };
-  }, [indiceListe, indiceCestino, search]);
-
-  const visibili = useMemo(
-    () => ordinaListe(risultati[filter] || [], saldi, sort),
-    [risultati, filter, saldi, sort],
-  );
-
-  // M-2 · La finestra dell'elenco, ora dall'hook condiviso: era scritta qui e,
-  // identica, in ClientiView — e le altre cinque viste con elenchi lunghi non
-  // l'avevano affatto (vedi hooks/useFinestra.js).
-  const finestra = useFinestra(visibili, HOME_PAGE_SIZE, [search, filter, sort]);
-
-  // Conteggi per il menu a tendina del filtro. Senza, l'elenco mostra il
-  // totale delle sole "Attive" (il filtro di default) mentre il backup conta
-  // tutte le liste: due numeri diversi e nessun modo di capire perché.
-  const conteggi = useMemo(() => ({
-    attive: liste.filter((l) => l.stato === "attiva").length,
-    esaurite: liste.filter((l) => l.stato === "esaurita").length,
-    tutte: liste.length,
-    cestino: cestino.length,
-  }), [liste, cestino]);
-
-  // Risultati che la ricerca ha trovato ma che il filtro corrente nasconde.
-  // È il caso in cui l'elenco mente per omissione: la lista di un cliente
-  // esiste, l'anagrafica la conta nel suo badge, ma è ESAURITA e il filtro di
-  // default mostra solo le attive — quindi qui non compare e sembra un
-  // problema della ricerca.
-  const altrove = useMemo(() => {
-    if (!terminiRicerca(search).length) return [];
-    return (FILTRI_ALTROVE[filter] || [])
-      .map((k) => ({ key: k, n: (risultati[k] || []).length }))
-      .filter((x) => x.n > 0);
-  }, [search, filter, risultati]);
-
-  const vaiA = (key) => setFilter(key);
-
-  // "Esaurite (1)" oppure "Esaurite (1) · Cestino (2)", come bottoni che
-  // portano dove i risultati sono.
-  const altroveChips = altrove.map(({ key, n }) => (
-    <button key={key} type="button" className="lv-btn sm" onClick={() => vaiA(key)}>
-      {FILTRI[key]} ({n})
-    </button>
-  ));
-
-  const ripristina = async (id) => {
-    const { ok } = await esegui("ripristinaLista", id);
-    if (ok) await loadHome();
-  };
-
-  const eliminaDefinitiva = async (l) => {
-    if (!(await conferma({
-      title: "Eliminare definitivamente?",
-      body: `"${l.clients?.name || "questa lista"}" e tutti i suoi movimenti e storico verranno eliminati. L'operazione NON è reversibile.`,
-      cta: "Elimina definitivamente",
-      danger: true,
-    }))) return;
-    const { ok } = await esegui("eliminaListaDefinitivamente", l.id);
-    if (ok) await loadHome();
-  };
+  const home = useHomeListe({ liste, cestino, saldi });
 
   // Plain: `onError` delle modali porta anche messaggi di VALIDAZIONE («Digita
   // esattamente: RESET TOTALE»), non solo esiti di scrittura — `toastErrore`
@@ -377,103 +243,14 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = /** @type
               saldi={saldi}
             />
           ) : (
-            <>
-              <div className="lv-toolbar">
-                <input
-                  type="search"
-                  placeholder="Cerca cliente, cointestatario o titolo…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  aria-label="Cerca lista per cliente, cointestatario o titolo"
-                />
-                <select
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
-                  aria-label="Filtra le liste"
-                >
-                  <option value="attive">Attive ({conteggi.attive})</option>
-                  <option value="esaurite">Esaurite ({conteggi.esaurite})</option>
-                  <option value="tutte">Tutte ({conteggi.tutte})</option>
-                  <option value="cestino">Cestino{conteggi.cestino ? ` (${conteggi.cestino})` : ""}</option>
-                </select>
-                <label className="lv-sel-lbl" htmlFor={idOrdina}>
-                  Ordina
-                  <select id={idOrdina} value={sort} onChange={(e) => setSort(e.target.value)}>
-                    {Object.entries(ORDINAMENTI).map(([k, label]) => (
-                      <option key={k} value={k}>{label}</option>
-                    ))}
-                  </select>
-                </label>
-                <button className="lv-btn" title="Strumenti dati (backup e reset)" onClick={() => apriOverlay("strumenti")}>
-                  Strumenti dati
-                </button>
-                <button className="lv-btn primary" onClick={() => apriOverlay("nuova")}>+ Nuova lista</button>
-              </div>
-
-              {/* Risultati nascosti dal filtro: si dice sempre, anche quando
-                  l'elenco NON è vuoto — cercando "COLUCCI" fra le attive si
-                  vedono tre liste e non si sospetta la quarta, esaurita. */}
-              {visibili.length > 0 && altrove.length > 0 && (
-                <div className="lv-altrove">
-                  <span>Altri risultati per “{search.trim()}” fuori da “{FILTRI[filter]}”:</span>
-                  {altroveChips}
-                </div>
-              )}
-
-              <div className="lv-card">
-                {visibili.length === 0 ? (
-                  <div className="lv-empty">
-                    {terminiRicerca(search).length ? (
-                      <>
-                        Nessuna lista trovata per “{search.trim()}” in “{FILTRI[filter]}”.
-                        {altrove.length > 0 && (
-                          <>
-                            <br />
-                            <span style={stiliComuni.txtF13}>Ma c’è altrove:</span>
-                            <div style={rowMiddleGap8}>
-                              {altroveChips}
-                            </div>
-                          </>
-                        )}
-                      </>
-                    ) : filter === "cestino" ? (
-                      "Il cestino è vuoto."
-                    ) : (
-                      <>Nessuna lista qui.<br />Crea la prima con “+ Nuova lista”.</>
-                    )}
-                  </div>
-                ) : filter === "cestino" ? (
-                  visibili.map((l) => (
-                    // @ts-expect-error key è gestita da React, non da ListaRow (M-4, assenza di @types/react)
-                    <ListaRow key={l.id} lista={l} saldo={saldi[l.id]} trashed>
-                      <button className="lv-btn sm" onClick={() => ripristina(l.id)}>Ripristina</button>
-                      <button className="lv-btn danger sm" onClick={() => eliminaDefinitiva(l)}>
-                        Elimina definitivamente
-                      </button>
-                    </ListaRow>
-                  ))
-                ) : (
-                  <>
-                    {finestra.visibili.map((l) => (
-                      // @ts-expect-error key è gestita da React, non da ListaRow (M-4, assenza di @types/react)
-                      <ListaRow key={l.id} lista={l} saldo={saldi[l.id]} onOpen={() => impostaListaAperta(l.id)} />
-                    ))}
-                    {finestra.restanti > 0 && (
-                      <div style={txtCenter}>
-                        {/* Il bottone resta quello del modulo (`lv-btn`): il
-                            CSS di Liste è scopato sotto `.lv-root`, quindi il
-                            piede condiviso del core (ui/MostraAltri.jsx) qui
-                            arriverebbe senza i propri stili. La meccanica è la
-                            stessa, l'aspetto è quello di casa. */}
-                        <button className="lv-btn" onClick={finestra.ancora}>
-                          Mostra altre liste ({finestra.restanti} rimanenti)
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </>
+            <ListeHome
+              home={home}
+              saldi={saldi}
+              onApri={impostaListaAperta}
+              onNuova={() => apriOverlay("nuova")}
+              onStrumenti={() => apriOverlay("strumenti")}
+              ricaricaHome={loadHome}
+            />
           )}
 
           {overlay.tipo === "nuova" && (

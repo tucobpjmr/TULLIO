@@ -14,6 +14,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 import {
   TEMI, ETICHETTE_TEMA, CHIAVE_TEMA, leggiTema, salvaTema, applicaTema, temaEffettivo,
 } from "../../lib/tema.js";
@@ -53,6 +54,46 @@ describe("la palette scura", () => {
     expect(sceltaEsplicita.has("--focus")).toBe(true);
     const i = css.indexOf(':root[data-tema="scuro"] {');
     expect(css.slice(i, css.indexOf("}", i))).toContain("color-scheme: dark");
+  });
+});
+
+// M-1 dell'analisi del 14 novembre. Il riquadro d'avviso aveva il fondo
+// giallo pallido scritto in duro e il testo da token: al buio il testo
+// diventava quasi bianco, su un fondo rimasto chiaro. Qui si misura il
+// contrasto WCAG (soglia AA, 4.5:1) in tutti e due i temi, e si vieta il
+// ritorno del colore in duro nei componenti.
+describe("il riquadro d'avviso", () => {
+  const valoreDi = (selettore, token) => {
+    const i = css.indexOf(selettore);
+    const corpo = css.slice(i, css.indexOf("}", i));
+    const m = corpo.match(new RegExp(`${token}\\s*:\\s*(#[0-9a-fA-F]{6})`));
+    expect(m, `${token} senza esadecimale in ${selettore}`).toBeTruthy();
+    return m[1];
+  };
+  const luminanza = (hex) => {
+    const [r, g, b] = [1, 3, 5].map(k => parseInt(hex.slice(k, k + 2), 16) / 255)
+      .map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrasto = (a, b) => {
+    const [chiaro, scuro] = [luminanza(a), luminanza(b)].sort((x, y) => y - x);
+    return (chiaro + 0.05) / (scuro + 0.05);
+  };
+  const BLOCCHI = [":root {\n  --navy", ':root:not([data-tema="chiaro"]) {', ':root[data-tema="scuro"] {'];
+
+  it.each(BLOCCHI)("testo e testo d'avviso si leggono sul fondo (%s)", (blocco) => {
+    const fondo = valoreDi(blocco, "--avviso-bg");
+    for (const inchiostro of ["--text", "--avviso-testo"]) {
+      const c = contrasto(fondo, valoreDi(blocco, inchiostro));
+      expect(c, `${inchiostro} su --avviso-bg: ${c.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("nessun componente scrive il fondo d'avviso in duro", () => {
+    const file = execSync("git ls-files src/components", { encoding: "utf8" })
+      .split("\n").filter(f => /\.(jsx?|css)$/.test(f) && !f.includes(".test."));
+    const colpevoli = file.filter(f => /#FEF3C7/i.test(readFileSync(f, "utf8")));
+    expect(colpevoli, "usa var(--avviso-bg) e var(--avviso-bordo)").toEqual([]);
   });
 });
 

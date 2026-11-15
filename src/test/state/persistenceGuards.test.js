@@ -474,7 +474,7 @@ describe("persistence — rollback dichiarati", () => {
       const state = statoCon([originale], "admin1");
       const action = { type: "UPDATE_TASK", payload: { id: uuid(1), title: "Volo Milano" } };
       expect(PERSISTENCE.UPDATE_TASK.rollback(state, action))
-        .toEqual({ type: "UPDATE_TASK", payload: { id: uuid(1), title: "Volo Roma" } });
+        .toEqual({ type: "ROLLBACK_TASK", payload: { id: uuid(1), title: "Volo Roma" } });
     });
 
 
@@ -732,6 +732,11 @@ const COMPENSAZIONE = [
   // ottimistico identificato per id locale. Stesso principio di
   // ROLLBACK_EMPTY_TRASH: è la compensazione, non ha nulla da riscrivere.
   "ROLLBACK_COMMENT",
+  // A-1 dell'analisi del 14 novembre: rimette la riga di un task dopo una
+  // UPDATE_TASK fallita o in conflitto, senza ripassare da canEditTask
+  // (giudicato sullo stato ottimistico, negava il rollback di una
+  // riassegnazione). Vedi src/test/state/rollbackTask.test.jsx.
+  "ROLLBACK_TASK",
 ];
 
 // Questo quarto elenco non è una categoria: è un registro di lacune note.

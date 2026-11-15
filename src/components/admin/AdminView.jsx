@@ -35,7 +35,7 @@ const rowGap4Mb20 = {
 };
 
 export const AdminView = memo(function AdminView({
-  agencyName, notices, activityLog, messageTemplates,
+  agencyName, notices, activityLog, messageTemplates, templatesLoading = false,
 }) {
   const [tab, setTab] = useState("team");
   const { isMobile } = useViewport();
@@ -86,7 +86,7 @@ export const AdminView = memo(function AdminView({
       <div className="fade-in" key={tab}>
         {tab === "team" && <AdminTeamTab />}
         {tab === "io" && <AdminIOTab agencyName={agencyName} notices={notices} />}
-        {tab === "stats" && <AdminStatsTab messageTemplates={messageTemplates} />}
+        {tab === "stats" && <AdminStatsTab messageTemplates={messageTemplates} templatesLoading={templatesLoading} />}
         {tab === "cats" && <AdminCategoriesTab />}
         {tab === "log" && <AdminLogTab activityLog={activityLog} />}
       </div>

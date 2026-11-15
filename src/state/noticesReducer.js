@@ -31,6 +31,7 @@
 // non solo nel guard di persistence: si veda il commento sui tre case.
 import { canEditNotice } from "../lib/permissions.js";
 import { pushToast } from "./toastQueue.js";
+import { adessoISO } from "./istante.js";
 import { fondiScrittureInVolo, applicaRigaRealtime } from "./pendingWrites.js";
 
 /**
@@ -77,7 +78,7 @@ export function noticesReducer(state, action) {
       if (!canEditNotice(state.team, prev, uid)) return _denied("Non hai i permessi per modificare questo avviso");
       const notices = state.notices.map(n =>
         n.id === action.payload.id
-          ? { ...n, ...action.payload, updatedAt: new Date().toISOString() }
+          ? { ...n, ...action.payload, updatedAt: adessoISO(action) }
           : n
       );
       return { ...state, notices, toasts: pushToast(state.toasts, { message: "Avviso aggiornato", type: "success" }) };

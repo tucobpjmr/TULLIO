@@ -10,7 +10,7 @@
 // differenza fra "irraggiungibile" e "fuori dal bundle".
 import {
   INITIAL_TEAM, INITIAL_TASKS, INITIAL_NOTICES, MOCK_NOTIFICATIONS,
-  INITIAL_CONVERSATIONS, INITIAL_MESSAGES,
+  INITIAL_CONVERSATIONS, INITIAL_MESSAGES, INITIAL_MESSAGE_TEMPLATES,
 } from "./mockData.js";
 
 export function demoState() {
@@ -21,5 +21,6 @@ export function demoState() {
     notifications: MOCK_NOTIFICATIONS,
     conversations: INITIAL_CONVERSATIONS,
     messages: INITIAL_MESSAGES,
+    messageTemplates: INITIAL_MESSAGE_TEMPLATES,
   };
 }

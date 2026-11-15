@@ -102,7 +102,7 @@ const ENTITA_PER_VISTA = {
   clienti: [["clients", "l'anagrafica clienti"]],
   archivio: [["tasks", "l'archivio"]],
   trash: [["tasks", "il cestino"]],
-  admin: [["team", "il team"], ["categories", "le categorie"]],
+  admin: [["team", "il team"], ["categories", "le categorie"], ["messageTemplates", "i template di messaggio"]],
 };
 
 
@@ -260,9 +260,12 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
 
   // Le viste NON ricevono `state` (cambia identità a ogni azione): leggono dai
   // provider e ricevono solo prop stabili, così il loro `memo` funziona.
+  // Tre rami portano alla Dashboard (la vista, il ripiego dell'admin, il
+  // default): un solo punto per le sue prop, o una nuova prop arriva a uno solo.
+  const dashboard = () => <Dashboard onOpenChat={ui.apriChatCon} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={caricamento.tasks} noticesLoading={caricamento.notices} />;
   const renderView = () => {
     switch (state.activeView) {
-      case "dashboard":  return <Dashboard onOpenChat={ui.apriChatCon} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={caricamento.tasks} noticesLoading={caricamento.notices} />;
+      case "dashboard":  return dashboard();
       case "calendar":   return <CalendarPlanner loading={caricamento.tasks} />;
       case "clienti":    return <ClientiView loading={caricamentoClienti} />;
       case "archivio":   return <Archive loading={caricamento.tasks} />;
@@ -272,10 +275,11 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
       // verrà impostata domani.
       case "admin":      return canAccessAdmin(state.team, state.currentUserId)
         ? <AdminView agencyName={state.agencyName} notices={state.notices}
-                     activityLog={state.activityLog} messageTemplates={state.messageTemplates} />
-        : <Dashboard onOpenChat={ui.apriChatCon} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={caricamento.tasks} noticesLoading={caricamento.notices} />;
+                     activityLog={state.activityLog} messageTemplates={state.messageTemplates}
+                     templatesLoading={caricamento.messageTemplates} />
+        : dashboard();
       case "liste":      return <ListeViaggio listeTarget={state.listeTarget} />;
-      default:           return <Dashboard onOpenChat={ui.apriChatCon} notices={state.notices} dashboardQueue={state.dashboardQueue} tasksLoading={caricamento.tasks} noticesLoading={caricamento.notices} />;
+      default:           return dashboard();
     }
   };
 

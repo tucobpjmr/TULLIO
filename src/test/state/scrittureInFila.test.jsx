@@ -112,7 +112,7 @@ it("il rollback di un cambio di stato rimette anche completedAt", () => {
   const state = { ...makeInitialState({ team: TEAM, currentUserId: "admin1" }), tasks: [task({ completedAt: null })] };
   const action = { type: "UPDATE_TASK", payload: { id: uuid(1), status: "done" } };
   expect(PERSISTENCE.UPDATE_TASK.rollback(state, action))
-    .toEqual({ type: "UPDATE_TASK", payload: { id: uuid(1), status: "todo", completedAt: null } });
+    .toEqual({ type: "ROLLBACK_TASK", payload: { id: uuid(1), status: "todo", completedAt: null } });
 });
 
 describe("M-1 · riga restituita dal server", () => {

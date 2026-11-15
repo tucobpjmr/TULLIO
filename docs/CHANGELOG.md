@@ -34,6 +34,115 @@ smarcamento si applica `MERGE_TASK_ROW` con la riga della risposta: recupera
 l'evento di un collega scartato mentre la riga era in volo.
 - Test: `src/test/state/scrittureInFila.test.jsx`.
 
+## 15 novembre — analisi del 14 novembre: A-1, M-1, M-2, M-3, M-4, B-1…B-5
+
+**A-1 · Il rollback di un task riassegnato non veniva applicato.**
+- Il rollback di `UPDATE_TASK` era un'altra `UPDATE_TASK`, giudicata da
+  `canEditTask` sullo stato ottimistico. Un agente che riassegnava un proprio
+  task a un collega non era più assegnatario: se la scrittura falliva, il
+  reducer negava il rollback e a schermo restava un dato che il database non
+  aveva, fino al reload. Lo stesso valeva per la compensazione di un conflitto
+  e per l'annullamento fallito di uno swipe.
+- Nuova azione di compensazione `ROLLBACK_TASK` (reducer): rimette la riga
+  senza controllo di permesso e tiene i commenti arrivati nel frattempo. La
+  usano `UPDATE_TASK.rollback`, `UNDO_LAST_ACTION.rollback` e
+  `compensazioneConflitto`.
+- Test: `src/test/state/rollbackTask.test.jsx` (7 casi, il primo è il
+  controllo positivo che mostra il rifiuto della vecchia strada).
+
+**M-1 · Riquadro d'avviso illeggibile al buio (e poco leggibile in chiaro).**
+- Il fondo giallo `#FEF3C7` era scritto in duro in cinque punti, con testo da
+  token: al buio il testo diventava quasi bianco su fondo chiaro.
+- Nuovi token `--avviso-bg`, `--avviso-bordo`, `--avviso-testo` in
+  `styles/global.css`, nei tre blocchi del tema. Usati in `QuickAddTask`,
+  `ClienteModal`, `clientStyles`, `importTabStyles`, `clientImportModalStyles`.
+- Il test ha trovato anche un difetto del tema CHIARO: `--warning` sul fondo
+  d'avviso fa 2,8:1. I due riquadri d'import usano ora `--avviso-testo`
+  (5,3:1 in chiaro, 6,2:1 al buio).
+- Colori in duro fuori da `src/styles/`: 292 → 287 (ratchet abbassato).
+- Test: due casi nuovi in `src/test/ui/tema.test.js` (contrasto AA nei tre
+  blocchi, nessun `#FEF3C7` nei componenti).
+
+**B-1 · L'annulla dello swipe «Completa» lasciava la data di completamento.**
+- `MOVE_TASK` ricalcola `completedAt`, ma `UNDO_LAST_ACTION` rimetteva solo lo
+  stato: il task tornava aperto con una data di completamento. Ora
+  `lastAction` porta `prevCompletedAt` e l'annulla la rimette (stesso
+  trattamento che il ramo `UPDATE_TASK` aveva già con `campiPrima`). Sul
+  database era già corretto: lo gestisce il trigger.
+- Test: due casi in `src/test/state/reducer.test.js` (verso «done» e da
+  «done», con la data ORIGINALE).
+
+**B-3 · Template di messaggio finti in produzione.**
+- `makeInitialState` scriveva quattro template d'esempio (`mt1`…`mt4`) anche
+  con un utente vero. Fino al primo fetch, e per sempre se il fetch falliva,
+  l'admin vedeva template che nel database non esistono.
+- Gli esempi stanno ora in `mockData.js` (`INITIAL_MESSAGE_TEMPLATES`) e
+  arrivano solo dal demo; in produzione l'elenco parte vuoto.
+- La sezione Admin «Template di messaggio» mostra uno scheletro finché il
+  fetch non torna (prima avrebbe detto «Nessun template»), e un errore di
+  caricamento compare nel riquadro della vista Admin.
+- Test: `src/test/admin/templateMessaggi.test.jsx` (4 casi).
+
+**B-4 · `ui/Avatar.jsx` importava il data layer.**
+- `useAvatarSrc` (signed URL dell'avatar) chiamava `Users.getAvatarUrl` da
+  dentro `components/ui/`, che deve restare senza rete. Spostato in
+  `src/hooks/useAvatarSrc.js`; `Avatar`, `AvatarImg` e `ProfileEditor` lo
+  importano da lì. Nessun cambiamento di comportamento.
+- Nuova regola in `eslint.config.js` (`VIETATO_DATA_LAYER_IN_UI`): nessun file
+  di `components/ui/` importa `lib/api` o `lib/supabase`.
+- Resta fuori: `Avatar`, `CategoryChip` e `MentionText` leggono ancora
+  `useAppData` (team e categorie già in memoria, nessuna rete).
+
+**B-5 · «Crea più task» rifiutato a un driver.**
+- La tab «Manuale» partiva da "booking" fisso ed elencava tutte le categorie.
+  Il pulsante lo vede anche un driver, che può creare solo "transfer": la
+  guardia di `ADD_TASKS_BULK` rifiutava il batch. Ora usa
+  `io.categorieDisponibili()`, come `QuickAddTask`.
+- `VoyageDeskInner`: il JSX della Dashboard, ripetuto in tre rami, sta in una
+  funzione `dashboard()`.
+- Test: `src/test/tasks/bulkCategorieRuolo.test.jsx` (3 casi).
+
+**B-2 · Il reducer «puro» generava orari e id da solo.**
+- `applica` (`useSyncedDispatch`) esegue il reducer due volte per azione: una
+  per React, una per il proprio ref. Con `Date.now()` e `Math.random()` dentro
+  il reducer, le due copie avevano `completedAt`, `deletedAt`, id dei toast e
+  voci del log diversi fino al render successivo (e così il doppio giro di
+  StrictMode in sviluppo).
+- Nuovo `src/state/istante.js`: `applica` mette `meta.ora` e `meta.seme`
+  sull'azione, il reducer li legge (`adessoISO`, `semeDi`). Gli id dei toast
+  nuovi li assegna `marcaToast` dall'azione, senza toccare i 45 `pushToast`.
+  Senza timbro (demo, dispatch grezzi) si ripiega sull'orologio, come prima.
+- Test: `src/test/state/reducerDeterministico.test.jsx` (4 casi, uno è il
+  controllo positivo); l'helper di `syncedDispatch.test.jsx` ignora il timbro.
+
+**M-2 · «Crea task + carica allegati» scritto due volte.**
+- Filtro per dimensione, testo degli scartati e upload dopo la creazione
+  erano copiati in `QuickAddTask` e nella tab «Manuale» del BulkTaskCreator,
+  con testi già diversi per lo stesso scarto. Ora stanno in
+  `src/lib/tasks/allegatiInCreazione.js` (`separaPerDimensione`,
+  `testoScartati`, `caricaAllegati`).
+- Unico cambio visibile: `QuickAddTask` nomina TUTTI i file scartati, non solo
+  l'ultimo.
+- `TaskFiles.upload` dichiara il tipo di `uploadedBy` (prima dedotto `null`).
+- Test: `src/test/lib/allegatiInCreazione.test.js` (5 casi).
+
+**M-4 · Nomi di stile per forma.**
+- Regola in `docs/CLAUDE.md`: il nome di una costante di stile dice il ruolo,
+  e le vecchie si rinominano quando si tocca il file. Applicata ai due file di
+  M-2: 10 costanti in `QuickAddTask`, 13 in `ManualTab`.
+
+**M-3 · `ListeViaggio` faceva tutto (527 righe).**
+- Caricava il dettaglio chiamando `ListeAPI`, gestiva ricerca, filtri,
+  ordinamento e overlay, e disegnava quattro stati. Ora: `useDettaglioLista`
+  (dettaglio e guardia contro le risposte tardive), `useHomeListe` (stato e
+  calcoli dell'elenco), `ListeHome.jsx` (UI dell'elenco e azioni del cestino).
+  `ListeViaggio` compone: 304 righe. Nessun cambiamento di comportamento.
+- `useHomeListe` lo chiama `ListeViaggio`, non `ListeHome`: aprendo una lista
+  `ListeHome` si smonta, e ricerca e filtro andrebbero persi.
+- Test: un caso in `src/test/liste/listeReload.test.jsx` (la ricerca resta
+  dopo aver aperto e chiuso una lista); la guardia sul dettaglio era già
+  coperta dal caso C dello stesso file.
+
 ## 11 novembre — banca di appoggio per POS e bonifico (Liste)
 
 **Nuovo campo «Banca» nei movimenti** (BNL / BANCO NAPOLI).

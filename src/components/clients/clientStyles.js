@@ -13,7 +13,7 @@ export const labelStyle = { fontSize: 12, fontWeight: 600, color: "var(--text-mu
 // Riquadro d'avviso (ambra) riusato dalla modale di modifica: dice che cosa
 // tocca una modifica prima che venga salvata, non dopo.
 export const noticeStyle = {
-  background: "#FEF3C7", border: "1px solid rgba(200,131,42,0.35)",
+  background: "var(--avviso-bg)", border: "1px solid var(--avviso-bordo)",
   borderRadius: 10, padding: "10px 12px", fontSize: 12.5,
   color: "var(--text)", lineHeight: 1.45,
 };

@@ -5,7 +5,7 @@ import { useViewport } from "../ui/Viewport.jsx";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import { Users as UsersAPI } from "../../lib/api.js";
-import { useAvatarSrc } from "../ui/Avatar.jsx";
+import { useAvatarSrc } from "../../hooks/useAvatarSrc.js";
 import { validaCampi, emailValida, obbligatorio, primoCampoInvalido } from "../../lib/validators.js";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { Modal } from "../ui/Modal.jsx";

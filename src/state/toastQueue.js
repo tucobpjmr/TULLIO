@@ -71,12 +71,19 @@ export function pushToast(toasts, { message, type, undoable }) {
  * quaranta volte è quella che il quarantunesimo dimentica. Tocca solo le voci
  * NUOVE — le altre sono già marcate — e restituisce `next` invariato quando la
  * coda non è cambiata, così non si sostituisce lo stato per nulla.
+ *
+ * `chiave` (B-2 del 14 novembre) è l'istante e il seme dell'azione: le voci
+ * nuove prendono un id che ne deriva, invece di quello casuale di pushToast,
+ * così due esecuzioni del reducer sulla stessa azione danno gli stessi id.
  */
-export function marcaToast(precedenti, next, tipoAzione) {
+export function marcaToast(precedenti, next, tipoAzione, chiave) {
   if (!next.toasts || next.toasts === precedenti) return next;
+  let n = 0;
   return {
     ...next,
-    toasts: next.toasts.map(t => (t.azione === undefined ? { ...t, azione: tipoAzione } : t)),
+    toasts: next.toasts.map(t => (t.azione === undefined
+      ? { ...t, azione: tipoAzione, ...(chiave ? { id: `${chiave}-${n++}` } : {}) }
+      : t)),
   };
 }
 

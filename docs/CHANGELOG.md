@@ -1,5 +1,53 @@
 # CHANGELOG — VoyageDesk
 
+## 15 novembre — coda offline e dettaglio Liste (audit stato e flusso dati)
+
+**A-1 · Le modifiche fatte offline non spariscono più dallo schermo** (`useCodaScritture`).
+- Prima: al ritorno della rete il drenaggio e il reload di ripresa partivano
+  insieme. Le voci rigiocate non erano «in volo», quindi il reload riportava a
+  schermo la riga vecchia; l'eco della scrittura (nostro `origin_client`)
+  veniva scartata e nessuno correggeva.
+- Ora gli id di tutte le voci si marcano a inizio giro e si smarcano a voce
+  chiusa (anche su guasto); a fine giro `dopoDrenaggio` ricarica i task
+  (`ricaricaTask` di `useAppHydration`).
+
+**A-2 · La coda non resta più ferma** quando il guasto non spegne
+`navigator.onLine` (timeout, `Failed to fetch`): con voci in attesa si ritenta
+ogni `RITENTA_CODA_MS` (30 s) e al ritorno in primo piano.
+
+**A-3 · Il dettaglio di una Lista segue il realtime** (`ListeViaggio`).
+- Prima: il saldo (dalla home) si aggiornava, i movimenti no.
+- Ora un canale sulle tre tabelle del modulo, filtrato sulla lista aperta
+  (`eventoDellaLista.js`), ricarica il dettaglio; anche dopo un buco di connessione.
+- Test: `src/test/state/codaDrenaggio.test.jsx`, `src/test/liste/eventoDellaLista.test.js`.
+
+**M-3 · Scritture sulla stessa riga in fila** (`useSyncedDispatch`).
+- Prima: due modifiche rapide allo stesso task partivano insieme. Se la seconda
+  arrivava prima, scattava un falso «conflitto con un collega»; se la prima
+  falliva, il rollback rimetteva la riga intera e cancellava anche la seconda.
+- Ora le scritture con gli stessi id aspettano l'esito della precedente, e il
+  rollback di `UPDATE_TASK` rimette solo i campi toccati (`campiPrima`).
+
+**M-1 · Si applica la riga restituita dal server** (`rigaServer`, nuovo campo
+delle entry ottimistiche). Su `UPDATE_TASK` e `MOVE_TASK` riusciti, dopo lo
+smarcamento si applica `MERGE_TASK_ROW` con la riga della risposta: recupera
+l'evento di un collega scartato mentre la riga era in volo.
+- Test: `src/test/state/scrittureInFila.test.jsx`.
+
+**M-2 · Storico e anagrafica su richiesta non cancellano il realtime** (`useAppHydration`).
+- Prima: una riga arrivata dal realtime mentre `caricaStorico` / `caricaClienti`
+  erano in volo veniva sovrascritta dallo snapshot, più vecchio.
+- Ora le righe applicate nel frattempo si annotano (`registroRighe`) e si
+  riapplicano, nello stesso ordine, subito dopo `SET_TASKS` / `SET_CLIENTS`.
+
+**M-4 · Meno reload completi al ritorno in primo piano** (`useDebouncedTableSubscription`).
+- Prima: dopo 30 s in secondo piano ogni sottoscrizione rifaceva il reload
+  completo, anche col canale mai caduto.
+- Ora, con un canale, si ricarica solo oltre `SOGLIA_RIPRESA_LUNGA_MS` (5 min):
+  sotto, una caduta la segnala il canale e il riaggancio ricarica da sé. Senza
+  canale (categorie, template) resta la soglia di 30 s.
+- Test: `src/test/realtime/righeDuranteCaricamento.test.jsx`, `src/test/realtime/realtimeReconnect.test.jsx`.
+
 ## 15 novembre — analisi del 14 novembre: A-1, M-1, M-2, M-3, M-4, B-1…B-5
 
 **A-1 · Il rollback di un task riassegnato non veniva applicato.**

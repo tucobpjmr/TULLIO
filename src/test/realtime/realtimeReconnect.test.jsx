@@ -27,7 +27,7 @@ vi.mock("../../lib/api.js", () => ({
   subscribeToTable: (...a) => subscribeToTable(...a),
 }));
 
-const { useDebouncedTableSubscription, SOGLIA_RIPRESA_MS } =
+const { useDebouncedTableSubscription, SOGLIA_RIPRESA_MS, SOGLIA_RIPRESA_LUNGA_MS } =
   await import("../../hooks/useDebouncedTableSubscription.js");
 
 let visibilityState = "visible";
@@ -89,10 +89,58 @@ describe("useDebouncedTableSubscription — ripresa dopo un buco di connessione"
     renderHook(() => useDebouncedTableSubscription(["tasks"], reload, { enabled: true, delay: 1 }));
     await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
 
-    await vaiInBackgroundETorna(SOGLIA_RIPRESA_MS + 1000);
+    await vaiInBackgroundETorna(SOGLIA_RIPRESA_LUNGA_MS + 1000);
 
     expect(reload).toHaveBeenCalledTimes(2);
     expect(reload.mock.calls[1][1]).toBeNull();
+  });
+
+  // M-4 del 15 novembre · Pausa media con il canale sano: se il socket fosse
+  // caduto lo direbbe il canale, e il riaggancio ricarica da sé.
+  it("dopo una pausa media con il canale sano non ricarica", async () => {
+    const reload = vi.fn();
+    renderHook(() => useDebouncedTableSubscription(["tasks"], reload, { enabled: true, delay: 1 }));
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+
+    await vaiInBackgroundETorna(SOGLIA_RIPRESA_MS + 1000);
+
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("dopo una pausa media con il canale caduto ricarica al riaggancio", async () => {
+    const statiCanale = [];
+    subscribeToTable.mockImplementationOnce((tabella, handler, suStato) => {
+      handlers.set(tabella, handler);
+      statiCanale.push(suStato);
+      return () => handlers.delete(tabella);
+    });
+    const reload = vi.fn();
+    renderHook(() => useDebouncedTableSubscription(["tasks"], reload, { enabled: true, delay: 1 }));
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+    act(() => { statiCanale[0]("SUBSCRIBED"); });
+
+    await vaiInBackgroundETorna(SOGLIA_RIPRESA_MS + 1000);
+    expect(reload).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      statiCanale[0]("CHANNEL_ERROR");
+      statiCanale[0]("SUBSCRIBED");
+      await new Promise((r) => setTimeout(r, 350));
+    });
+    expect(reload).toHaveBeenCalledTimes(2);
+    expect(reload.mock.calls[1][1]).toBeNull();
+  });
+
+  it("senza canale ricarica già dopo la soglia breve", async () => {
+    const reload = vi.fn();
+    renderHook(() => useDebouncedTableSubscription(["categories"], reload, {
+      enabled: true, delay: 1, senzaCanale: true,
+    }));
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+
+    await vaiInBackgroundETorna(SOGLIA_RIPRESA_MS + 1000);
+
+    expect(reload).toHaveBeenCalledTimes(2);
   });
 
   // ─── M-3 · la soglia ──────────────────────────────────────────────────────

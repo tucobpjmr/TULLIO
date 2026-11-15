@@ -16,6 +16,8 @@
 //                                    più sotto).
 //   entityId(action, state, uid)   → id delle righe in scrittura, marcati «in
 //                                    volo» finché persist non torna.
+//   rigaServer(res)                → action che applica la riga restituita dal
+//                                    server a scrittura riuscita (o null).
 //
 // entityId: fra il dispatch ottimistico e il commit, un refetch causato da un
 // altro utente può tornare con la NOSTRA riga ancora vecchia, e l'eco della
@@ -33,7 +35,7 @@ import {
   MessageTemplates as MessageTemplatesAPI,
 } from "../lib/api.js";
 import {
-  toDbTask, toDbNotice, toDbNoticePatch,
+  fromDbTask, toDbTask, toDbNotice, toDbNoticePatch,
   toDbClient, toDbClientPatch, toDbCategory, toDbMessageTemplate, newId, isUuid,
 } from "../lib/mappers.js";
 import {
@@ -46,12 +48,23 @@ import { PERSISTENCE_ADMIN } from "./persistenceAdmin.js";
 import {
   scriviTaskConfrontato, valoriAttesi, compensazioneConflitto,
 } from "./scritturaTaskConfrontata.js";
+import { campiPrima } from "./campiPrima.js";
 
 // Risultato "nessuna operazione": stessa forma di una risposta supabase-js
 // riuscita, così l'orchestratore non ha bisogno di un ramo speciale.
 const NOOP = { error: null };
 
 const findTask = (state, id) => (state.tasks || []).find(t => t.id === id);
+
+// Mentre una nostra scrittura è in volo, l'evento realtime di un collega sulla
+// stessa riga viene scartato (pendingWrites.js). La riga che il server
+// restituisce contiene anche la sua modifica: applicarla la recupera.
+const rigaTaskDalServer = (res) => {
+  const riga = Array.isArray(res?.data) ? res.data[0] : res?.data;
+  const row = riga?.id ? fromDbTask(riga) : null;
+  if (!row) return null;
+  return { type: "MERGE_TASK_ROW", payload: { eventType: "UPDATE", id: row.id, row } };
+};
 const findNotice = (state, id) => (state.notices || []).find(n => n.id === id);
 
 // I task che EMPTY_TRASH elimina: cestinati E gestibili dall'utente. Una
@@ -120,14 +133,17 @@ export const PERSISTENCE = {
       meta: { ...a.meta, attesi: valoriAttesi(findTask(s, a.payload?.id), a.payload) },
     }),
     persist: (s, a) => scriviTaskConfrontato(a.payload.id, a.payload, a.meta?.attesi),
+    rigaServer: rigaTaskDalServer,
     // Su conflitto si mostra la versione del collega, non la copia locale.
+    // Altrimenti si rimettono solo i campi toccati: la riga intera
+    // cancellerebbe una modifica successiva allo stesso task, ancora valida.
     rollback: (s, a, res) => {
       const conflitto = compensazioneConflitto(res);
       if (conflitto) return conflitto;
       // ROLLBACK_TASK, non UPDATE_TASK: il permesso si giudicherebbe sullo
       // stato ottimistico (A-1 del 14 novembre).
       const prev = findTask(s, a.payload?.id);
-      return prev ? { type: "ROLLBACK_TASK", payload: prev } : null;
+      return prev ? { type: "ROLLBACK_TASK", payload: { ...campiPrima(prev, a.payload), id: prev.id } } : null;
     },
     mapError: (err) => err?.message || "task non aggiornato",
   },
@@ -145,6 +161,7 @@ export const PERSISTENCE = {
     }),
     persist: (s, a) => scriviTaskConfrontato(
       a.payload.taskId, { status: a.payload.newStatus }, a.meta?.attesi),
+    rigaServer: rigaTaskDalServer,
     // `prev.status` è la colonna di partenza: un altro MOVE_TASK verso quella
     // riapplica anche `completedAtPatch` nel verso giusto.
     rollback: (s, a, res) => {

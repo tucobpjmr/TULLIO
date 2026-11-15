@@ -76,7 +76,7 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 - **Il modulo Liste è chiuso anche STRUTTURALMENTE**: data layer in `lib/api/liste.js`, raggiungibile solo da `components/liste/**` (`VIETATO_LISTEAPI_DA_FUORI`); dal core si entra da `listeModuleApi.js`.
 - **Un canale realtime permanente si apre solo per le tabelle su cui il realtime È la funzionalità**: `senzaCanale: true` per categorie e template.
 - **Ripresa dopo un buco di connessione**: su `online` e sul ritorno in primo piano, reload completo (`tabelle = null`), con un debounce di 300 ms.
-- **Il reload di ripresa ha una soglia**: dal secondo piano si ricarica solo dopo `SOGLIA_RIPRESA_MS` (30 s).
+- **Il reload di ripresa ha una soglia**: dal secondo piano si ricarica solo dopo `SOGLIA_RIPRESA_MS` (30 s); con un canale realtime, solo dopo `SOGLIA_RIPRESA_LUNGA_MS` (5 min): prima la caduta la segnala il canale, e il riaggancio ricarica da sé.
 - **La presenza è stato di CANALE, non una riga di tabella** (`hooks/usePresence.js`). ⛔ Niente heartbeat su tabella.
 - **Ciò che invecchia col tempo ha un tick, e il tick vive dove la cosa si mostra**: `useTickLento(intervalloMs, attivo)`, con il valore nelle dipendenze del memo.
 

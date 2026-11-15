@@ -22,6 +22,9 @@
 // `visibilitychange` scatta per ogni gesto (allegare un file, la tendina delle
 // notifiche), e le istanze di questo hook sono nove. Sotto la soglia il socket
 // non è caduto. `online` non ha soglia: lì la caduta è un fatto.
+// M-4 del 15 novembre · Sopra la soglia, con un canale si ricarica solo dopo
+// SOGLIA_RIPRESA_LUNGA_MS: prima, se il socket è caduto, lo dice il canale
+// (CLOSED/CHANNEL_ERROR, poi SUBSCRIBED → reload). Senza canale si ricarica.
 import { useCallback, useEffect, useRef } from "react";
 import { subscribeToTable } from "../lib/api.js";
 import { segnalaStatoCanale, dimenticaCanale } from "../lib/freschezzaRealtime.js";
@@ -33,6 +36,9 @@ let seqSottoscrizione = 0;
 // Sopra i 30 s i browser mobili congelano timer e socket delle tab nascoste;
 // sotto, il canale resta agganciato.
 export const SOGLIA_RIPRESA_MS = 30_000;
+// Oltre questa pausa non ci si fida del canale: un socket congelato può non
+// aver ancora segnalato la caduta (il battito di supabase-js è di 25 s).
+export const SOGLIA_RIPRESA_LUNGA_MS = 5 * 60_000;
 
 // Unione di due richieste di reload: `null` (tutto) assorbe qualunque Set.
 /** @param {Set<string>|null} a @param {Set<string>|null} b */
@@ -200,6 +206,9 @@ export function useDebouncedTableSubscription(
       const pausa = nascostoDa === null ? 0 : Date.now() - nascostoDa;
       nascostoDa = null;
       if (pausa < SOGLIA_RIPRESA_MS) return;
+      // Canale sano e pausa media: gli eventi sono arrivati (o arriveranno col
+      // riaggancio, che ricarica da sé). Ricaricare costerebbe un fetch per tabella.
+      if (list.length > 0 && pausa < SOGLIA_RIPRESA_LUNGA_MS) return;
       onReconnectSignal();
     };
     window.addEventListener("online", onOnline);

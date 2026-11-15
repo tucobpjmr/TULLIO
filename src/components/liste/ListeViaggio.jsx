@@ -14,6 +14,8 @@ import { memo, useCallback, useEffect, useMemo, useReducer, useState } from "rea
 import { useViewport } from "../ui/Viewport.jsx";
 import { Icona } from "../ui/Icona.jsx";
 import { useListeData } from "./useListeData.js";
+import { eventoDellaLista } from "./eventoDellaLista.js";
+import { useDebouncedTableSubscription } from "../../hooks/useDebouncedTableSubscription.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
 import { useClientiCompleti } from "../../state/ClientiCompletiContext.jsx";
@@ -96,6 +98,21 @@ export const ListeViaggio = memo(function ListeViaggio({ listeTarget = /** @type
     return m;
   }, [team]);
 
+
+  // A-3 del 15 novembre · Il dettaglio segue il realtime come la home: un
+  // movimento di un collega aggiorna il saldo (home), e senza questo canale le
+  // righe sotto restavano quelle dell'apertura. Anche la ripresa dopo un buco
+  // di connessione ricarica il dettaglio. Il primo caricamento lo fa useDettaglioLista.
+  useDebouncedTableSubscription(
+    ["liste_viaggio", "movimenti_lista", "lista_beneficiari"],
+    () => ricaricaDettaglio(),
+    {
+      enabled: listeAllowed && !!listaApertaId,
+      deps: [listeAllowed, listaApertaId],
+      saltaPrimoCaricamento: true,
+      filterEvent: (payload) => eventoDellaLista(payload, listaApertaId),
+    },
+  );
 
   // Apertura mirata da un'altra vista (tab "Liste viaggio" della scheda
   // cliente): SET_VIEW porta con sé l'id della lista da aprire. Il seq

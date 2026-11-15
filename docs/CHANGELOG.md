@@ -34,6 +34,20 @@ smarcamento si applica `MERGE_TASK_ROW` con la riga della risposta: recupera
 l'evento di un collega scartato mentre la riga era in volo.
 - Test: `src/test/state/scrittureInFila.test.jsx`.
 
+**M-2 · Storico e anagrafica su richiesta non cancellano il realtime** (`useAppHydration`).
+- Prima: una riga arrivata dal realtime mentre `caricaStorico` / `caricaClienti`
+  erano in volo veniva sovrascritta dallo snapshot, più vecchio.
+- Ora le righe applicate nel frattempo si annotano (`registroRighe`) e si
+  riapplicano, nello stesso ordine, subito dopo `SET_TASKS` / `SET_CLIENTS`.
+
+**M-4 · Meno reload completi al ritorno in primo piano** (`useDebouncedTableSubscription`).
+- Prima: dopo 30 s in secondo piano ogni sottoscrizione rifaceva il reload
+  completo, anche col canale mai caduto.
+- Ora, con un canale, si ricarica solo oltre `SOGLIA_RIPRESA_LUNGA_MS` (5 min):
+  sotto, una caduta la segnala il canale e il riaggancio ricarica da sé. Senza
+  canale (categorie, template) resta la soglia di 30 s.
+- Test: `src/test/realtime/righeDuranteCaricamento.test.jsx`, `src/test/realtime/realtimeReconnect.test.jsx`.
+
 ## 15 novembre — analisi del 14 novembre: A-1, M-1, M-2, M-3, M-4, B-1…B-5
 
 **A-1 · Il rollback di un task riassegnato non veniva applicato.**

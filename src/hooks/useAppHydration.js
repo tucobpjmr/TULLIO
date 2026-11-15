@@ -126,25 +126,41 @@ const idratazione = ({
   alTermine?.();
 };
 
+// M-2 del 15 novembre · Le righe realtime applicate MENTRE un caricamento su
+// richiesta è in volo. Lo snapshot che torna può essere più vecchio di loro:
+// chi lo consegna le riapplica sopra, nello stesso ordine.
+const registroRighe = () => {
+  const aperti = new Set();
+  return {
+    apri: () => { const righe = []; aperti.add(righe); return righe; },
+    chiudi: (righe) => { aperti.delete(righe); },
+    annota: (azione) => { aperti.forEach((righe) => righe.push(azione)); },
+  };
+};
+
 /**
  * `applyRow` per una tabella la cui riga è AUTOSUFFICIENTE — nessun join da
  * perdere applicando il solo payload. Ritorna `true` se l'evento è stato
  * gestito (il chiamante non ricarica), `false` per cadere sul reload completo.
  * `quandoIgnorare` è la terza risposta possibile: gestito, e la cosa giusta da
  * fare è nulla.
- * @param {{ action: string, mapper: (row: object) => object, dispatch: (action: object) => void, quandoIgnorare?: () => boolean }} opts
+ * `registro` annota l'azione per i caricamenti in volo (vedi `registroRighe`).
+ * @param {{ action: string, mapper: (row: object) => object, dispatch: (action: object) => void, quandoIgnorare?: () => boolean, registro?: ReturnType<typeof registroRighe> }} opts
  */
-const applicaRiga = ({ action, mapper, dispatch, quandoIgnorare }) => (_tbl, payload) => {
+const applicaRiga = ({ action, mapper, dispatch, quandoIgnorare, registro }) => (_tbl, payload) => {
   if (quandoIgnorare?.()) return true;
+  let azione;
   if (payload.eventType === "DELETE") {
     const id = payload.old?.id;
     if (!id) return false; // rete di sicurezza: senza id, reload completo
-    dispatch({ type: action, payload: { eventType: "DELETE", id } });
-    return true;
+    azione = { type: action, payload: { eventType: "DELETE", id } };
+  } else {
+    const row = mapper(payload.new);
+    if (!row?.id) return false;
+    azione = { type: action, payload: { eventType: payload.eventType, id: row.id, row } }; // senza `id`: doppione (4/11)
   }
-  const row = mapper(payload.new);
-  if (!row?.id) return false;
-  dispatch({ type: action, payload: { eventType: payload.eventType, id: row.id, row } }); // senza `id`: doppione (4/11)
+  dispatch(azione);
+  registro?.annota(azione);
   return true;
 };
 
@@ -186,6 +202,8 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   // generazione conta l'ordine di PARTENZA, in AND con `isCurrent()`.
   const genTask = useRef(ordineDiScrittura());
   const genClienti = useRef(ordineDiScrittura());
+  const righeTask = useRef(registroRighe()).current;
+  const righeClienti = useRef(registroRighe()).current;
 
   // ⚠️ Chi consegna il corpus chiude l'attesa, chiunque dei due sia: per questo
   // il ramo «sono stale» dei `carica*` non tocca il flag.
@@ -203,7 +221,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   // M-1 · La coda dell'applyRow dei task è quella comune; la testa (`comments`)
   // è sua.
   const applicaRigaTask = applicaRiga({
-    action: "MERGE_TASK_ROW", mapper: fromDbTask, dispatch,
+    action: "MERGE_TASK_ROW", mapper: fromDbTask, dispatch, registro: righeTask,
   });
 
   const ricaricaTasks = useDebouncedTableSubscription(["tasks", "comments"], async (isCurrent, tabelle) => {
@@ -299,7 +317,9 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     storicoCompleto.current = true;
     setCaricandoStorico(true);
     const turno = prendiTurno(genTask.current);
+    const righe = righeTask.apri();
     const { data, error } = await TasksAPI.list({ withComments: true, includeDeleted: true });
+    righeTask.chiudi(righe);
     // M-3 · Una richiesta è partita dopo la nostra e chiede lo stesso corpus:
     // consegna lei, compresa la chiusura dell'attesa.
     if (error) {
@@ -313,9 +333,10 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     }
     if (!vinceIlTurno(genTask.current, turno)) return;
     dispatch({ type: "SET_TASKS", payload: (data || []).map(fromDbTask) });
+    righe.forEach(dispatch);
     setCaricandoStorico(false);
     segnaCaricata("tasks");
-  }, [enabled, dispatch, onError, segnaCaricata]);
+  }, [enabled, dispatch, onError, segnaCaricata, righeTask]);
 
   // M-1 · L'anagrafica intera, su richiesta (ClientiView, ListeViaggio: vedi
   // state/ClientiCompletiContext.jsx). Stessa sequenza di `caricaStorico`.
@@ -324,7 +345,9 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     clientiCompleti.current = true;
     setCaricandoClienti(true);
     const turno = prendiTurno(genClienti.current);
+    const righe = righeClienti.apri();
     const { data, error } = await ClientsAPI.list();
+    righeClienti.chiudi(righe);
     // M-3 · Come in `caricaStorico`: consegna chi è partito per ultimo.
     if (error) {
       clientiCompleti.current = false;
@@ -336,9 +359,10 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     }
     if (!vinceIlTurno(genClienti.current, turno)) return;
     dispatch({ type: "SET_CLIENTS", payload: (data || []).map(fromDbClient) });
+    righe.forEach(dispatch);
     setCaricandoClienti(false);
     segnaCaricata("clients");
-  }, [enabled, dispatch, onError, segnaCaricata]);
+  }, [enabled, dispatch, onError, segnaCaricata, righeClienti]);
 
   const ricaricaNotices = useDebouncedTableSubscription(["notices"], idratazione({
     entita: "notices", tag: "[VoyageDesk] Notices.list", etichetta: "avvisi",
@@ -472,7 +496,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     // peggio che ignorarla: su un elenco vuoto costruirebbe un'anagrafica
     // parziale. `quandoIgnorare` → `true`: gestito, non serve fare nulla.
     applyRow: applicaRiga({
-      action: "MERGE_CLIENT_ROW", mapper: fromDbClient, dispatch,
+      action: "MERGE_CLIENT_ROW", mapper: fromDbClient, dispatch, registro: righeClienti,
       quandoIgnorare: () => !clientiCompleti.current,
     }),
   });

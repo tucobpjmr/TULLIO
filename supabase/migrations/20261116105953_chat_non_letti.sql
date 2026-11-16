@@ -10,8 +10,8 @@
 -- conversazione + rls_active_only), quindi nessuna conversazione altrui entra
 -- nel conteggio. Il lettore è sempre auth.uid(), mai un parametro.
 --
--- ⚠️ Non applicata da `supabase db push` (vedi docs/MIGRAZIONI_SUPABASE.md):
--- va applicata a parte. Finché manca, il client ripiega sul conteggio locale.
+-- Applicata via MCP `apply_migration` (mai `supabase db push`, vedi
+-- docs/MIGRAZIONI_SUPABASE.md). Se manca, il client ripiega sul conteggio locale.
 
 create or replace function public.chat_non_letti()
 returns table (conversation_id uuid, non_letti bigint)

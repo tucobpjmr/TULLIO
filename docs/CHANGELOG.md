@@ -39,9 +39,10 @@ nostra.
 - Test: `src/test/hooks/useDispatchInVolo.test.jsx`.
 
 **B-7 (seconda metà) · Non letti della chat contati dal server.**
-- Migrazione `20261116120000_chat_non_letti.sql`: RPC `chat_non_letti()`
-  (security invoker, lettore = `auth.uid()`). ⚠️ **Da applicare a parte**
-  (SQL Editor o MCP `apply_migration`, mai `supabase db push`).
+- Migrazione `20261116105953_chat_non_letti.sql`: RPC `chat_non_letti()`
+  (security invoker, lettore = `auth.uid()`). **Applicata** il 16 novembre via
+  MCP `apply_migration` (versione registrata `20261116105953`); dry-run con
+  rollback: un partecipante vede il proprio non letto, un estraneo zero.
 - `useChatData`: con il corpus troncato (≥ `TETTO_CORPUS`) chiede il conteggio e
   tiene la differenza col corpus (`nonLettiOltre`). Entra nel badge, nell'elenco
   conversazioni e fa partire il segna-letto all'apertura; si azzera quando la

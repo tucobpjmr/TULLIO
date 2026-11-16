@@ -47,7 +47,9 @@ on:
     paths:
       - 'src/**'
       - 'supabase/migrations/**'
+      - 'supabase/functions/**'
       - 'scripts/verifica-rpc/**'
+      - 'scripts/verifica-funzioni/**'
       - 'scripts/verifica-advisor/**'
       - 'scripts/verifica-redirect/**'
       - '.github/workflows/verifica-rpc.yml'
@@ -121,6 +123,16 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: npm run verifica:advisor
+
+      # C-1 dell'analisi del 15 novembre: in produzione giravano due Edge
+      # Function senza cartella nel repository (una era un proxy AI aperto).
+      # Stesso token dei passi vicini; rosso = repository e produzione hanno
+      # funzioni diverse. Il perché e il rimedio in scripts/verifica-funzioni/.
+      - name: Verifica che le Edge Function deployate coincidano col repository
+        if: always()
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: npm run verifica:funzioni
 
       # M-2 dell'audit del 23 agosto. Stesso token del passo precedente: le
       # soglie di scalabilità del progetto (ST-4 passo 2 su `messages`, e le

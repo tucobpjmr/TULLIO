@@ -129,29 +129,19 @@ function baseReducer(state, action) {
       return { ...state, adminRollbackTo: null, adminSwitchedAt: null };
     }
     // ─── SCRITTURE IN VOLO ───
-    // Id con una scrittura partita e non conclusa: li marca e smarca
-    // useSyncedDispatch attorno a spec.persist() (da `entityId`).
-    // ⚠️ Una Map id → contatore, non un Set: due scritture ravvicinate sulla
-    // stessa riga non devono smarcarsi a vicenda.
+    // B-4 del 16 novembre · Il registro non è più nello stato: lo tiene
+    // hooks/useDispatchInVolo.js e arriva sulle azioni come `action.inVolo`.
+    // Le due azioni non toccano lo stato (con quel dispatch non arrivano qui).
     case "MARK_PENDING_WRITE":
-    case "UNMARK_PENDING_WRITE": {
-      const ids = [].concat(action.payload ?? []).filter(Boolean);
-      if (!ids.length) return state;
-      const delta = action.type === "MARK_PENDING_WRITE" ? 1 : -1;
-      const pendingWrites = new Map(state.pendingWrites);
-      for (const id of ids) {
-        const n = (pendingWrites.get(id) ?? 0) + delta;
-        if (n > 0) pendingWrites.set(id, n); else pendingWrites.delete(id);
-      }
-      return { ...state, pendingWrites };
-    }
+    case "UNMARK_PENDING_WRITE":
+      return state;
     case "SET_TASKS": {
       // Sostituisce l'array (idratazione e refetch), ma per un id con scrittura in
       // volo vince SEMPRE la riga locale, anche se localmente non esiste più o sul
       // server non esiste ancora: l'eco della nostra scrittura viene scartata,
       // quindi nessuno correggerebbe il valore vecchio. La fusione vive in
       // state/pendingWrites.js, la stessa per clienti, avvisi e team.
-      return { ...state, tasks: fondiScrittureInVolo(action.payload, state.tasks, state.pendingWrites) };
+      return { ...state, tasks: fondiScrittureInVolo(action.payload, state.tasks, action.inVolo) };
     }
     case "SET_TASK_THREADS": {
       // Idratazione parziale dei soli commenti, quando l'evento viene da `comments`.
@@ -159,20 +149,20 @@ function baseReducer(state, action) {
       const { comments } = action.payload || {};
       if (!comments) return state;
       // Protezione sulle scritture in volo: vedi fondiThreadCommenti.
-      return { ...state, tasks: fondiThreadCommenti(state.tasks, state.pendingWrites, comments) };
+      return { ...state, tasks: fondiThreadCommenti(state.tasks, action.inVolo, comments) };
     }
     // A-1 · Fonde i thread di ALCUNI task (ramo `soloThread` di useAppHydration).
     // Le chiavi assenti restano intatte: vedi fondiThreadCommenti.
     case "MERGE_TASK_COMMENTS": {
       const { taskIds, comments } = action.payload || {};
       if (!taskIds?.length || !comments) return state;
-      return { ...state, tasks: fondiThreadCommenti(state.tasks, state.pendingWrites, comments, taskIds) };
+      return { ...state, tasks: fondiThreadCommenti(state.tasks, action.inVolo, comments, taskIds) };
     }
     // Gemello per riga di SET_TASKS (vedi applicaRigaRealtime). `comments` non è
     // una colonna di `tasks`: si preservano quelli in stato.
     case "MERGE_TASK_ROW": {
       const fondiTask = (prev, row) => ({ ...row, comments: prev.comments });
-      return { ...state, tasks: applicaRigaRealtime(state.tasks, state.pendingWrites, action.payload, fondiTask) };
+      return { ...state, tasks: applicaRigaRealtime(state.tasks, action.inVolo, action.payload, fondiTask) };
     }
     case "MOVE_TASK": {
       const prev = state.tasks.find(t => t.id === action.payload.taskId);
@@ -330,7 +320,7 @@ function baseReducer(state, action) {
     // ⚠️ Serve anche `entityId` sulle entry del team (state/persistence.js): il
     // contratto fra le due metà è in src/test/realtime/scrittureInVoloContract.test.js.
     case "SET_TEAM": {
-      return { ...state, team: fondiScrittureInVolo(action.payload, state.team, state.pendingWrites) };
+      return { ...state, team: fondiScrittureInVolo(action.payload, state.team, action.inVolo) };
     }
     case "ADD_TEAM_MEMBER": {
       const team = [...state.team, action.payload];
@@ -434,10 +424,10 @@ function baseReducer(state, action) {
     // `clients` è in realtime: un refetch può arrivare durante una nostra
     // scrittura, quindi la stessa fusione di SET_TASKS.
     case "SET_CLIENTS":
-      return { ...state, clients: fondiScrittureInVolo(action.payload, state.clients, state.pendingWrites) };
+      return { ...state, clients: fondiScrittureInVolo(action.payload, state.clients, action.inVolo) };
     // Gemello di MERGE_NOTICE_ROW per l'anagrafica.
     case "MERGE_CLIENT_ROW":
-      return { ...state, clients: applicaRigaRealtime(state.clients, state.pendingWrites, action.payload) };
+      return { ...state, clients: applicaRigaRealtime(state.clients, action.inVolo, action.payload) };
     // A-1 · Il guard del registry blocca la rete, non il dispatch: è il reducer a
     // dover rifiutare davvero.
     case "ADD_CLIENT":
@@ -620,8 +610,6 @@ function makeInitialState({ team, currentUserId } = {}) {
     agencyName: "VoyageDesk",
     notices: demo ? demo.notices : [],
     clients: [],
-    // Scritture in volo: id → quante. La gestisce useSyncedDispatch.
-    pendingWrites: new Map(),
     activityLog: [],
     activeView: "dashboard",
     // Richiesta di aprire la Dashboard su una tab coda ({ tab, seq }). null = nessuna.

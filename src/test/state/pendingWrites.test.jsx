@@ -23,7 +23,7 @@ import { renderHook, act } from "@testing-library/react";
 // A-1 (22 agosto): la terza funzione del modulo si testa direttamente —
 // è pura, e le sue due semantiche non sarebbero distinguibili passando
 // dal reducer, dove ciascun case ne esercita una sola.
-import { fondiThreadCommenti } from "../../state/pendingWrites.js";
+import { fondiThreadCommenti, aggiornaInVolo } from "../../state/pendingWrites.js";
 
 vi.mock("../../lib/api.js", () => {
   const ok = () => Promise.resolve({ data: null, error: null });
@@ -38,6 +38,7 @@ vi.mock("../../lib/api.js", () => {
 });
 
 const { useSyncedDispatch } = await import("../../hooks/useSyncedDispatch.js");
+const { useDispatchInVolo } = await import("../../hooks/useDispatchInVolo.js");
 const { reducer, makeInitialState } = await import("../../state/reducer.js");
 const { Tasks: TasksAPI } = await import("../../lib/api.js");
 
@@ -61,22 +62,23 @@ function differita() {
   return { promise, risolvi, rifiuta };
 }
 
-// L'app vera: useReducer + useSyncedDispatch sopra. `raw` è il dispatch grezzo,
-// cioè quello che useAppHydration usa per SET_TASKS — la ri-idratazione NON
-// passa dall'orchestratore.
+// L'app vera: useReducer + useDispatchInVolo + useSyncedDispatch sopra. `raw`
+// è il dispatch grezzo, cioè quello che useAppHydration usa per SET_TASKS — la
+// ri-idratazione NON passa dall'orchestratore.
 function montaApp({ uid = "admin1", tasks = [] } = {}) {
   const view = renderHook(() => {
-    const [state, raw] = useReducer(
+    const [state, dispatchReact] = useReducer(
       reducer, undefined, () => makeInitialState({ team: TEAM, currentUserId: uid }),
     );
-    return { state, raw, dispatch: useSyncedDispatch(state, raw, { enabled: true }) };
+    const { dispatch: raw, leggiInVolo } = useDispatchInVolo(dispatchReact);
+    return { state, raw, leggiInVolo, dispatch: useSyncedDispatch(state, raw, { enabled: true }) };
   });
   act(() => { view.result.current.raw({ type: "SET_TASKS", payload: tasks }); });
   return view;
 }
 
 const titoloDi = (view, id = uuid(1)) => view.result.current.state.tasks.find(t => t.id === id)?.title;
-const inVolo = (view) => view.result.current.state.pendingWrites;
+const inVolo = (view) => view.result.current.leggiInVolo();
 
 beforeEach(() => { vi.clearAllMocks(); });
 
@@ -286,9 +288,9 @@ describe("scritture in volo — le altre forme di action", () => {
 });
 
 describe("scritture in volo — il reducer da solo", () => {
-  const statoCon = (tasks, pendingWrites = new Map()) => ({
+  const statoCon = (tasks) => ({
     ...makeInitialState({ team: TEAM, currentUserId: "admin1" }),
-    tasks, pendingWrites, toasts: [],
+    tasks, toasts: [],
   });
 
   it("senza pendenti SET_TASKS resta la sostituzione in blocco di prima", () => {
@@ -302,29 +304,29 @@ describe("scritture in volo — il reducer da solo", () => {
     expect(reducer(statoCon([task()]), { type: "SET_TASKS", payload: null }).tasks).toEqual([]);
   });
 
-  it("MARK/UNMARK sono simmetrici e non mutano lo state ricevuto", () => {
+  // B-4 del 16 novembre · Il registro non è più nello stato: MARK/UNMARK non
+  // producono uno stato nuovo, quindi nessun render.
+  it("MARK/UNMARK non toccano lo state: niente render per una marcatura", () => {
     const prima = statoCon([task()]);
-    const marcato = reducer(prima, { type: "MARK_PENDING_WRITE", payload: [uuid(1)] });
-    expect(prima.pendingWrites.size).toBe(0);          // l'input non è stato toccato
-    expect(marcato.pendingWrites.get(uuid(1))).toBe(1);
-    const smarcato = reducer(marcato, { type: "UNMARK_PENDING_WRITE", payload: [uuid(1)] });
-    expect(smarcato.pendingWrites.size).toBe(0);
+    expect(reducer(prima, { type: "MARK_PENDING_WRITE", payload: [uuid(1)] })).toBe(prima);
+    expect(reducer(prima, { type: "UNMARK_PENDING_WRITE", payload: [uuid(1)] })).toBe(prima);
+    expect("pendingWrites" in prima).toBe(false);
   });
 
-  it("uno smarcamento di troppo non porta il contatore sotto zero", () => {
-    const next = reducer(statoCon([task()]), { type: "UNMARK_PENDING_WRITE", payload: [uuid(1)] });
-    expect(next.pendingWrites.has(uuid(1))).toBe(false);
-  });
-
-  it("un payload vuoto non crea un nuovo state (niente render inutili)", () => {
-    const prima = statoCon([task()]);
-    expect(reducer(prima, { type: "MARK_PENDING_WRITE", payload: [] })).toBe(prima);
+  it("aggiornaInVolo: simmetrico, mai sotto zero, non muta il registro ricevuto", () => {
+    const vuoto = new Map();
+    const marcato = aggiornaInVolo(vuoto, { type: "MARK_PENDING_WRITE", payload: [uuid(1)] });
+    expect(vuoto.size).toBe(0);
+    expect(marcato.get(uuid(1))).toBe(1);
+    expect(aggiornaInVolo(marcato, { type: "UNMARK_PENDING_WRITE", payload: [uuid(1)] }).size).toBe(0);
+    expect(aggiornaInVolo(vuoto, { type: "UNMARK_PENDING_WRITE", payload: [uuid(1)] }).has(uuid(1))).toBe(false);
+    expect(aggiornaInVolo(marcato, { type: "MARK_PENDING_WRITE", payload: [] })).toBe(marcato);
   });
 
   it("una riga rimossa in locale e ancora pendente non viene resuscitata dal refetch", () => {
     // PURGE_TASK ottimistico: localmente non c'è più, il server la serve ancora.
-    const stato = statoCon([], new Map([[uuid(1), 1]]));
-    const next = reducer(stato, { type: "SET_TASKS", payload: [task()] });
+    const stato = statoCon([]);
+    const next = reducer(stato, { type: "SET_TASKS", payload: [task()], inVolo: new Map([[uuid(1), 1]]) });
     expect(next.tasks).toEqual([]);
   });
 });

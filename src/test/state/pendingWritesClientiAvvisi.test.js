@@ -82,11 +82,11 @@ describe("SET_CLIENTS non annulla una scheda cliente che stiamo salvando", () =>
   it("il refetch concorrente non riporta indietro il valore pre-scrittura", () => {
     const state = statoBase({
       clients: [{ id: "c1", name: "Rossi Mario", email: "nuova@esempio.it" }],
-      pendingWrites: inVolo("c1"),
     });
     // Il server sta ancora servendo il pre-immagine della riga che stiamo
     // scrivendo, e la riga aggiornata di un altro utente.
     const next = reducer(state, {
+      inVolo: inVolo("c1"),
       type: "SET_CLIENTS",
       payload: [
         { id: "c1", name: "Rossi Mario", email: "vecchia@esempio.it" },
@@ -108,9 +108,9 @@ describe("SET_NOTICES non annulla un avviso che stiamo salvando", () => {
   it("il refetch concorrente non riporta indietro il testo pre-scrittura", () => {
     const state = statoBase({
       notices: [{ id: "n1", text: "testo nuovo" }],
-      pendingWrites: inVolo("n1"),
     });
     const next = reducer(state, {
+      inVolo: inVolo("n1"),
       type: "SET_NOTICES",
       payload: [{ id: "n1", text: "testo vecchio" }, { id: "n2", text: "altrui" }],
     });

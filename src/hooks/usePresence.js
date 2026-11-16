@@ -41,6 +41,20 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { Users as UsersAPI, subscribeToPresence } from "../lib/api.js";
 import { daStatoCanale, REFRESH_PRESENZA_MS } from "../lib/presenza.js";
 
+// B-5 del 15 novembre · La riga del team dà nome, colore e foto; stato e
+// ultimo accesso già noti (dal canale) restano. Prima la riga intera di prima
+// vinceva sul team nuovo, e un nome o una foto cambiati non si vedevano.
+const conTeam = (prev, team) => {
+  const next = { ...prev };
+  for (const u of team || []) {
+    const p = prev[u.id];
+    next[u.id] = p
+      ? { ...u, status: p.status ?? u.status, last_seen_at: p.last_seen_at ?? u.last_seen_at }
+      : u;
+  }
+  return next;
+};
+
 export function usePresence({ enabled, userId, team }) {
   // Mappa { userId -> rowDB } (per leggere last_seen_at e status).
   const [presenceMap, setPresenceMap] = useState({});
@@ -104,9 +118,7 @@ export function usePresence({ enabled, userId, team }) {
     // utenti del team. `team` è già lo snapshot completo — lo tiene aggiornato
     // la sottoscrizione `users` di useAppHydration — e il canale ci scrive
     // sopra chi è collegato adesso.
-    const base = {};
-    for (const u of teamRef.current || []) base[u.id] = u;
-    setPresenceMap(prev => ({ ...base, ...prev }));
+    setPresenceMap(prev => conTeam(prev, teamRef.current));
 
     if (!myId) return;
 
@@ -186,9 +198,7 @@ export function usePresence({ enabled, userId, team }) {
 
   useEffect(() => {
     if (!enabled) return;
-    const base = {};
-    for (const u of team || []) base[u.id] = u;
-    setPresenceMap(prev => ({ ...base, ...prev }));
+    setPresenceMap(prev => conTeam(prev, team));
   }, [enabled, team]);
 
   return { presenceMap, myBusy, toggleMyBusy };

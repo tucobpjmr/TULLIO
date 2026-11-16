@@ -88,6 +88,10 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
   const [messages, setMessagesRaw] = useState(
     enabled ? {} : mockMessages
   );
+  // B-7 · L'elenco vivo per i rollback dei comandi, letto al momento della chiamata.
+  const conversazioniRef = useRef(conversations);
+  conversazioniRef.current = conversations;
+  const leggiConversazioni = useRef(() => conversazioniRef.current).current;
 
   // Comandi di scrittura della chat (create/send/pin/markRead/reaction/delete).
   // Prima erano due wrapper di setConversations/setMessages che deducevano
@@ -112,7 +116,8 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
     // comparire nelle deps non fa ricreare `chatCommands` a ogni render.
     marcaInVolo,
     smarcaInVolo,
-  }), [enabled, onError, onSuccess, onConversationRead, marcaInVolo, smarcaInVolo]);
+    leggiConversazioni,
+  }), [enabled, onError, onSuccess, onConversationRead, marcaInVolo, smarcaInVolo, leggiConversazioni]);
 
   // ─── A-2 · storia per conversazione ────────────────────────────────────────
   // `corpusCompleto`: l'ultima rilettura stava sotto il tetto, quindi in stato

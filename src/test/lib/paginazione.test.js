@@ -293,3 +293,35 @@ describe("fetchRowsUpTo — pagina fino a un tetto, non fino a fine tabella", ()
     expect(range).toHaveBeenCalledTimes(2);
   });
 });
+
+// ─── B-1 del 15 novembre · righe che cambiano durante la lettura ───────────
+describe("fetchAllRows — inserimenti e cancellazioni concorrenti", () => {
+  const conTabella = (righe, alSecondaPagina) => {
+    let pagine = 0;
+    const query = () => ({
+      range: (da, a) => {
+        pagine += 1;
+        if (pagine === 2) alSecondaPagina(righe);
+        return Promise.resolve({ data: righe.slice(da, a + 1), count: righe.length, error: null });
+      },
+    });
+    return query;
+  };
+  const tabella = (n) => Array.from({ length: n }, (_, i) => ({ id: `r${String(i).padStart(4, "0")}` }));
+
+  it("una cancellazione fra due pagine non fa saltare la riga successiva", async () => {
+    const righe = tabella(1500);
+    const { data } = await fetchAllRows(conTabella(righe, (r) => r.splice(10, 1)));
+    const ids = new Set(data.map((r) => r.id));
+    expect(ids.has("r1000")).toBe(true);
+    expect(ids.has("r1499")).toBe(true);
+  });
+
+  it("un inserimento fra due pagine non produce doppioni", async () => {
+    const righe = tabella(1500);
+    const { data } = await fetchAllRows(conTabella(righe, (r) => r.unshift({ id: "nuova" })));
+    const ids = data.map((r) => r.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toContain("r1499");
+  });
+});

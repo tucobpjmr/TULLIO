@@ -85,8 +85,11 @@ export function TaskHistoryPanel({ taskId }) {
   // senza smontare il pannello, e la nuova idratazione iniziale della
   // sottoscrizione (`tabelle = null`) è anche il fetch al mount: non serve una
   // useEffect separata accanto a questa.
+  // B-6 del 15 novembre · Il filtro lato server: le righe degli altri task non
+  // arrivano nemmeno. `filterEvent` resta per le DELETE, che non si filtrano.
   useDebouncedTableSubscription(["task_history"], carica, {
     deps: [taskId],
+    filtro: `task_id=eq.${taskId}`,
     filterEvent: (payload) =>
       payload?.eventType === "DELETE" || payload?.new?.task_id === taskId,
   });

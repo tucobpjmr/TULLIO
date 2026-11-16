@@ -129,7 +129,11 @@ const SOGLIA_FIRST_LOAD_KB = 86;
 //
 // Verificato misurando il build PRIMA e DOPO l'intervento sullo stesso albero,
 // non stimato. Stesso margine +6 kB delle altre soglie di questo file.
-const SOGLIA_APP_KB = 57;
+// ─── 16 novembre · B-1, B-2, B-3, B-5, B-7 (audit stato e flusso dati) ─────
+// Misurato sullo stesso albero: main 56,84 kB, ramo 57,22 kB (+0,38). Elenco
+// dei chunk del first load identico: nessun lazy rientrato, è codice del
+// percorso caldo (notifiche per riga, paginazione, presenza, chat). +1 kB.
+const SOGLIA_APP_KB = 58;
 // ─── RIMISURATA DOPO M-2 (audit del 4 settembre) ───────────────────────────
 // `conTastiera()` (lib/a11y.js) e il suo uso in una ventina di componenti del
 // percorso caldo — TaskCard/TaskRow, la Sidebar, il FAB, UserSwitcher,
@@ -144,7 +148,8 @@ const SOGLIA_APP_KB = 57;
 // da «imposta password»). Nessun chunk lazy è rientrato: l'elenco dei chunk
 // del first load è lo stesso di prima. Il margine era sceso a 0,7 kB; torna a
 // poco più di 1 kB, non ai +6 di partenza.
-const SOGLIA_AUTENTICATO_KB = 140;
+// 16 novembre · stessa misura qui sopra: 139,51 → 139,90 kB, margine 0,1 kB. +1 kB.
+const SOGLIA_AUTENTICATO_KB = 141;
 
 const kb = (bytes) => bytes / 1000;
 

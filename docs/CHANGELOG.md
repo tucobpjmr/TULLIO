@@ -1,5 +1,40 @@
 # CHANGELOG — VoyageDesk
 
+## 16 novembre — rilievi di bassa priorità (audit stato e flusso dati)
+
+**B-1 · Paginazione robusta alle scritture concorrenti** (`lib/pagination.js`).
+Le pagine di `fetchAllRows` si sovrappongono di `SOVRAPPOSIZIONE` (50) righe e
+il risultato si deduplica per `id`: un INSERT durante la lettura non produce
+doppioni, una DELETE non fa saltare righe.
+
+**B-2 · Notifiche applicate per riga** (`useNotifications`). INSERT, UPDATE e
+DELETE su righe dell'elenco si applicano dal payload, senza `list` +
+`contaNonLette`. Un evento su una riga fuori dall'elenco ricarica (cambia il
+conteggio).
+
+**B-3 · Gli id dei commenti non si perdono** (`useAppHydration`). Si tolgono dal
+set solo a lettura consegnata; un giro superato o fallito li lascia al
+successivo, che prima ricadeva sul corpus di tutti i commenti. Il reload
+completo toglie quelli che ha coperto.
+
+**B-5 · La presenza segue il team vivo** (`usePresence`, `VoyageDeskInner`): riceve
+`state.team` e fonde per campo, così nome e foto cambiati si vedono senza
+perdere lo stato del canale.
+
+**B-6 · Cronologia filtrata lato server** (`TaskHistoryPanel`): il canale su
+`task_history` porta `filtro: task_id=eq.<id>` (nuovo parametro di
+`subscribeToTable` e `useDebouncedTableSubscription`).
+
+**B-7 · Chat: compensazione su creazione e modifica conversazione**
+(`chatCommands`). Una creazione rifiutata toglie la conversazione dall'elenco;
+una modifica rifiutata rimette la versione di prima, se a schermo c'è ancora la
+nostra.
+
+**Non fatti:** B-4 (doppio passaggio del reducer): i contesti sono già separati
+per fetta, e lo smarcamento rende solo il guscio. Il conteggio lato server dei
+non letti della chat (seconda metà di B-7) richiede una funzione SQL nuova: da
+fare con una migrazione.
+
 ## 15 novembre — coda offline e dettaglio Liste (audit stato e flusso dati)
 
 **A-1 · Le modifiche fatte offline non spariscono più dallo schermo** (`useCodaScritture`).

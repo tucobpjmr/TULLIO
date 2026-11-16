@@ -73,6 +73,16 @@ describe("TaskHistoryPanel — legge la cronologia del solo task aperto", () => 
     expect(await screen.findByText(/Stato:/)).toBeInTheDocument();
   });
 
+  // B-6 del 15 novembre · il filtro sta anche sul server: le righe degli altri
+  // task non viaggiano.
+  it("il canale filtra lato server sul task aperto", async () => {
+    monta("t1");
+    await waitFor(() => expect(subscribeToTable).toHaveBeenCalled());
+    const [tabella, , , opzioni] = subscribeToTable.mock.calls[0];
+    expect(tabella).toBe("task_history");
+    expect(opzioni).toEqual({ filtro: "task_id=eq.t1" });
+  });
+
   it("mostra la riga con attore, descrizione e conteggio", async () => {
     monta("t1");
     expect(await screen.findByText("Marco")).toBeInTheDocument();

@@ -35,13 +35,16 @@ let channelSeq = 0;
  * @param {(payload: object) => void} handler
  * @param {(stato: string) => void} [onStato]  riceve OGNI transizione del
  *   canale ('SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED').
+ * @param {{ filtro?: string }} [opzioni]  `filtro` è il filtro lato server di
+ *   Postgres Changes (es. `task_id=eq.<id>`): le righe di altri non viaggiano.
+ *   ⚠️ Le DELETE non sono filtrabili lato server: il chiamante le gestisce.
  *
  * A-1 · Senza lo stato del canale, un websocket morto si vede solo come
  * ASSENZA di eventi, cioè come un pomeriggio tranquillo: `OfflineBanner`
  * tace e si lavora su numeri fermi. Opzionale per `subscribeToTyping`, il
  * cui stato effimero può degradare in silenzio.
  */
-export function subscribeToTable(tableName, handler, onStato) {
+export function subscribeToTable(tableName, handler, onStato, { filtro } = /** @type {{ filtro?: string }} */ ({})) {
   let smontato = false;
   let staccaCanale = () => {};
   getSupabase().then((supabase) => {
@@ -53,7 +56,9 @@ export function subscribeToTable(tableName, handler, onStato) {
     if (typeof supabase?.channel !== "function") return;
     const channel = supabase
       .channel(`realtime:${tableName}:${getClientId()}:${++channelSeq}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, (payload) => {
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: tableName, ...(filtro ? { filter: filtro } : {}),
+      }, (payload) => {
         // Solo INSERT/UPDATE portano un'origine attendibile (vedi sopra).
         if (payload?.eventType !== 'DELETE') {
           const origin = payload?.new?.origin_client;

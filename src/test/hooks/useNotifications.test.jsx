@@ -405,3 +405,46 @@ describe("useNotifications — B-1, il conteggio oltre la finestra", () => {
     errSpy.mockRestore();
   });
 });
+
+// ─── B-2 del 15 novembre · la riga si applica, senza le due query ──────────
+describe("useNotifications — eventi applicati per riga", () => {
+  const evento = async (payload) => {
+    await act(async () => {
+      handlers.get("notifications")?.(payload);
+      await new Promise(r => setTimeout(r, 300));
+    });
+  };
+  const riga = (id, over = {}) => ({ id, user_id: "u1", type: "mention", payload: {}, read: false, created_at: "2026-11-15T10:00:00Z", ...over });
+
+  it("un INSERT entra in testa senza ricaricare", async () => {
+    const { result } = await conElenco([notifica("a")]);
+    Notifications.list.mockClear();
+    Notifications.contaNonLette.mockClear();
+
+    await evento({ eventType: "INSERT", new: riga("n") });
+
+    expect(result.current.notifications.map(n => n.id)).toEqual(["n", "a"]);
+    expect(Notifications.list).not.toHaveBeenCalled();
+    expect(Notifications.contaNonLette).not.toHaveBeenCalled();
+  });
+
+  it("un UPDATE e una DELETE su righe visibili si applicano in locale", async () => {
+    const { result } = await conElenco([notifica("a"), notifica("b")]);
+    Notifications.list.mockClear();
+
+    await evento({ eventType: "UPDATE", new: riga("a", { read: true }) });
+    await evento({ eventType: "DELETE", old: { id: "b" } });
+
+    expect(result.current.notifications.map(n => [n.id, n.read])).toEqual([["a", true]]);
+    expect(Notifications.list).not.toHaveBeenCalled();
+  });
+
+  it("un evento su una riga fuori dall'elenco ricarica (cambia il conteggio)", async () => {
+    await conElenco([notifica("a")]);
+    Notifications.list.mockClear();
+
+    await evento({ eventType: "UPDATE", new: riga("vecchia", { read: true }) });
+
+    expect(Notifications.list).toHaveBeenCalledTimes(1);
+  });
+});

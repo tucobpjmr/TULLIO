@@ -101,15 +101,17 @@ describe("backupData — il backup non si ferma alla prima pagina", () => {
     expect(ids[2499]).toBe("m-2499");
   });
 
-  it("richiede pagine contigue, senza buchi", async () => {
+  // B-1 del 15 novembre · le pagine si sovrappongono di 50 righe (vedi
+  // lib/pagination.js): nessun buco, anche con una DELETE durante la lettura.
+  it("richiede pagine sovrapposte, senza buchi", async () => {
     db.tables = { clients: [], liste_viaggio: [], movimenti_lista: rows(2500, "m") };
 
     await ListeAPI.backupData();
 
     expect(ranges.filter(([t]) => t === "movimenti_lista")).toEqual([
       ["movimenti_lista", 0, 999],
-      ["movimenti_lista", 1000, 1999],
-      ["movimenti_lista", 2000, 2999],
+      ["movimenti_lista", 950, 1949],
+      ["movimenti_lista", 1900, 2899],
     ]);
   });
 

@@ -18,6 +18,7 @@
     "verifica:rpc": "node scripts/verifica-rpc/index.js",
     "verifica:migrazioni": "node scripts/verifica-rpc/verifica-migrazioni.js",
     "verifica:advisor": "node scripts/verifica-advisor/index.js",
+    "verifica:funzioni": "node scripts/verifica-funzioni/index.js",
     "verifica:audit-vivo": "node scripts/verifica-audit-vivo/index.js",
     "verifica:redirect": "node scripts/verifica-redirect/index.js",
     "verifica:convenzioni": "node scripts/verifica-convenzioni/index.js",

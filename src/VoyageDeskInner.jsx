@@ -17,6 +17,7 @@ import { demoState } from "./state/demoState.js";
 // Ogni hook possiede un pezzo di ciclo di vita (idratazione, notifiche,
 // presenza, push, chat): qui si compone, non si implementa.
 import { useSyncedDispatch } from "./hooks/useSyncedDispatch.js";
+import { useDispatchInVolo } from "./hooks/useDispatchInVolo.js";
 import { useCodaScritture } from "./hooks/useCodaScritture.js";
 import { useAppHydration } from "./hooks/useAppHydration.js";
 import { useNotifications } from "./hooks/useNotifications.js";
@@ -107,11 +108,14 @@ const ENTITA_PER_VISTA = {
 
 
 export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
-  const [state, rawDispatch] = useReducer(
+  const [state, dispatchReact] = useReducer(
     reducer,
     { team: initialTeam, currentUserId: initialCurrentUserId },
     makeInitialState
   );
+  // B-4 del 16 novembre · Le scritture in volo stanno in un ref, non nello
+  // stato: marcarle non ri-renderizza il guscio (vedi useDispatchInVolo).
+  const { dispatch: rawDispatch } = useDispatchInVolo(dispatchReact);
 
   // ─── B-1 del 4 novembre · la demo è un FLAG, non una deduzione ──────────────
   // Solo in sviluppo e solo senza utente loggato. Un team vuoto con una session
@@ -144,9 +148,9 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
 
   // Toast d'errore con una firma unica per tutti gli hook.
   const showError = useCallback(
-    (message) => rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message } }), []);
+    (message) => rawDispatch({ type: "SHOW_TOAST", payload: { type: "error", message } }), [rawDispatch]);
   const showSuccess = useCallback(
-    (message) => rawDispatch({ type: "SHOW_TOAST", payload: { type: "success", message } }), []);
+    (message) => rawDispatch({ type: "SHOW_TOAST", payload: { type: "success", message } }), [rawDispatch]);
 
   // Il canale con cui gli handler globali di main.jsx mostrano un errore.
   // Prima della registrazione si limitano alla console.

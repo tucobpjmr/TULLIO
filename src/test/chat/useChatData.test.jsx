@@ -31,6 +31,8 @@ const MessagesAPI = {
   listAll: vi.fn(async () => ({ data: [], error: null })),
   listForConversation: vi.fn(async () => ({ data: [], error: null })),
   send: vi.fn(() => new Promise(() => {})), // non risolve mai: l'INSERT resta "in volo"
+  contaNonLetti: vi.fn(async () => ({ data: [], error: null })),
+  markReadBulk: vi.fn(async () => ({ data: 0, error: null })),
 };
 
 vi.mock("../../lib/api.js", () => ({
@@ -49,6 +51,8 @@ beforeEach(() => {
   ConversationsAPI.listMine.mockResolvedValue({ data: [{ id: UUID_CONV, type: "direct", participants: ["u1", "u2"] }], error: null });
   MessagesAPI.listAll.mockResolvedValue({ data: [], error: null });
   MessagesAPI.send.mockImplementation(() => new Promise(() => {}));
+  MessagesAPI.contaNonLetti.mockResolvedValue({ data: [], error: null });
+  MessagesAPI.markReadBulk.mockResolvedValue({ data: 0, error: null });
 });
 
 // Fa scattare il debounce: pubblica un evento sulla tabella e aspetta oltre il
@@ -294,5 +298,56 @@ describe("useChatData — storia per conversazione sopra il tetto del corpus", (
     const ids = result.current.messages[UUID_CONV].map(m => m.id);
     expect(ids.slice(0, 2)).toEqual(["m1", "m2"]);
     expect(ids).toHaveLength(TETTO_CORPUS + 2);
+  });
+});
+
+// ─── B-7 del 16 novembre · non letti oltre il corpus, contati dal server ────
+describe("useChatData — non letti più vecchi del corpus", () => {
+  const riga = (i, extra = {}) => ({
+    id: `n${i}`, conversation_id: UUID_CONV, sender_id: "u2", text: `t${i}`,
+    created_at: new Date(Date.UTC(2026, 0, 1) + i * 60_000).toISOString(), read_by: ["u1"], ...extra,
+  });
+  // Corpus troncato con 2 non letti dentro; il server ne conta 5.
+  const corpus = () => Array.from({ length: TETTO_CORPUS }, (_, i) => riga(i, i < 2 ? { read_by: [] } : {}));
+
+  const monta = async (data) => {
+    MessagesAPI.listAll.mockResolvedValue({ data, error: null });
+    const r = renderHook(() => useChatData({
+      enabled: true, team: [{ id: "u1" }, { id: "u2" }], currentUserId: "u1",
+      mockConversations: [], mockMessages: {}, onError: vi.fn(), onSuccess: () => {},
+    }));
+    await waitFor(() => expect(r.result.current.loading).toBe(false));
+    return r;
+  };
+
+  it("corpus troncato: il badge somma i non letti che il corpus non contiene", async () => {
+    MessagesAPI.contaNonLetti.mockResolvedValue({ data: [{ conversation_id: UUID_CONV, non_letti: 5 }], error: null });
+    const { result } = await monta(corpus());
+    expect(MessagesAPI.contaNonLetti).toHaveBeenCalledTimes(1);
+    expect(result.current.storiaMessaggi.nonLettiOltre).toEqual({ [UUID_CONV]: 3 });
+    expect(result.current.unreadChat).toBe(5);
+  });
+
+  it("segnare letta la conversazione azzera anche la parte oltre il corpus", async () => {
+    MessagesAPI.contaNonLetti.mockResolvedValue({ data: [{ conversation_id: UUID_CONV, non_letti: 5 }], error: null });
+    const { result } = await monta(corpus());
+    act(() => { result.current.commands.markConversationRead(UUID_CONV); });
+    expect(result.current.unreadChat).toBe(0);
+    expect(result.current.storiaMessaggi.nonLettiOltre).toEqual({});
+  });
+
+  it("sotto il tetto il server non si interroga: il corpus è già tutto", async () => {
+    const { result } = await monta([riga(1, { read_by: [] })]);
+    expect(MessagesAPI.contaNonLetti).not.toHaveBeenCalled();
+    expect(result.current.unreadChat).toBe(1);
+  });
+
+  it("RPC assente o in errore: si resta sul conteggio locale, senza toast", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    MessagesAPI.contaNonLetti.mockResolvedValue({ data: null, error: { message: "function not found" } });
+    const { result } = await monta(corpus());
+    expect(result.current.unreadChat).toBe(2);
+    expect(result.current.storiaMessaggi.nonLettiOltre).toEqual({});
+    warn.mockRestore();
   });
 });

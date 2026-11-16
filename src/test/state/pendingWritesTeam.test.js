@@ -64,11 +64,11 @@ describe("SET_TEAM non annulla la mutazione sul team che stiamo scrivendo", () =
   it("una disattivazione in volo non torna attiva per colpa di un refetch concorrente", () => {
     const state = statoBase({
       team: [membro("u1", { role: "admin" }), membro("u2", { active: false })],
-      pendingWrites: inVolo("u2"),
     });
     // Il server sta ancora servendo il pre-immagine di u2 (attivo), e la riga
     // di un membro nuovo appena approvato da un altro admin.
     const next = reducer(state, {
+      inVolo: inVolo("u2"),
       type: "SET_TEAM",
       payload: [membro("u1", { role: "admin" }), membro("u2"), membro("u3")],
     });
@@ -83,9 +83,9 @@ describe("SET_TEAM non annulla la mutazione sul team che stiamo scrivendo", () =
     // sapere se sia arrivata al database.
     const state = statoBase({
       team: [membro("u1", { role: "admin" }), membro("u2", { role: "agent" })],
-      pendingWrites: inVolo("u2"),
     });
     const next = reducer(state, {
+      inVolo: inVolo("u2"),
       type: "SET_TEAM",
       payload: [membro("u1", { role: "admin" }), membro("u2", { role: "manager" })],
     });
@@ -95,9 +95,9 @@ describe("SET_TEAM non annulla la mutazione sul team che stiamo scrivendo", () =
   it("un membro eliminato in ottimistico non riappare perché il server lo serve ancora", () => {
     const state = statoBase({
       team: [membro("u1", { role: "admin" })],
-      pendingWrites: inVolo("u2"),
     });
     const next = reducer(state, {
+      inVolo: inVolo("u2"),
       type: "SET_TEAM",
       payload: [membro("u1", { role: "admin" }), membro("u2")],
     });
@@ -110,9 +110,9 @@ describe("SET_TEAM non annulla la mutazione sul team che stiamo scrivendo", () =
     // tornavano quelli di prima con la modale già chiusa.
     const state = statoBase({
       team: [membro("u1", { role: "admin", name: "Nome nuovo", email: "nuova@esempio.it" })],
-      pendingWrites: inVolo("u1"),
     });
     const next = reducer(state, {
+      inVolo: inVolo("u1"),
       type: "SET_TEAM",
       payload: [membro("u1", { role: "admin", name: "Nome vecchio", email: "vecchia@esempio.it" })],
     });

@@ -81,3 +81,25 @@ export function aggiungiPagina(mappa, convId, pagina) {
   if (!nuovi.length) return { mappa, nuovi: 0 };
   return { mappa: { ...mappa, [convId]: inOrdine([...nuovi, ...attuale]) }, nuovi: nuovi.length };
 }
+
+/**
+ * B-7 del 16 novembre · I non letti che il corpus locale NON contiene, per
+ * conversazione: il conteggio del server meno quelli già nel corpus letto
+ * insieme. Solo valori positivi; una conversazione senza scarto non compare.
+ * @param {Array<{ conversation_id: string, non_letti: number|string }>} righeServer
+ * @param {Record<string, any[]>} corpus
+ * @param {string|null} uid
+ * @returns {Record<string, number>}
+ */
+export function nonLettiOltreCorpus(righeServer, corpus, uid) {
+  const out = /** @type {Record<string, number>} */ ({});
+  for (const r of righeServer || []) {
+    const convId = r?.conversation_id;
+    if (!convId) continue;
+    const locali = (corpus[convId] || [])
+      .filter(m => m.sender !== uid && !m.readBy?.includes(uid)).length;
+    const oltre = Number(r.non_letti) - locali;
+    if (oltre > 0) out[convId] = oltre;
+  }
+  return out;
+}

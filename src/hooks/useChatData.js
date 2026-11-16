@@ -9,13 +9,13 @@
 // quindi il suo equivalente: un solo posto che tiene insieme stato e
 // persistenza, invece di sette pezzi sparsi nell'orchestratore.
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { Conversations as ConversationsAPI, Messages as MessagesAPI } from "../lib/api.js";
 import { fromDbConversation, fromDbMessage } from "../lib/mappers.js";
 import { scopeConversationsForUser } from "../lib/chatUtils.js";
 import { makeChatCommands } from "../components/chat/chatCommands.js";
 import { getUnreadCount } from "../components/chat/chatFormat.js";
-import { applicaRighe, fondiCorpus, aggiungiPagina } from "../components/chat/messaggiStato.js";
+import { applicaRighe, fondiCorpus, aggiungiPagina, nonLettiOltreCorpus } from "../components/chat/messaggiStato.js";
 import { useDebouncedTableSubscription } from "./useDebouncedTableSubscription.js";
 
 // A-2 · Tetto del corpus letto all'avvio (i messaggi più recenti di tutte le
@@ -25,6 +25,21 @@ export const TETTO_CORPUS = 2000;
 export const PAGINA_STORIA = 50;
 const RITARDO_RIGHE_MS = 50;
 const STORIA_VUOTA = { caricando: false, completa: false, errore: false };
+const NESSUN_OLTRE = Object.freeze({});
+
+// B-7 del 16 novembre · Il conteggio del server (RPC chat_non_letti). Un
+// fallimento — anche la migrazione non ancora applicata — non è un errore per
+// l'utente: si resta sul conteggio locale, come prima.
+const leggiNonLettiServer = async () => {
+  try {
+    const r = await MessagesAPI.contaNonLetti();
+    if (r?.error) { console.warn("[chat] non letti dal server", r.error); return null; }
+    return r?.data || [];
+  } catch (e) {
+    console.warn("[chat] non letti dal server", e);
+    return null;
+  }
+};
 
 // A-2 dell'audit del 14 agosto (secondo passaggio). Messaggi la cui INSERT è
 // ancora in volo, raggruppati per conversazione — la stessa forma di
@@ -55,9 +70,8 @@ const messaggiInVolo = (mappaDalServer, inVolo) => {
 // Il corpus (i TETTO_CORPUS messaggi più recenti) si legge all'avvio e alla
 // ripresa: serve ad anteprime e non letti. Gli eventi di `messages` si
 // applicano riga per riga, e sopra il tetto la storia più vecchia si carica a
-// pagine per conversazione (`caricaPrecedenti`). Resta un limite dichiarato: i
-// NON LETTI più vecchi del corpus non entrano nel badge finché la
-// conversazione non si apre.
+// pagine per conversazione (`caricaPrecedenti`). I NON LETTI più vecchi del
+// corpus li conta il server (B-7 del 16 novembre, `nonLettiOltre`).
 
 export function useChatData({ enabled, team, currentUserId, mockConversations, mockMessages, onError, onSuccess, onConversationRead }) {
   // Loading: true finché non completa il primo reload da Supabase. Evita il
@@ -100,6 +114,18 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
   // invocare due volte (StrictMode) o rieseguire (Concurrent): creare una
   // conversazione produceva due INSERT in sviluppo. Ora l'updater è puro e la
   // rete parte da un comando esplicito — vedi components/chat/chatCommands.js.
+  // B-7 · Non letti che il corpus non contiene: convId → quanti. Si azzera la
+  // voce quando la conversazione si segna letta (la RPC le marca tutte).
+  const [nonLettiOltre, setNonLettiOltre] = useState(/** @type {Record<string, number>} */ (NESSUN_OLTRE));
+  const segnaLetta = useCallback((convId) => {
+    setNonLettiOltre(prev => {
+      if (!prev[convId]) return prev;
+      const { [convId]: _letta, ...resto } = prev;
+      return resto;
+    });
+    onConversationRead?.(convId);
+  }, [onConversationRead]);
+
   const chatCommands = useMemo(() => makeChatCommands({
     setConversations: setConversationsRaw,
     setMessages: setMessagesRaw,
@@ -110,14 +136,14 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
     // Aprire una conversazione spegne anche la sua notifica in campanella: è
     // bookkeeping delle notifiche, non della chat, quindi il chiamante lo
     // fornisce dall'esterno.
-    onConversationRead,
+    onConversationRead: segnaLetta,
     // A-2: il registro delle scritture in volo (vedi messaggiInVolo qui
     // sopra). marcaInVolo/smarcaInVolo hanno identità stabile (useRef), quindi
     // comparire nelle deps non fa ricreare `chatCommands` a ogni render.
     marcaInVolo,
     smarcaInVolo,
     leggiConversazioni,
-  }), [enabled, onError, onSuccess, onConversationRead, marcaInVolo, smarcaInVolo, leggiConversazioni]);
+  }), [enabled, onError, onSuccess, segnaLetta, marcaInVolo, smarcaInVolo, leggiConversazioni]);
 
   // ─── A-2 · storia per conversazione ────────────────────────────────────────
   // `corpusCompleto`: l'ultima rilettura stava sotto il tetto, quindi in stato
@@ -220,6 +246,9 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
           MessagesAPI.listAll(TETTO_CORPUS),
         ]);
       }
+      // B-7 · Corpus troncato: i non letti più vecchi li conta il server.
+      const troncato = (msgsRes?.data || []).length >= TETTO_CORPUS;
+      const conteggi = msgsRes && !msgsRes.error && troncato ? await leggiNonLettiServer() : null;
       if (!isCurrent()) return;
       if (convsRes.error) {
         console.error("[chat] convs.list", convsRes.error);
@@ -240,13 +269,14 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
         setConversationsRaw((convsRes.data || []).map(fromDbConversation));
       }
       if (msgsRes) {
-        const msgsByConv = {};
+        const msgsByConv = /** @type {Record<string, any[]>} */ ({});
         for (const r of msgsRes.data || []) {
           const m = fromDbMessage(r);
           if (!m) continue;
           (msgsByConv[m.conversation_id] ||= []).push(m);
         }
-        const troncato = (msgsRes.data || []).length >= TETTO_CORPUS;
+        const oltre = conteggi ? nonLettiOltreCorpus(conteggi, msgsByConv, currentUserIdRef.current) : NESSUN_OLTRE;
+        setNonLettiOltre(prev => (prev === oltre || (!Object.keys(prev).length && !Object.keys(oltre).length) ? prev : oltre));
         // Le righe in attesa sono più vecchie di questa lettura: la contiene già.
         righeInAttesa.current = [];
         // A-2 (14 agosto): un messaggio la cui INSERT è in volo può mancare
@@ -263,8 +293,8 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
   }, { enabled, deps: [enabled], applyRow: applicaRigaMessaggio });
 
   const storiaMessaggi = useMemo(
-    () => ({ corpusCompleto, perConv: storia }),
-    [corpusCompleto, storia],
+    () => ({ corpusCompleto, perConv: storia, nonLettiOltre }),
+    [corpusCompleto, storia, nonLettiOltre],
   );
   const comandi = useMemo(
     () => ({ ...chatCommands, caricaPrecedenti: enabled ? caricaPrecedenti : undefined }),
@@ -288,10 +318,10 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
   // memoizzato qui sopra, quindi la sua identità non si muove per conto suo.
   const unreadChat = useMemo(
     () => chatConversations.reduce(
-      (acc, c) => acc + getUnreadCount(messages, c.id, currentUserId),
+      (acc, c) => acc + getUnreadCount(messages, c.id, currentUserId) + (nonLettiOltre[c.id] ?? 0),
       0
     ),
-    [chatConversations, messages, currentUserId]
+    [chatConversations, messages, currentUserId, nonLettiOltre]
   );
 
   // ST-10 · I setter grezzi NON escono di qui. `setConversations`/`setMessages`

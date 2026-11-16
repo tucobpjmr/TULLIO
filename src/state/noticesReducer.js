@@ -36,7 +36,7 @@ import { fondiScrittureInVolo, applicaRigaRealtime } from "./pendingWrites.js";
 
 /**
  * @param {any} state
- * @param {{type: string, payload?: any}} action
+ * @param {{type: string, payload?: any, inVolo?: ReadonlyMap<string, number>}} action
  * @returns {any|null} il nuovo state, oppure null se l'azione non è di questa fetta.
  */
 export function noticesReducer(state, action) {
@@ -49,12 +49,12 @@ export function noticesReducer(state, action) {
       // Stessa protezione di SET_TASKS (A-1, terzo passaggio): un avviso con
       // una scrittura in volo non va sostituito con il pre-immagine che il
       // server sta ancora servendo.
-      return { ...state, notices: fondiScrittureInVolo(action.payload, state.notices, state.pendingWrites) };
+      return { ...state, notices: fondiScrittureInVolo(action.payload, state.notices, action.inVolo) };
     }
     // Gemello di MERGE_TASK_ROW per la bacheca: nessun campo derivato da
     // altrove, quindi nessun `fondiRiga` da passare.
     case "MERGE_NOTICE_ROW":
-      return { ...state, notices: applicaRigaRealtime(state.notices, state.pendingWrites, action.payload) };
+      return { ...state, notices: applicaRigaRealtime(state.notices, action.inVolo, action.payload) };
     case "ADD_NOTICE": {
       const notices = [action.payload, ...state.notices];
       return { ...state, notices, toasts: pushToast(state.toasts, { message: "Avviso pubblicato in bacheca", type: "success" }) };

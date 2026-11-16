@@ -29,6 +29,38 @@
 // L'utente vede il proprio salvataggio annullarsi da solo, con un toast verde
 // che dice che è riuscito (e sul database lo è davvero).
 //
+// ─── B-4 del 16 novembre · il registro sta FUORI dallo stato React ───────────
+// Era `state.pendingWrites`: MARK/UNMARK producevano uno stato nuovo, quindi a
+// ogni salvataggio il guscio ri-renderizzava due volte per un dato che nessuna
+// vista mostra. Ora vive in un ref (`hooks/useDispatchInVolo.js`) e il dispatch
+// lo TIMBRA sull'azione (`action.inVolo`): i case che fondono lo leggono da lì.
+// ⚠️ Ogni modifica crea una Map nuova: l'istantanea timbrata non cambia dopo.
+
+/** @type {ReadonlyMap<string, number>} */
+export const IN_VOLO_VUOTO = new Map();
+
+export const MARCA_IN_VOLO = "MARK_PENDING_WRITE";
+export const SMARCA_IN_VOLO = "UNMARK_PENDING_WRITE";
+
+/**
+ * Applica una MARK/UNMARK al registro. Contatore per id, non un Set: due
+ * scritture ravvicinate sulla stessa riga non si smarcano a vicenda.
+ * @param {ReadonlyMap<string, number>} registro
+ * @param {{ type: string, payload?: any }} azione
+ * @returns {ReadonlyMap<string, number>} lo stesso registro se nulla cambia
+ */
+export function aggiornaInVolo(registro, azione) {
+  const ids = [].concat(azione.payload ?? []).filter(Boolean);
+  if (!ids.length) return registro;
+  const delta = azione.type === MARCA_IN_VOLO ? 1 : -1;
+  const next = new Map(registro);
+  for (const id of ids) {
+    const n = (next.get(id) ?? 0) + delta;
+    if (n > 0) next.set(id, n); else next.delete(id);
+  }
+  return next.size ? next : IN_VOLO_VUOTO;
+}
+
 // La funzione è la logica che viveva in linea nel case SET_TASKS: estrarla non
 // era solo per riusarla in tre punti, ma perché è l'invariante — «per un id con
 // scrittura in volo vince SEMPRE la riga locale» — e un'invariante scritta tre
@@ -38,7 +70,7 @@
  * @template {{ id: string }} T
  * @param {T[]} incoming righe appena arrivate dal server
  * @param {T[]} locali righe attualmente nello state
- * @param {Map<string, number>|undefined} pending id → scritture in volo
+ * @param {ReadonlyMap<string, number>|undefined} pending id → scritture in volo
  * @returns {T[]}
  */
 export function fondiScrittureInVolo(incoming, locali, pending) {
@@ -86,7 +118,7 @@ export function fondiScrittureInVolo(incoming, locali, pending) {
 // l'handler (lib/api.js).
 //
 // @param {Array<{id: string}>} collezione righe attualmente nello state
-// @param {Map<string, number>|undefined} pending id → scritture in volo
+// @param {ReadonlyMap<string, number>|undefined} pending id → scritture in volo
 // @param {{ eventType: 'INSERT'|'UPDATE'|'DELETE', id: string, row?: object }} evento
 //   `row` è già nella forma app (mappata da chi chiama, fuori da qui: questo
 //   modulo non conosce la forma del DB, come pendingWrites.js non l'ha mai
@@ -145,7 +177,7 @@ export function applicaRigaRealtime(collezione, pending, evento, fondiRiga) {
 // dalle chiavi della mappa: le due cose non coincidono nel secondo caso.
 //
 // @param {Array<{id: string}>} tasks       i task attualmente nello state
-// @param {Map<string, number>|undefined} pending  id → scritture in volo
+// @param {ReadonlyMap<string, number>|undefined} pending  id → scritture in volo
 // @param {Record<string, object[]>} comments      commenti indicizzati per task_id
 // @param {string[]} [soloQuesti]           gli id da aggiornare; assente = corpus
 export function fondiThreadCommenti(tasks, pending, comments, soloQuesti) {

@@ -159,9 +159,9 @@ describe("reducer — MERGE_TASK_ROW", () => {
   it("un task con scrittura in volo non viene toccato dall'evento altrui", () => {
     const state = statoBase({
       tasks: [{ id: "t1", title: "Il mio titolo ancora in volo", comments: [] }],
-      pendingWrites: inVolo("t1"),
     });
     const next = reducer(state, {
+      inVolo: inVolo("t1"),
       type: "MERGE_TASK_ROW",
       payload: { eventType: "UPDATE", id: "t1", row: { id: "t1", title: "Titolo di un altro client" } },
     });
@@ -188,9 +188,9 @@ describe("reducer — MERGE_NOTICE_ROW", () => {
   it("un avviso con scrittura in volo non viene sovrascritto", () => {
     const state = statoBase({
       notices: [{ id: "n1", text: "il mio testo" }],
-      pendingWrites: inVolo("n1"),
     });
     const next = reducer(state, {
+      inVolo: inVolo("n1"),
       type: "MERGE_NOTICE_ROW",
       payload: { eventType: "UPDATE", id: "n1", row: { id: "n1", text: "testo altrui" } },
     });
@@ -217,9 +217,9 @@ describe("reducer — MERGE_CLIENT_ROW", () => {
   it("un cliente con scrittura in volo non viene sovrascritto — la stessa finestra di rischio di SET_CLIENTS", () => {
     const state = statoBase({
       clients: [{ id: "c1", email: "nuova@esempio.it" }],
-      pendingWrites: inVolo("c1"),
     });
     const next = reducer(state, {
+      inVolo: inVolo("c1"),
       type: "MERGE_CLIENT_ROW",
       payload: { eventType: "UPDATE", id: "c1", row: { id: "c1", email: "vecchia@esempio.it" } },
     });

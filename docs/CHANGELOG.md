@@ -30,10 +30,24 @@ perdere lo stato del canale.
 una modifica rifiutata rimette la versione di prima, se a schermo c'è ancora la
 nostra.
 
-**Non fatti:** B-4 (doppio passaggio del reducer): i contesti sono già separati
-per fetta, e lo smarcamento rende solo il guscio. Il conteggio lato server dei
-non letti della chat (seconda metà di B-7) richiede una funzione SQL nuova: da
-fare con una migrazione.
+**B-4 · Le scritture in volo non fanno più render** (`hooks/useDispatchInVolo.js`).
+- Prima: MARK/UNMARK_PENDING_WRITE cambiavano `state.pendingWrites`, quindi ogni
+  salvataggio ri-renderizzava il guscio due volte per un dato che nessuno mostra.
+- Ora il registro sta in un ref accanto a `useReducer`. MARK/UNMARK aggiornano
+  solo il ref; le altre azioni partono con l'istantanea in `action.inVolo`, che
+  `SET_*` e `MERGE_*_ROW` leggono al posto di `state.pendingWrites`.
+- Test: `src/test/hooks/useDispatchInVolo.test.jsx`.
+
+**B-7 (seconda metà) · Non letti della chat contati dal server.**
+- Migrazione `20261116105953_chat_non_letti.sql`: RPC `chat_non_letti()`
+  (security invoker, lettore = `auth.uid()`). **Applicata** il 16 novembre via
+  MCP `apply_migration` (versione registrata `20261116105953`); dry-run con
+  rollback: un partecipante vede il proprio non letto, un estraneo zero.
+- `useChatData`: con il corpus troncato (≥ `TETTO_CORPUS`) chiede il conteggio e
+  tiene la differenza col corpus (`nonLettiOltre`). Entra nel badge, nell'elenco
+  conversazioni e fa partire il segna-letto all'apertura; si azzera quando la
+  conversazione si segna letta. Se la RPC manca o fallisce: conteggio locale.
+- Test: `useChatData.test.jsx`, `messaggiStato.test.js`, `letturaOltreCorpus.test.jsx`.
 
 ## 15 novembre — coda offline e dettaglio Liste (audit stato e flusso dati)
 

@@ -149,12 +149,13 @@ describe("MERGE_TASK_ROW — il task aperto segue la singola riga", () => {
     // versione locale. Se `selectedTask` la accettasse mentre `tasks` la
     // scarta, le due divergerebbero — che è esattamente il difetto che questo
     // file chiude, al contrario.
-    const inVolo = { ...s, pendingWrites: new Set([UUID]) };
-    const next = reducer(inVolo, {
+    // B-4 del 16 novembre: il registro viaggia sull'azione (`inVolo`).
+    const next = reducer(s, {
       type: "MERGE_TASK_ROW",
+      inVolo: new Map([[UUID, 1]]),
       payload: { eventType: "UPDATE", id: UUID, row: task({ assignees: ["lea"] }) },
     });
     expect(next.selectedTask.assignees).toEqual(["gina"]);
-    expect(next.selectedTask).toBe(inVolo.selectedTask);
+    expect(next.selectedTask).toBe(s.selectedTask);
   });
 });

@@ -88,6 +88,13 @@ export const Messages = {
     );
     return { data: data ? [...data].reverse() : data, error };
   },
+  // B-7 del 16 novembre · Non letti per conversazione, contati sul server
+  // (RPC chat_non_letti, migrazione 20261116105953). Il lettore è auth.uid().
+  // Ritorna { data: [{ conversation_id, non_letti }], error }.
+  contaNonLetti: async () => {
+    const supabase = await getSupabase();
+    return supabase.rpc('chat_non_letti');
+  },
   send: async (m) => {
     const supabase = await getSupabase();
     return supabase.from('messages').insert(withOrigin(m)).select().single();

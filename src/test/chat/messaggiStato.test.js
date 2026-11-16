@@ -1,7 +1,7 @@
 // A-2 dell'analisi del 10 novembre — le trasformazioni pure della mappa dei
 // messaggi: eventi riga per riga, fusione con il corpus, pagine di storia.
 import { describe, it, expect } from "vitest";
-import { applicaRighe, fondiCorpus, aggiungiPagina } from "../../components/chat/messaggiStato.js";
+import { applicaRighe, fondiCorpus, aggiungiPagina, nonLettiOltreCorpus } from "../../components/chat/messaggiStato.js";
 
 const m = (id, minuto, conv = "c1", extra = {}) => ({
   id, conversation_id: conv, time: new Date(Date.UTC(2026, 0, 1, 0, minuto)).toISOString(), ...extra,
@@ -81,5 +81,29 @@ describe("aggiungiPagina", () => {
   it("nessun nuovo: stessa mappa, zero", () => {
     const mappa = { c1: [m("c", 3)] };
     expect(aggiungiPagina(mappa, "c1", [m("c", 3)])).toEqual({ mappa, nuovi: 0 });
+  });
+});
+
+// B-7 del 16 novembre
+describe("nonLettiOltreCorpus", () => {
+  const msg = (sender, readBy = []) => ({ sender, readBy });
+  const corpus = { c1: [msg("u2"), msg("u2", ["u1"]), msg("u1")], c2: [msg("u2")] };
+
+  it("server meno i non letti già nel corpus, solo gli scarti positivi", () => {
+    const righe = [
+      { conversation_id: "c1", non_letti: 4 },   // 1 nel corpus → 3 oltre
+      { conversation_id: "c2", non_letti: "1" }, // bigint come stringa; 0 oltre
+      { conversation_id: "c3", non_letti: 2 },   // mai vista nel corpus
+    ];
+    expect(nonLettiOltreCorpus(righe, corpus, "u1")).toEqual({ c1: 3, c3: 2 });
+  });
+
+  it("server in ritardo sul corpus: mai valori negativi", () => {
+    expect(nonLettiOltreCorpus([{ conversation_id: "c1", non_letti: 0 }], corpus, "u1")).toEqual({});
+  });
+
+  it("righe assenti o malformate: nessuno scarto", () => {
+    expect(nonLettiOltreCorpus(null, corpus, "u1")).toEqual({});
+    expect(nonLettiOltreCorpus([{ non_letti: 3 }], corpus, "u1")).toEqual({});
   });
 });

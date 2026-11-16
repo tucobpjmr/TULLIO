@@ -94,7 +94,10 @@ export const ConversationView = ({ conv, messages, commands, storia = /** @type 
   // Scendere in fondo e segnare come letto: la stessa regola vista da due
   // lati, «la conversazione aperta è la conversazione letta».
   const prependManualeRif = useRef(false);
-  useLetturaConversazione({ convId: conv.id, msgs, myId, commands, scrollRif: scrollRef, prependManualeRif });
+  useLetturaConversazione({
+    convId: conv.id, msgs, myId, commands, scrollRif: scrollRef, prependManualeRif,
+    oltre: storia?.nonLettiOltre?.[conv.id] ?? 0,
+  });
 
   // ── Typing indicator realtime (broadcast) ────────────────────────────────
   // Tre effetti, quattro ref e la mappa dei typer stavano qui: sono usciti

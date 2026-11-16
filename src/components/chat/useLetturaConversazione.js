@@ -19,10 +19,12 @@ import { useEffect, useRef } from "react";
  * @param {any} opzioni.commands
  * @param {{current: any}} opzioni.scrollRif
  * @param {{current: boolean}|null} [opzioni.prependManualeRif]
+ * @param {number} [opzioni.oltre] non letti più vecchi del corpus (B-7 del 16
+ *   novembre): anche solo quelli fanno partire il segna-letto.
  * @returns {number} quanti messaggi non letti restano (serve solo qui, ma è
  *   ciò che fa ripartire il mark-as-read: vale la pena vederlo).
  */
-export function useLetturaConversazione({ convId, msgs, myId, commands, scrollRif, prependManualeRif = null }) {
+export function useLetturaConversazione({ convId, msgs, myId, commands, scrollRif, prependManualeRif = null, oltre = 0 }) {
   // A-2 · Se cambia solo il PRIMO messaggio sono arrivati dei precedenti:
   // chiesti a mano (`prependManualeRif`), chi legge resta dov'è; caricati
   // all'apertura, si resta in fondo come per ogni altro cambiamento.
@@ -52,7 +54,7 @@ export function useLetturaConversazione({ convId, msgs, myId, commands, scrollRi
   // a zero e l'effetto si ferma senza reinnescarsi.
   const nonLetti = msgs.filter(m => m.sender !== myId && !m.readBy?.includes(myId)).length;
   useEffect(() => {
-    if (nonLetti === 0) return;
+    if (nonLetti === 0 && oltre === 0) return;
     // ST-10 · Un percorso solo. Qui c'era un ripiego che rifaceva a mano lo
     // stesso aggiornamento di `commands.markConversationRead` per i call site
     // che non passavano il callback ("es. i test"): due implementazioni della
@@ -63,10 +65,11 @@ export function useLetturaConversazione({ convId, msgs, myId, commands, scrollRi
     commands.markConversationRead(convId);
     // `commands` volutamente fuori: è un oggetto del genitore, e includerlo
     // farebbe ripartire il mark-as-read a ogni suo render — cioè una RPC per
-    // messaggio in arrivo. Le tre condizioni che DEVONO farlo ripartire sono
-    // già tutte nelle deps: quale conversazione, quanti non letti, chi sono io.
+    // messaggio in arrivo. Le condizioni che DEVONO farlo ripartire sono già
+    // tutte nelle deps: quale conversazione, quanti non letti (nel corpus e
+    // oltre), chi sono io.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [convId, nonLetti, myId]);
+  }, [convId, nonLetti, oltre, myId]);
 
   return nonLetti;
 }

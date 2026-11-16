@@ -17,7 +17,7 @@ import {
 import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
 
 // ─── CHAT: LIST OF CONVERSATIONS ───────────────────────────────────────────
-export const ConversationList = ({ conversations, messages, onSelect, onNew, onDelete }) => {
+export const ConversationList = ({ conversations, messages, nonLettiOltre = undefined, onSelect, onNew, onDelete }) => {
   const { presenceMap, currentUserId: me } = useChatContext();
   const { getMember } = useAppData();
   // B-6 (audit di architettura del 16 agosto) · L'ageing della presenza vive
@@ -32,7 +32,8 @@ export const ConversationList = ({ conversations, messages, onSelect, onNew, onD
   const [filter, setFilter] = useState("all");
 
   const convName = (c) => getConversationName(c, me, getMember);
-  const unreadOf = (convId) => getUnreadCount(messages, convId, me);
+  // B-7 del 16 novembre · più i non letti oltre il corpus, contati dal server.
+  const unreadOf = (convId) => getUnreadCount(messages, convId, me) + (nonLettiOltre?.[convId] ?? 0);
 
   const sorted = sortConversationsByRecent(conversations, messages);
 

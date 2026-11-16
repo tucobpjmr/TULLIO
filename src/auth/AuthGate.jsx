@@ -34,6 +34,11 @@ const VoyageDesk = lazy(caricaApp);
 // raccontato due volte — una delle quali prima ancora che serva l'app.
 caricaApp().catch(() => {});
 
+// A-2 · La schermata del secondo fattore serve solo all'admin, e solo finché
+// non ha dato il codice: fuori dal chunk d'ingresso, che è anche quello della
+// pagina di login di tutti. Senza prefetch: chi non è admin non la scarica.
+const MfaScreen = lazy(() => import('./MfaScreen.jsx'));
+
 // Splash d'avvio: stesso logo su bianco della splash PWA generata dal manifest
 // (background_color #FFFFFF), così il passaggio dalla schermata di sistema a
 // quella dell'app non stacca. È anche il fallback del `Suspense`: l'attesa del
@@ -50,7 +55,7 @@ const schermataDiAttesa = (
 );
 
 export function AuthGate() {
-  const { session, profile, team, caricando, recovery, authError, refreshTeam, retryInit, signOut } = useAuth();
+  const { session, profile, team, caricando, recovery, authError, mfa, refreshTeam, retryInit, signOut } = useAuth();
 
   if (caricando) return schermataDiAttesa;
 
@@ -84,6 +89,19 @@ export function AuthGate() {
 
   // Gate utenti non approvati: niente accesso all'app finché pending=true.
   if (profile.pending) return <PendingScreen />;
+
+  // A-2 · L'admin senza il secondo fattore: il database gli dà solo la sua
+  // riga, quindi l'app non si monta finché il codice non è verificato. Prima
+  // del controllo sul team, che qui sarebbe di una persona sola.
+  if (mfa) {
+    return (
+      <ErrorBoundary>
+        <Suspense fallback={schermataDiAttesa}>
+          <MfaScreen />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
 
   // B-1 dell'analisi del 4 novembre: con una session valida l'app gira SEMPRE
   // sul database. Un team vuoto qui non deve diventare un'app che sembra

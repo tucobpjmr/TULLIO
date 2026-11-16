@@ -32,6 +32,7 @@ import { entroLimite } from "../_shared/rateLimit.ts";
 import { erroreInterno } from "../_shared/erroreInterno.ts";
 import { registraAudit } from "../_shared/audit.ts";
 import { leggiCorpoJson } from "../_shared/corpoJson.ts";
+import { livelloAal, mfaSoddisfatta } from "../_shared/adminPredicate.ts";
 import { emailAnonima, metadatiAzzerati, verificaPassword } from "./riautenticazione.ts";
 
 Deno.serve(async (req: Request) => {
@@ -62,6 +63,17 @@ Deno.serve(async (req: Request) => {
     );
     const { data: { user }, error: authErr } = await userClient.auth.getUser();
     if (authErr || !user) return json({ error: "Token non valido" }, 401);
+
+    // A-2 dell'analisi del 15 novembre: un admin con la sola password vale,
+    // per il database, come un utente disattivato. Questa funzione gira con
+    // la service_role, quindi senza questo controllo cancellerebbe l'account
+    // che il database tiene chiuso. Un errore di lettura non è un via libera.
+    const { data: profilo, error: profiloErr } = await adminClient
+      .from("users").select("role").eq("id", user.id).maybeSingle();
+    if (profiloErr) return json(erroreInterno("delete-account/profilo", profiloErr), 500);
+    if (!mfaSoddisfatta(profilo?.role, livelloAal(authHeader))) {
+      return json({ error: "Inserisci prima il codice di verifica." }, 403);
+    }
 
     // B-2 dell'audit del 2 settembre. Raggiungibile da QUALUNQUE utente
     // autenticato — non serve essere admin — quindi un tetto per chiamante

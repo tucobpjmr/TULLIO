@@ -63,7 +63,7 @@ Deno.serve(async (req: Request) => {
     // service_role, questo era il buco più grave del progetto — un admin
     // appena disattivato poteva cancellare gli admin che lo avevano
     // disattivato. Vedi _shared/adminPredicate.ts.
-    const esito = await requireActiveAdmin(supabaseAdmin, supabaseUser);
+    const esito = await requireActiveAdmin(supabaseAdmin, supabaseUser, authHeader);
     if (!esito.ok) return json({ error: esito.error }, esito.status);
     const callerId = esito.userId;
 

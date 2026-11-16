@@ -219,6 +219,27 @@ export const txtFlex1F13 = { flex: 1, fontSize: 13, color: "var(--text)" };
 // un suffisso di collisione è una bugia, "Nowrap" è la differenza vera).
 export const txtF11MutedNowrap = { fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" };
 
+// ─── SCHERMATE D'ACCESSO ─────────────────────────────────────────────────────
+// Login, imposta password, secondo fattore (A-2), attesa, errore profilo: le
+// schermate a tutta pagina mostrate prima che l'app monti, su fondo scuro.
+export const cardAccesso = {
+  width: '100%', maxWidth: 380, background: '#0b1220',
+  border: '1px solid #1e293b', borderRadius: 16, padding: 28,
+  boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+};
+export const titoloAccesso = {
+  margin: '0 0 8px', fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700,
+};
+export const etichettaAccesso = { display: 'block', fontSize: 12, marginBottom: 6, opacity: 0.8 };
+export const erroreAccesso = {
+  marginTop: 14, padding: '10px 12px', borderRadius: 8,
+  background: '#3a0d18', color: '#fca5a5', fontSize: 13, border: '1px solid #7f1d1d',
+};
+export const btnPrimarioAccesso = {
+  width: '100%', marginTop: 20, padding: '12px 16px', borderRadius: 10,
+  border: 'none', background: '#2563eb', color: 'white', fontWeight: 600, cursor: 'pointer',
+};
+
 // ─── SPAZIATURE ──────────────────────────────────────────────────────────────
 export const mb14 = { marginBottom: 14 };
 export const mt12 = { marginTop: 12 };

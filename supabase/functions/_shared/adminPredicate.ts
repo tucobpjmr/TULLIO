@@ -90,6 +90,42 @@ export function puoAgireComeAdmin(caller: ProfiloChiamante | null | undefined): 
 }
 
 /**
+ * A-2 dell'analisi del 15 novembre: rispecchia `private.mfa_soddisfatta()`
+ * (migrazione 20261116170000). Un admin passa solo con una sessione `aal2`
+ * (password + codice TOTP); gli altri ruoli non sono toccati.
+ *
+ * Sta accanto a `puoAgireComeAdmin` e non dentro: la usa anche
+ * `delete-account`, che NON è una funzione da admin ma, chiamata da un admin
+ * con la sola password, cancellerebbe l'account che il database tiene chiuso.
+ * Ruolo grezzo, come sopra.
+ */
+export function mfaSoddisfatta(role: string | null | undefined, aal: string | null): boolean {
+  return role !== "admin" || aal === "aal2";
+}
+
+/**
+ * Il livello `aal` dal token del chiamante («Bearer <jwt>»), o null.
+ *
+ * ⛔ Legge il payload SENZA verificare la firma: va chiamata solo DOPO che
+ * `auth.getUser()` ha accettato lo stesso token (lo fa `requireActiveAdmin`,
+ * lo fa `delete-account`). Un token falsificato non arriva fin qui; un token
+ * illeggibile vale null, cioè «niente secondo fattore»: il verdetto
+ * restrittivo.
+ */
+export function livelloAal(authHeader: string | null | undefined): string | null {
+  try {
+    const token = (authHeader ?? "").replace(/^Bearer\s+/i, "");
+    const parte = token.split(".")[1];
+    if (!parte) return null;
+    const b64 = parte.replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), "=")));
+    return typeof payload?.aal === "string" ? payload.aal : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Le colonne da chiedere a `public.users`. Costante e non stringa in linea nei
  * due call site: se un domani il predicato guardasse un quarto campo, una
  * `select` dimenticata lo farebbe arrivare `undefined` — e `undefined` in

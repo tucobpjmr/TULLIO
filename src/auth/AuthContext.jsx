@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { supabaseAuth } from '../lib/supabaseAuth.js';
 import { toDbRole } from '../lib/taskConstants.js';
 import { messaggioCambioPassword } from '../lib/erroriCambioPassword.js';
+import { valutaMfa } from './mfaStato.js';
 
 const AuthContext = createContext(null);
 
@@ -81,6 +82,9 @@ export function AuthProvider({ children }) {
   const [recoveryKind, setRecoveryKind] = useState(INITIAL_AUTH_LINK_TYPE);
   // Errore dell'init: si mostra un retry esplicito invece di uno spinner eterno.
   const [authError, setAuthError] = useState(null);
+  // A-2 · Il passo del secondo fattore che manca all'admin (vedi auth/mfaStato.js),
+  // o null. Finché non è null AuthGate mostra MfaScreen e non monta l'app.
+  const [mfa, setMfa] = useState(null);
   // La funzione di init corrente, per rieseguirla da retryInit.
   const initAuthRef = useRef(null);
   // M-1 · L'utente il cui profilo è già caricato (null: nessuno, o da rileggere).
@@ -95,7 +99,7 @@ export function AuthProvider({ children }) {
     if (inflight && inflight.key === key) return inflight.promise;
 
     const promise = (async () => {
-      if (!userId) { profiloCaricatoRef.current = null; setProfile(null); setTeam([]); setAuthError(null); return; }
+      if (!userId) { profiloCaricatoRef.current = null; setProfile(null); setTeam([]); setMfa(null); setAuthError(null); return; }
       try {
         // B-2 · Import dinamico: è l'unica riga che tocca il client pieno. Chi resta
         // sul login non scarica mai postgrest/realtime/storage.
@@ -129,13 +133,20 @@ export function AuthProvider({ children }) {
           if (!all?.some((u) => u.id === userId)) throw new Error('Team vuoto o incompleto');
           return { me, all, contacts };
         }, 'caricaProfilo');
+        // A-2 · Per l'admin senza codice il database risponde solo con la sua
+        // riga (`users_select_self_o_attivo`): team di uno, niente contatti.
+        // Basta a sapere che manca il codice; il resto si rilegge dopo, quando
+        // MFA_CHALLENGE_VERIFIED rifà questo caricamento.
+        const passoMfa = await withTimeout(valutaMfa(supabaseAuth, me.role), AUTH_TIMEOUT_MS, 'valutaMfa');
         const myContacts = { email: contacts?.email ?? null, phone: contacts?.phone ?? null };
         // photo_url → photoUrl, atteso da Avatar/ProfileEditor.
         const normalize = (u) => ({ ...u, photoUrl: u.photo_url ?? null });
         setProfile({ ...normalize(me), ...myContacts });
         // M-1 · Un invitato in attesa resta fuori: per lui il ritorno sulla
         // scheda deve continuare a rileggere il profilo (l'approvazione).
-        profiloCaricatoRef.current = me.pending ? null : userId;
+        // A-2 · Anche l'admin a metà accesso: il ritorno sulla scheda ricontrolla.
+        profiloCaricatoRef.current = me.pending || passoMfa ? null : userId;
+        setMfa(passoMfa);
         setTeam((all ?? []).map(u => u.id === userId ? { ...normalize(u), ...myContacts } : normalize(u)));
         setAuthError(null);
       } catch (err) {
@@ -347,6 +358,7 @@ export function AuthProvider({ children }) {
     team,
     caricando,
     authError,
+    mfa,
     recovery,
     recoveryKind,
     // Il ruolo passa da toDbRole come ovunque: un ruolo fuori enum non accende
@@ -367,7 +379,7 @@ export function AuthProvider({ children }) {
     refreshTeam,
     retryInit,
   }), [
-    session, profile, team, caricando, authError, recovery, recoveryKind,
+    session, profile, team, caricando, authError, mfa, recovery, recoveryKind,
     signIn, resetPassword, resendConfirmation, updatePassword, annullaRecovery, cambiaPassword, deleteAccount, signOut, signOutOvunque, refreshTeam, retryInit,
   ]);
 

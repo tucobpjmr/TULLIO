@@ -57,7 +57,7 @@ Deno.serve(async (req: Request) => {
     // guardava il solo `role`, quindi un admin disattivato o un admin invitato
     // e mai approvato poteva ancora invitare chiunque: vedi
     // _shared/adminPredicate.ts per il perché delle tre condizioni.
-    const esito = await requireActiveAdmin(supabaseAdmin, supabaseUser);
+    const esito = await requireActiveAdmin(supabaseAdmin, supabaseUser, authHeader);
     if (!esito.ok) return json({ error: esito.error }, esito.status);
     const callerId = esito.userId;
 

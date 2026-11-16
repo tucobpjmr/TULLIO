@@ -280,6 +280,47 @@ Rispecchiano `canEditClient`/`canDeleteClient` in `src/lib/permissions.js`,
 sono in `private` (non raggiungibili da PostgREST) e non compaiono
 nell'elenco dei 14 sopra per lo stesso motivo di `is_admin()`/`can_liste()`.
 
+### Secondo fattore obbligatorio per l'admin (A-2 dell'analisi del 15 novembre 2026, migrazione `20261116170000`)
+
+Un admin la cui sessione **non** è `aal2` (password + codice TOTP) vale per il
+database come un utente disattivato: non legge e non scrive niente, tranne la
+propria riga di `users` (`users_select_self_o_attivo`), che serve all'app per
+sapere che deve chiedere il codice. Gli altri ruoli non cambiano.
+
+La condizione è in un punto solo, `private.mfa_soddisfatta(role)`
+(`role is distinct from 'admin' or auth.jwt()->>'aal' = 'aal2'`), chiamato dai
+**nove** helper: `is_active_user`, `is_admin`, `is_manager_or_admin`,
+`can_clienti_scrittura`, `can_clienti_eliminazione`, `can_liste`,
+`can_view_global_queue`, `can_take_global_queue`, `can_use_task_category`.
+Basta così perché ogni permesso passa da uno di loro: `rls_active_only`,
+`storage_active_only` e le policy di Realtime usano `is_active_user()`;
+`audit_log`, `error_reports` e `users` usano `is_admin()`/`is_active_user()`;
+le tabelle delle Liste `can_liste()`; ogni RPC `SECURITY DEFINER` apre con uno
+di questi gate.
+
+| Livello | Dove sta il controllo |
+|---|---|
+| Database | `private.mfa_soddisfatta()` dentro i nove helper |
+| Edge Function (service_role) | `mfaSoddisfatta` + `livelloAal` in `_shared/adminPredicate.ts`: in `requireActiveAdmin` (invite-user, delete-user, set-user-active) e in `delete-account` |
+| App | `auth/mfaStato.js` decide la schermata; `auth/MfaScreen.jsx` registra il fattore (primo accesso) o chiede il codice |
+
+⛔ **Un helper nuovo che decide un permesso deve chiamare
+`private.mfa_soddisfatta(role)`**, o l'admin con la sola password lo passa.
+⛔ **Una Edge Function nuova con la service_role** passa da
+`requireActiveAdmin(…, authHeader)` o ripete `mfaSoddisfatta`.
+
+**Telefono perso.** Dalla dashboard di Supabase: Authentication → Users →
+l'utente → rimuovere il fattore. Al prossimo accesso l'app ne fa registrare uno
+nuovo. Con un solo admin non c'è altra strada: conviene registrare lo stesso
+QR su due dispositivi (telefono e un secondo telefono o tablet), al primo
+accesso.
+
+**Ordine di rilascio.** Prima l'app (la schermata del codice), poi la
+migrazione, poi le quattro Edge Function. Con la migrazione applicata e l'app
+vecchia l'admin vedrebbe un'app vuota; con l'app nuova la registrazione del
+fattore è un'API di Auth e non passa dalla RLS, quindi funziona anche prima
+della migrazione.
+
 ### Escalation di privilegi bloccata da trigger (📄)
 
 `20260613080033_fix_users_privilege_escalation` — la policy `users_update_self`

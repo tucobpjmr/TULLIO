@@ -100,7 +100,7 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 - **⛔ Mai un `value={{…}}` o `value={[…]}` letterale su un `Context.Provider`** (`VIETATO_CONTEXT_VALUE_LETTERALE`): `useMemo` o costante di modulo.
 
 **Stili**
-- **Stili**: z-index, bottoni e campi da `src/styles/tokens.js`. ⛔ Mai uno `zIndex` numerico inline. ⛔ Mai uno `style={{…}}` di soli valori costanti (`STILE_INLINE_COSTANTE`): va in una `const` di modulo, nel `*Styles.js` accanto o in `styles/common.js` se la forma ricorre in tre o più file (misurato per VALORE: «forme di stile identiche in 3+ file» e «forme già in common.js riscritte altrove», attesi 0). Restano **333 style inline dinamici**.
+- **Stili**: z-index, bottoni e campi da `src/styles/tokens.js`. ⛔ Mai uno `zIndex` numerico inline. ⛔ Mai uno `style={{…}}` di soli valori costanti (`STILE_INLINE_COSTANTE`): va in una `const` di modulo, nel `*Styles.js` accanto o in `styles/common.js` se la forma ricorre in tre o più file (misurato per VALORE: «forme di stile identiche in 3+ file» e «forme già in common.js riscritte altrove», attesi 0). Restano **334 style inline dinamici**.
 - **Stili condivisi**: `src/styles/common.js` si importa **qualificato** — `import * as stiliComuni from "…/styles/common.js"`. ⛔ Mai un import nominato da lì (`VIETATO_COMMON_NOMINATO`).
 - **Nome di una costante di stile = il suo ruolo** (`rigaAllegato`, `avvisoParziale`), non la forma (`rowCenterGap10`): la forma la dice il valore. Le vecchie si rinominano quando si tocca il file, non in massa (M-4 del 14 novembre).
 - **CSS globale**: `src/styles/global.css` (e `components/liste/liste.css`). ⛔ Niente `<style>` in JSX o in `index.html`: la CSP è `style-src 'self'`.
@@ -137,6 +137,7 @@ M-4 dell'analisi del 6 novembre: i commenti erano il 35% delle righe, e questo f
 - Non usare drag&drop su mobile (usare SwipeActions)
 - ⛔ Non lanciare `supabase db push`: la storia delle migrazioni nel repo non coincide con `schema_migrations`. Procedura in `docs/MIGRAZIONI_SUPABASE.md`.
 - Committare una migrazione non significa averla applicata: si verifica a parte (`npm run verifica:rpc`, `npm run verifica:migrazioni`).
+- ⛔ **L'admin entra solo con il secondo fattore (`aal2`).** Un helper nuovo che decide un permesso chiama `private.mfa_soddisfatta(role)`; una Edge Function nuova con la service_role passa da `requireActiveAdmin(…, authHeader)` o ripete `mfaSoddisfatta`. Perché e come: `docs/SICUREZZA.md` § 2 (A-2 del 15 novembre).
 - ⛔ **Non scrivere il gate «utente attivo» dello Storage come elenco di bucket.** `storage_active_only` è `using ((select private.is_active_user()))`, senza elenchi; un bucket da esentare si scrive come disgiunzione affermativa. Misurato da `verifica:convenzioni` (atteso 0). Perché: `docs/SICUREZZA.md` § 2.
 
 ## Palette colori

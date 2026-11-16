@@ -14,6 +14,8 @@ import type { SupabaseClient } from "jsr:@supabase/supabase-js@2.108.0";
 import {
   COLONNE_PROFILO_ADMIN,
   MSG_NON_AUTORIZZATO,
+  livelloAal,
+  mfaSoddisfatta,
   puoAgireComeAdmin,
 } from "./adminPredicate.ts";
 
@@ -33,10 +35,14 @@ export type EsitoAdmin =
  *                    non prova (un access token può essere formalmente valido
  *                    mentre la sessione è già stata revocata — vedi
  *                    isExpiredSessionError in src/lib/api.js).
+ * @param authHeader  lo stesso «Bearer <jwt>» dato ad `anonClient`: da lì si
+ *                    legge `aal` (A-2, vedi `mfaSoddisfatta`), DOPO che
+ *                    `getUser()` lo ha accettato.
  */
 export async function requireActiveAdmin(
   adminClient: SupabaseClient,
   anonClient: SupabaseClient,
+  authHeader: string,
 ): Promise<EsitoAdmin> {
   const { data: { user }, error } = await anonClient.auth.getUser();
   if (error || !user) return { ok: false, status: 401, error: "Token non valido" };
@@ -69,6 +75,14 @@ export async function requireActiveAdmin(
       `[requireActiveAdmin] rifiutato ${user.id}: role=${caller?.role ?? "—"} ` +
       `active=${caller?.active ?? "—"} pending=${caller?.pending ?? "—"}`,
     );
+    return { ok: false, status: 403, error: MSG_NON_AUTORIZZATO };
+  }
+
+  // A-2: un admin con la sola password vale, per il database, come un utente
+  // disattivato. Qui la service_role scavalca il database, quindi lo stesso
+  // controllo va ripetuto. Stesso messaggio unico, motivo vero a log.
+  if (!mfaSoddisfatta(caller?.role, livelloAal(authHeader))) {
+    console.warn(`[requireActiveAdmin] rifiutato ${user.id}: secondo fattore assente (aal1)`);
     return { ok: false, status: 403, error: MSG_NON_AUTORIZZATO };
   }
 

@@ -149,7 +149,12 @@ const SOGLIA_APP_KB = 58;
 // del first load è lo stesso di prima. Il margine era sceso a 0,7 kB; torna a
 // poco più di 1 kB, non ai +6 di partenza.
 // 16 novembre · stessa misura qui sopra: 139,51 → 139,90 kB, margine 0,1 kB. +1 kB.
-const SOGLIA_AUTENTICATO_KB = 141;
+// 16 novembre · A-2 (secondo fattore dell'admin). Stesso albero: main 140,30,
+// ramo 141,38 kB (+1,08). Nell'ingresso +0,93: AuthContext deve sapere SE
+// mostrare la schermata del codice prima di montare l'app (auth/mfaStato.js),
+// più le forme delle schermate d'accesso promosse in styles/common.js. La
+// schermata stessa è lazy e fuori misura (IMPORT_DINAMICI_SENZA_PREFETCH). +1 kB.
+const SOGLIA_AUTENTICATO_KB = 142;
 
 const kb = (bytes) => bytes / 1000;
 
@@ -161,16 +166,33 @@ const kb = (bytes) => bytes / 1000;
 // livello di profondità è voluto: è ciò che il prefetch avvia davvero, non la
 // chiusura transitiva dei nove `lazy()` interni all'app (che è esattamente il
 // costo che quei lazy esistono per NON far pagare).
+//
+// A-2 (analisi del 15 novembre) · L'eccezione, una sola e per nome. La
+// schermata del secondo fattore è un `import()` dell'entry SENZA prefetch:
+// la scarica solo l'admin che non ha ancora dato il codice, una volta per
+// accesso, e nessun altro mai. Contarla qui la farebbe pagare a ogni sessione
+// in una misura che dice «ogni sessione». ⛔ Un nome qui deve restare senza
+// prefetch in AuthGate; un nome che non è più un import dinamico dell'entry
+// fa fallire lo script (elenco scaduto, non un'eccezione silenziosa).
+const IMPORT_DINAMICI_SENZA_PREFETCH = ['src/auth/MfaScreen.jsx'];
+
 function primoCaricamento(manifest) {
   const entry = Object.values(manifest).find((e) => e.isEntry);
   if (!entry) {
     console.error('verifica:bundle: nessuna entry nel manifest — build cambiata?');
     process.exit(1);
   }
+  for (const k of IMPORT_DINAMICI_SENZA_PREFETCH) {
+    if (!(entry.dynamicImports || []).includes(k)) {
+      console.error(`verifica:bundle: ${k} è in IMPORT_DINAMICI_SENZA_PREFETCH ma non è un import dinamico dell'entry. Toglilo dall'elenco.`);
+      process.exit(1);
+    }
+  }
   const anonimo = new Set([entry.file]);
   for (const k of entry.imports || []) anonimo.add(manifest[k].file);
   const app = new Set();
   for (const k of entry.dynamicImports || []) {
+    if (IMPORT_DINAMICI_SENZA_PREFETCH.includes(k)) continue;
     app.add(manifest[k].file);
     // Ciò che il chunk dell'app tira dentro staticamente e che non è già nel
     // first load anonimo: si conta una volta sola.

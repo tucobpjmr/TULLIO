@@ -40,6 +40,8 @@ import { join } from "node:path";
 import {
   puoAgireComeAdmin,
   COLONNE_PROFILO_ADMIN,
+  livelloAal,
+  mfaSoddisfatta,
 } from "../../../supabase/functions/_shared/adminPredicate.ts";
 
 // set-user-active (12 agosto, suggerimento strategico n. 3): banna/sbanna la
@@ -132,6 +134,41 @@ describe("puoAgireComeAdmin — rispecchia public.is_admin()", () => {
   });
 });
 
+// ─── (1b) IL SECONDO FATTORE (A-2, analisi del 15 novembre) ────────────────
+
+// Un JWT con il solo payload che conta: la firma qui non serve, la verifica
+// la fa getUser() prima che livelloAal venga chiamata.
+const b64url = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+const bearer = (payload) => `Bearer h.${b64url(payload)}.firma`;
+
+describe("mfaSoddisfatta — rispecchia private.mfa_soddisfatta()", () => {
+  it("l'admin passa solo con aal2", () => {
+    expect(mfaSoddisfatta("admin", "aal2")).toBe(true);
+    expect(mfaSoddisfatta("admin", "aal1")).toBe(false);
+    expect(mfaSoddisfatta("admin", null)).toBe(false);
+  });
+
+  it("gli altri ruoli non sono toccati, anche senza aal", () => {
+    for (const role of ["manager", "agent", "driver", null, undefined]) {
+      expect(mfaSoddisfatta(role, "aal1"), String(role)).toBe(true);
+    }
+  });
+});
+
+describe("livelloAal — legge aal dal token già verificato", () => {
+  it("estrae aal1 e aal2", () => {
+    expect(livelloAal(bearer({ sub: "x", aal: "aal1" }))).toBe("aal1");
+    expect(livelloAal(bearer({ sub: "x", aal: "aal2" }))).toBe("aal2");
+  });
+
+  it("un token illeggibile o senza aal vale null: il verdetto restrittivo", () => {
+    for (const h of [null, undefined, "", "Bearer", "Bearer abc", "Bearer a.%%%.c", bearer({ sub: "x" })]) {
+      expect(livelloAal(h), String(h)).toBeNull();
+    }
+    expect(mfaSoddisfatta("admin", livelloAal("Bearer a.b.c"))).toBe(false);
+  });
+});
+
 // ─── (2) IL CABLAGGIO ──────────────────────────────────────────────────────
 
 describe("Edge Function privilegiate — il gate è cablato, non solo disponibile", () => {
@@ -139,6 +176,16 @@ describe("Edge Function privilegiate — il gate è cablato, non solo disponibil
     const src = senzaCommenti(sorgente(nome));
     expect(src).toMatch(/import\s*\{\s*requireActiveAdmin\s*\}\s*from\s*["']\.\.\/_shared\/requireActiveAdmin\.ts["']/);
     expect(src).toMatch(/await\s+requireActiveAdmin\s*\(/);
+    // A-2: senza il token il gate non può leggere `aal`.
+    expect(src).toMatch(/requireActiveAdmin\s*\(\s*\w+\s*,\s*\w+\s*,\s*authHeader\s*\)/);
+  });
+
+  it("requireActiveAdmin e delete-account controllano il secondo fattore (A-2)", () => {
+    const gate = senzaCommenti(readFileSync(
+      join(process.cwd(), "supabase", "functions", "_shared", "requireActiveAdmin.ts"), "utf8"));
+    expect(gate).toMatch(/mfaSoddisfatta\s*\(\s*caller\?\.role\s*,\s*livelloAal\s*\(\s*authHeader\s*\)\s*\)/);
+    const del = senzaCommenti(sorgente("delete-account"));
+    expect(del).toMatch(/mfaSoddisfatta\s*\(\s*profilo\?\.role\s*,\s*livelloAal\s*\(\s*authHeader\s*\)\s*\)/);
   });
 
   it.each(FUNZIONI_PRIVILEGIATE)(

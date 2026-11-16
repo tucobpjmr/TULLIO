@@ -11,9 +11,7 @@ const boxTxtCenterP32 = {
   border: '1px solid #1e293b', borderRadius: 16, padding: 32,
   boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
 };
-const txtF24Bold = {
-  margin: '0 0 8px', fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700,
-};
+const txtF24Bold = stiliComuni.titoloAccesso;
 const txtF14Op075 = { margin: '0 0 20px', fontSize: 14, opacity: 0.75, lineHeight: 1.5 };
 const boxF13Bold = {
   padding: '10px 18px', borderRadius: 10, border: '1px solid #334155',

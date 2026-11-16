@@ -52,6 +52,17 @@ vi.mock("../../lib/supabaseAuth.js", () => {
     signOut: vi.fn(async () => ({ error: null })),
     // A-3 dell'analisi del 6 novembre: cambiaPassword e updatePassword.
     updateUser: vi.fn(async () => ({ data: { user: { id: "u1" } }, error: null })),
+    // A-2 dell'analisi del 15 novembre: ME è admin, quindi caricaProfilo
+    // chiede il livello della sessione. Di default è già aal2 (codice dato).
+    mfa: {
+      getAuthenticatorAssuranceLevel: vi.fn(async () => ({
+        data: { currentLevel: state.aal ?? "aal2" }, error: null,
+      })),
+      listFactors: vi.fn(async () => ({
+        data: { all: state.fattori ?? [], totp: (state.fattori ?? []).filter((f) => f.status === "verified") },
+        error: null,
+      })),
+    },
   };
   return { supabaseAuth, default: supabaseAuth, __authState: state };
 });
@@ -422,6 +433,49 @@ describe("AuthContext — B-1, un team senza chi ha fatto login non monta l'app"
     await waitFor(() => expect(result.current.profile?.id).toBe("u1"));
     expect(result.current.authError).toBeNull();
     expect(result.current.team.map((u) => u.id)).toEqual(["u1"]);
+  });
+});
+
+// ─── A-2 dell'analisi del 15 novembre · l'admin senza codice ───────────────
+describe("AuthContext — A-2, l'admin senza secondo fattore resta alla schermata del codice", () => {
+  beforeEach(async () => {
+    const { __authState } = await import("../../lib/supabaseAuth.js");
+    __authState.session = SESSION;
+  });
+
+  const conStato = async (aal, fattori) => {
+    const { __authState } = await import("../../lib/supabaseAuth.js");
+    __authState.aal = aal;
+    __authState.fattori = fattori;
+    try {
+      const { result } = renderHook(() => useAuth(), {
+        wrapper: ({ children }) => <AuthProvider>{children}</AuthProvider>,
+      });
+      await waitFor(() => expect(result.current.profile?.id).toBe("u1"));
+      return result.current;
+    } finally {
+      __authState.aal = undefined;
+      __authState.fattori = undefined;
+    }
+  };
+
+  it("aal1 senza fattori → registra", async () => {
+    const ctx = await conStato("aal1", []);
+    expect(ctx.mfa).toEqual({ fase: "registra" });
+    expect(ctx.authError).toBeNull();
+  });
+
+  it("aal1 con un fattore verificato → verifica, con il suo id", async () => {
+    const ctx = await conStato("aal1", [
+      { id: "f-mezzo", factor_type: "totp", status: "unverified" },
+      { id: "f1", factor_type: "totp", status: "verified" },
+    ]);
+    expect(ctx.mfa).toEqual({ fase: "verifica", factorId: "f1" });
+  });
+
+  it("controllo positivo: aal2 → nessun passo", async () => {
+    const ctx = await conStato("aal2", [{ id: "f1", factor_type: "totp", status: "verified" }]);
+    expect(ctx.mfa).toBeNull();
   });
 });
 

@@ -58,7 +58,7 @@ Deno.serve(async (req: Request) => {
     // almeno quanto quelle due, e gira con la stessa service_role che scavalca
     // integralmente la RLS — il controllo qui dentro non è difesa in
     // profondità, è l'unica difesa.
-    const esito = await requireActiveAdmin(supabaseAdmin, supabaseUser);
+    const esito = await requireActiveAdmin(supabaseAdmin, supabaseUser, authHeader);
     if (!esito.ok) return json({ error: esito.error }, esito.status);
     const callerId = esito.userId;
 

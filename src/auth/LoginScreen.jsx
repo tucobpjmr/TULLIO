@@ -3,6 +3,7 @@ import React, { useId, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { PasswordField } from '../components/ui/PasswordField.jsx';
 import { REQUISITI_PASSWORD_TESTO } from '../lib/validators.js';
+import * as stiliComuni from '../styles/common.js';
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -208,33 +209,23 @@ const wrapStyle = {
   padding: 'calc(24px + var(--safe-top)) calc(24px + var(--safe-right)) calc(24px + var(--safe-bottom)) calc(24px + var(--safe-left))',
   fontFamily: '"DM Sans",system-ui,sans-serif', color: '#e2e8f0',
 };
-const cardStyle = {
-  width: '100%', maxWidth: 380, background: '#0b1220',
-  border: '1px solid #1e293b', borderRadius: 16, padding: 28,
-  boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-};
+const cardStyle = stiliComuni.cardAccesso;
 const titleStyle = {
   margin: '0 0 4px', fontFamily: '"Playfair Display",serif',
   fontSize: 28, fontWeight: 700,
 };
-const labelStyle = { display: 'block', fontSize: 12, marginBottom: 6, opacity: 0.8 };
+const labelStyle = stiliComuni.etichettaAccesso;
 const inputStyle = {
   width: '100%', padding: '11px 12px', borderRadius: 10,
   border: '1px solid #334155', background: '#0f172a', color: '#e2e8f0',
   fontSize: 14, outline: 'none', boxSizing: 'border-box',
 };
-const errStyle = {
-  marginTop: 14, padding: '10px 12px', borderRadius: 8,
-  background: '#3a0d18', color: '#fca5a5', fontSize: 13, border: '1px solid #7f1d1d',
-};
+const errStyle = stiliComuni.erroreAccesso;
 const infoStyle = {
   marginTop: 14, padding: '10px 12px', borderRadius: 8,
   background: '#0c2030', color: '#7dd3fc', fontSize: 13, border: '1px solid #155e75',
 };
-const primaryBtn = {
-  width: '100%', marginTop: 20, padding: '12px 16px', borderRadius: 10,
-  border: 'none', background: '#2563eb', color: 'white', fontWeight: 600, cursor: 'pointer',
-};
+const primaryBtn = stiliComuni.btnPrimarioAccesso;
 const linksStyle = {
   marginTop: 18, display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap',
 };

@@ -72,6 +72,22 @@ const FUNZIONI_SECURITY_DEFINER_VERIFICATE = new Set([
   'send_test_push',
   'get_vapid_public_key',
   'get_migrazioni_applicate',
+  // ─── Modulo Liste, A-1 del 15 novembre (migrazione 20261116120000) ───────
+  // Gate `private.can_liste()` in testa al corpo; il resto è identico alla
+  // versione invoker che sostituiscono. Definer perché le tabelle non sono
+  // più scrivibili da `authenticated`: è la ragione del cambio, non un
+  // effetto collaterale.
+  'crea_lista',
+  'modifica_lista',
+  'aggiungi_beneficiario_lista',
+  'cambia_stato_lista',
+  'archivia_lista',
+  'ripristina_lista',
+  'modifica_note_lista',
+  'registra_movimento_lista',
+  'registra_movimenti_lista',
+  'modifica_movimento_lista',
+  'annulla_movimento_lista',
   // ─── Registro di audit (A-2 del 26 agosto), esaminate il 27 ──────────────
   // ⛔ `registra_audit` ERA QUI ed è stata TOLTA — A-2 dell'audit del 4
   // settembre, migrazione 20260904143756.

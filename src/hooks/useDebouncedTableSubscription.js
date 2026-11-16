@@ -54,6 +54,7 @@ const unisciTabelle = (a, b) => (a === null || b === null ? null : new Set([...a
 //   proprio flag di caricamento da sé.
 // senzaCanale (B-1): idratazione e ripresa senza canale permanente.
 // filterEvent(payload) → false scarta l'evento prima del debounce.
+// filtro (B-6): filtro lato server del canale (`task_id=eq.<id>`); va anche in `deps`.
 /**
  * @param {string|string[]} tables
  * @param {(isCurrent: () => boolean, tabelle: Set<string>|null) => (void|Promise<void>)} reload
@@ -65,13 +66,14 @@ const unisciTabelle = (a, b) => (a === null || b === null ? null : new Set([...a
  * @param {(tabella: string, payload: object) => boolean} [opts.applyRow]
  * @param {boolean} [opts.saltaPrimoCaricamento]
  * @param {boolean} [opts.senzaCanale]
+ * @param {string} [opts.filtro]
  */
 export function useDebouncedTableSubscription(
   tables,
   reload,
   {
     enabled = true, delay = 200, deps = [], filterEvent, applyRow,
-    saltaPrimoCaricamento = false, senzaCanale = false,
+    saltaPrimoCaricamento = false, senzaCanale = false, filtro,
   } = {}
 ) {
   // In ref: l'effetto non si risottoscrive a ogni render ma vede i valori
@@ -193,7 +195,7 @@ export function useDebouncedTableSubscription(
           return;
         }
         eraDegradato = true;
-      });
+      }, { filtro });
     });
 
     // `null` = mai in secondo piano da quando l'effetto è partito.

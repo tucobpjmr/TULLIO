@@ -31,6 +31,13 @@ export const PAGE_SIZE = 1000;
 // gestione.
 export const WITH_COUNT = { count: 'exact' };
 
+// B-1 del 15 novembre · Le pagine si SOVRAPPONGONO di `SOVRAPPOSIZIONE` righe,
+// e il risultato si deduplica per `id`. A offset, una riga inserita o
+// cancellata durante la lettura sposta le pagine successive: un INSERT ripete
+// una riga, una DELETE ne fa saltare una. La sovrapposizione copre fino a
+// tante cancellazioni concorrenti; i doppioni li toglie la deduplica.
+export const SOVRAPPOSIZIONE = 50;
+
 /**
  * Scarica TUTTE le righe di una query, paginando con `.range()`.
  *
@@ -44,17 +51,22 @@ export const WITH_COUNT = { count: 'exact' };
  * @returns {Promise<{ data: object[]|null, error: object|null }>}
  */
 export const fetchAllRows = async (buildQuery) => {
-  const rows = [];
+  // Per id, in ordine di primo arrivo; una riga ripetuta prende il valore più recente.
+  const perId = new Map();
+  let senzaId = 0;
+  let offset = 0;
   for (;;) {
-    const { data, count, error } = await buildQuery()
-      .range(rows.length, rows.length + PAGE_SIZE - 1);
+    const { data, count, error } = await buildQuery().range(offset, offset + PAGE_SIZE - 1);
     if (error) return { data: null, error };
     const page = data || [];
-    rows.push(...page);
+    for (const r of page) perId.set(r?.id ?? `\u0000${senzaId++}`, r);
+    const fine = offset + page.length;
     // Pagina vuota: il database ha finito le righe (vale anche come rete di
     // sicurezza se `count` non arrivasse, così il ciclo non è infinito).
-    if (page.length === 0) return { data: rows, error: null };
-    if (typeof count === 'number' && rows.length >= count) return { data: rows, error: null };
+    if (page.length === 0 || (typeof count === 'number' && fine >= count)) {
+      return { data: [...perId.values()], error: null };
+    }
+    offset = page.length > SOVRAPPOSIZIONE ? fine - SOVRAPPOSIZIONE : fine;
   }
 };
 

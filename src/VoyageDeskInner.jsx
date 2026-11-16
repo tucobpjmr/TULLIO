@@ -167,8 +167,9 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
 
   const notif = useNotifications({ enabled: useSupabase, onError: showError });
 
+  // B-5 del 15 novembre · il team vivo: nomi, foto e nuovi membri seguono il realtime.
   const { presenceMap, myBusy, toggleMyBusy } = usePresence({
-    enabled: useSupabase, userId: initialCurrentUserId, team: initialTeam,
+    enabled: useSupabase, userId: initialCurrentUserId, team: state.team,
   });
 
   // Navigazione da notifica → TaskSlideOver. Task non più raggiungibile: si

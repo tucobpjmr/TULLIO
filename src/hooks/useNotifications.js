@@ -163,7 +163,33 @@ export function useNotifications({ enabled, onError }) {
       const nonLetteVisibili = fuse.filter(n => !n.read).length;
       setNonLetteOltreFinestra(Math.max(0, (conteggio.count ?? 0) - nonLetteVisibili));
     }
-  }, { enabled, deps: [enabled] });
+  }, {
+    enabled, deps: [enabled],
+    // B-2 del 15 novembre · La riga di `notifications` è piatta (`select('*')`):
+    // si applica senza le due query del reload. Solo un evento su una riga
+    // FUORI dalla finestra ricade sul reload, perché cambia il conteggio.
+    applyRow: (_tbl, payload) => {
+      const tipo = payload?.eventType;
+      const id = (tipo === "DELETE" ? payload.old : payload.new)?.id;
+      if (!id) return false;
+      // Scrittura nostra in volo su questa riga: vince il locale.
+      if (inVoloRef.current.has(id)) return true;
+      const visibile = vive.current.some(n => n.id === id);
+      if (tipo === "INSERT" && !visibile) {
+        const nuova = /** @type {Notifica} */ (fromDbNotification(payload.new));
+        setNotifications(prev => (prev.some(n => n.id === id) ? prev : [nuova, ...prev]));
+        return true;
+      }
+      if (!visibile) return false;
+      if (tipo === "DELETE") {
+        setNotifications(prev => prev.filter(n => n.id !== id));
+        return true;
+      }
+      const riga = /** @type {Notifica} */ (fromDbNotification(payload.new));
+      setNotifications(prev => prev.map(n => (n.id === id ? riga : n)));
+      return true;
+    },
+  });
 
   const markRead = useCallback((id) => {
     if (!enabled) return;

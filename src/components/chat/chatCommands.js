@@ -41,6 +41,7 @@ const msgErrore = (e) => (e instanceof Error ? e.message : "");
  * @param {(convId: string) => void} [opts.onConversationRead]
  * @param {(convId: string, msg: object) => void} [opts.marcaInVolo]
  * @param {(msgId: string) => void} [opts.smarcaInVolo]
+ * @param {() => object[]} [opts.leggiConversazioni]  l'elenco vivo, per i rollback.
  */
 export function makeChatCommands({
   setConversations = noop,
@@ -53,6 +54,7 @@ export function makeChatCommands({
   // A-2 · Il registro delle scritture in volo di useChatData. No-op di default.
   marcaInVolo = noop,
   smarcaInVolo = noop,
+  leggiConversazioni = () => [],
 } = {}) {
   // convId → Promise dell'INSERT conversazione in volo: il primo messaggio
   // aspetta, o la RLS lo rifiuta perché la conversazione non esiste ancora.
@@ -95,6 +97,9 @@ export function makeChatCommands({
         const errore = esitoScrittura(r);
         if (errore) {
           fallito("conv.create", errore, `Chat: creazione conversazione fallita: ${msgErrore(errore)}`);
+          // B-7 del 15 novembre · la conversazione non esiste sul server: via
+          // dall'elenco, o resterebbe a schermo fino al prossimo reload.
+          setConversations(prev => prev.filter(c => c.id !== normalized.id));
           // Esito normalizzato: un rifiuto silenzioso della RLS non deve far partire il
           // primo messaggio verso una conversazione inesistente.
           return { ...r, error: errore };
@@ -108,6 +113,7 @@ export function makeChatCommands({
 
   // Riceve la conversazione COMPLETA: l'UPDATE scrive tutti i campi modificabili.
   const updateConversation = (conv) => {
+    const prima = leggiConversazioni().find(c => c.id === conv.id);
     setConversations(prev => prev.map(c => (c.id === conv.id ? conv : c)));
     if (!enabled || !isUuid(conv.id)) return;
     ConversationsAPI.update(conv.id, {
@@ -118,6 +124,9 @@ export function makeChatCommands({
       const errore = esitoScrittura(r);
       if (errore) {
         fallito("conv.update", errore, `Chat: aggiornamento conversazione fallito: ${msgErrore(errore)}`);
+        // B-7 · Torna la versione di prima, ma solo se a schermo c'è ancora la
+        // nostra: una versione più nuova arrivata dal realtime vince.
+        if (prima) setConversations(prev => prev.map(c => (c === conv ? prima : c)));
       }
     });
   };

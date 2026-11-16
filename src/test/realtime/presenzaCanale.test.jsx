@@ -219,6 +219,22 @@ describe("M-1 · un team nuovo con lo stesso utente non riavvia la presenza", ()
     await waitFor(() => expect(result.current.presenceMap.u3?.name).toBe("Luca"));
   });
 
+  // B-5 del 15 novembre · un nome cambiato arriva, lo stato dal canale resta.
+  it("un membro rinominato si aggiorna senza perdere lo stato del canale", async () => {
+    const { result, rerender } = renderHook(
+      ({ team }) => usePresence({ enabled: true, userId: "u1", team }),
+      { initialProps: { team: TEAM } },
+    );
+    await waitFor(() => expect(ultimoOnSync).toBeTruthy());
+    act(() => { ultimoOnSync({ u2: [{ status: "busy", at: Date.now() }] }); });
+    await waitFor(() => expect(result.current.presenceMap.u2?.status).toBe("busy"));
+
+    rerender({ team: TEAM.map((u) => (u.id === "u2" ? { ...u, name: "Sofia R." } : u)) });
+
+    await waitFor(() => expect(result.current.presenceMap.u2?.name).toBe("Sofia R."));
+    expect(result.current.presenceMap.u2.status).toBe("busy");
+  });
+
   it("controllo positivo: un utente diverso riavvia il canale", async () => {
     const { rerender } = renderHook(
       ({ userId }) => usePresence({ enabled: true, userId, team: TEAM }),

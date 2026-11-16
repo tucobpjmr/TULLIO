@@ -117,6 +117,24 @@ describe("A-1 — reload dei commenti ristretto ai task dell'evento", () => {
     expect(TaskThreadsAPI.comments).not.toHaveBeenCalled();
   });
 
+  // B-3 del 15 novembre · un giro superato da uno più recente non perde gli id:
+  // il nuovo li chiede di nuovo invece di ricadere sul corpus.
+  it("un giro superato lascia gli id al successivo, senza corpus", async () => {
+    montaHydration();
+    await waitFor(() => expect(TasksAPI.list).toHaveBeenCalledTimes(1));
+    vi.clearAllMocks();
+    let consegna;
+    TaskThreadsAPI.commentsForTasks.mockImplementationOnce(
+      () => new Promise((r) => { consegna = r; }));
+
+    await act(async () => { emetti("comments", conTaskId("t1")); await new Promise(r => setTimeout(r, 250)); });
+    await act(async () => { emetti("comments", conTaskId("t2")); await new Promise(r => setTimeout(r, 250)); });
+    await act(async () => { consegna({ data: [], error: null }); });
+
+    expect(TaskThreadsAPI.commentsForTasks.mock.calls[1][0].sort()).toEqual(["t1", "t2"]);
+    expect(TaskThreadsAPI.comments).not.toHaveBeenCalled();
+  });
+
   it("dispatcha MERGE_TASK_COMMENTS, non SET_TASK_THREADS", async () => {
     const { dispatch } = montaHydration();
     await waitFor(() => expect(TasksAPI.list).toHaveBeenCalledTimes(1));

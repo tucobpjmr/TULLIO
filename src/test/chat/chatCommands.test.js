@@ -414,3 +414,50 @@ describe("chatCommands — sendMessage: la promise RIGETTATA compensa come quell
     expect(onError).toHaveBeenCalledTimes(1);
   });
 });
+
+// ─── B-7 del 15 novembre · conversazioni: compensazione su errore ──────────
+describe("chatCommands — rollback di creazione e modifica conversazione", () => {
+  const conStato = (iniziali = []) => {
+    const stato = { conv: iniziali, msg: {} };
+    const commands = makeChatCommands({
+      setConversations: (u) => { stato.conv = typeof u === "function" ? u(stato.conv) : u; },
+      setMessages: (u) => { stato.msg = typeof u === "function" ? u(stato.msg) : u; },
+      enabled: true,
+      onError: vi.fn(),
+      leggiConversazioni: () => stato.conv,
+    });
+    return { stato, commands };
+  };
+
+  it("una creazione rifiutata toglie la conversazione dall'elenco", async () => {
+    ConversationsAPI.create.mockImplementationOnce(async () => ({ error: { message: "RLS" } }));
+    const { stato, commands } = conStato();
+    commands.createConversation({ id: UUID_CONV, type: "direct", participants: ["a", "b"] });
+    expect(stato.conv).toHaveLength(1);
+    await new Promise(r => setTimeout(r, 0));
+    expect(stato.conv).toHaveLength(0);
+  });
+
+  it("una modifica rifiutata rimette la versione di prima", async () => {
+    ConversationsAPI.update.mockImplementationOnce(async () => ({ error: { message: "RLS" } }));
+    const prima = { id: UUID_CONV, name: "Vecchio", pinned: false };
+    const { stato, commands } = conStato([prima]);
+    commands.updateConversation({ ...prima, name: "Nuovo" });
+    expect(stato.conv[0].name).toBe("Nuovo");
+    await new Promise(r => setTimeout(r, 0));
+    expect(stato.conv[0]).toBe(prima);
+  });
+
+  it("non rimette la versione di prima sopra una più nuova arrivata nel frattempo", async () => {
+    let rispondi;
+    ConversationsAPI.update.mockImplementationOnce(() => new Promise(r => { rispondi = r; }));
+    const prima = { id: UUID_CONV, name: "Vecchio" };
+    const { stato, commands } = conStato([prima]);
+    commands.updateConversation({ ...prima, name: "Nuovo" });
+    const dalRealtime = { id: UUID_CONV, name: "Del collega" };
+    stato.conv = [dalRealtime];
+    rispondi({ error: { message: "RLS" } });
+    await new Promise(r => setTimeout(r, 0));
+    expect(stato.conv[0]).toBe(dalRealtime);
+  });
+});

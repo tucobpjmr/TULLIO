@@ -231,10 +231,11 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     const soloThread = tabelle !== null && tabelle.size > 0 && !tabelle.has("tasks");
 
     if (soloThread) {
-      // Presi e azzerati PRIMA dell'await: un evento che arriva durante la query
-      // appartiene al giro successivo.
+      // B-3 del 15 novembre · Gli id si tolgono dal set solo a lettura
+      // CONSEGNATA: un giro superato o fallito li lascia al successivo, che
+      // altrimenti ricadeva sul corpus di tutti i commenti. Un evento arrivato
+      // durante la query resta nel set: non è fra quelli letti.
       const ids = [...taskConCommentiNuovi.current];
-      taskConCommentiNuovi.current = new Set();
       // Nessun id leggibile: si ricade sul corpus. È ciò che rende il ramo
       // fail-safe (si scarica troppo, mai un thread vuoto).
       const rCommenti = ids.length
@@ -242,13 +243,11 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
         : await TaskThreadsAPI.comments();
       if (!isCurrent()) return;
       if (rCommenti?.error) {
-        // B-3 · Gli id tornano nel set: il giro dopo li rilegge, invece di
-        // lasciare quei thread vecchi fino al prossimo reload completo.
-        for (const id of ids) taskConCommentiNuovi.current.add(id);
         console.error("[VoyageDesk] TaskThreads", rCommenti.error);
         onError(`Caricamento commenti fallito: ${rCommenti.error.message || ""}`);
         return;
       }
+      for (const id of ids) taskConCommentiNuovi.current.delete(id);
       const perTask = perTaskId(rCommenti.data, fromDbComment);
       dispatch(ids.length
         ? { type: "MERGE_TASK_COMMENTS", payload: { taskIds: ids, comments: perTask } }
@@ -261,6 +260,9 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     const completo = storicoCompleto.current;
     // M-3 · Generazione condivisa con `caricaStorico`: entrambi scrivono SET_TASKS.
     const turno = prendiTurno(genTask.current);
+    // B-3 · Il reload completo porta anche i commenti: gli id raccolti fin qui
+    // sono coperti, e a reload consegnato si tolgono dal set.
+    const coperti = [...taskConCommentiNuovi.current];
     const { data, error } = await TasksAPI.list({
       withComments: true,
       includeDeleted: completo,
@@ -285,6 +287,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     }
     if (!vinceIlTurno(genTask.current, turno)) return;
     dispatch({ type: "SET_TASKS", payload: (data || []).map(fromDbTask) });
+    for (const id of coperti) taskConCommentiNuovi.current.delete(id);
     segnaEsito("tasks", null);
     segnaCaricata("tasks");
     if (completo) chiudiAttesaStorico();

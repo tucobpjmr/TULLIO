@@ -15,6 +15,7 @@ import { registraAudit } from "../_shared/audit.ts";
 import { entroLimite } from "../_shared/rateLimit.ts";
 import { erroreInterno } from "../_shared/erroreInterno.ts";
 import { leggiCorpoJson, MSG_CORPO_NON_VALIDO, testo } from "../_shared/corpoJson.ts";
+import { eUltimoAdminAttivo, MSG_ULTIMO_ADMIN } from "../_shared/ultimoAdmin.ts";
 
 Deno.serve(async (req: Request) => {
   const cors = corsHeaders(req);
@@ -85,6 +86,13 @@ Deno.serve(async (req: Request) => {
     if (targetId === callerId) {
       return json({ error: "Non puoi eliminare il tuo account da qui: usa Elimina account dal profilo" }, 400);
     }
+
+    // B-3 del 16 novembre: l'ultimo admin attivo non si elimina. Con il
+    // chiamante admin attivo e diverso dal bersaglio oggi non scatta: resta
+    // perché la regola non dipenda da come è scritto il gate qui sopra.
+    const ultimo = await eUltimoAdminAttivo(supabaseAdmin, targetId);
+    if (!ultimo.ok) return json(erroreInterno("delete-user/ultimo-admin", ultimo.errore), 500);
+    if (ultimo.ultimo) return json({ error: MSG_ULTIMO_ADMIN }, 409);
 
     // Hard-delete da auth.users. La FK CASCADE rimuove la riga public.users;
     // user_contacts ha la stessa FK su public.users(id) → ripulita a sua volta.

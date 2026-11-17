@@ -432,8 +432,33 @@ Due regole che è facile leggere male:
   con il proprio token modificava qualunque task non assegnato. Dalla
   migrazione `20261106170100` l'UPDATE passa da
   `private.can_take_global_queue()` (admin, manager, agent senior); lettura e
-  commenti restano su `can_view_global_queue()`. Seguito aperto: allegati
-  (`task_files_insert/_delete` e storage).
+  commenti restano su `can_view_global_queue()`. Dal 17 novembre (M-2 del 16
+  novembre, migrazione `20261117111329`) anche la SCRITTURA degli allegati
+  (`task_files_insert/_delete`, `task_files_storage_insert/_delete`) passa da
+  `can_take_global_queue()`, e `task_files_insert` vuole `uploaded_by` NULL o
+  il chiamante. La lettura resta su `can_view_global_queue()`.
+- **Una chat diretta non cambia partecipanti né tipo** (M-1 del 16 novembre,
+  migrazione `20261117111322`). `conversations_update` chiede solo che chi
+  scrive resti partecipante: lo rifiuta il trigger
+  `trg_conversations_guard_participants` (admin escluso). ⚠️ Nei GRUPPI ogni
+  membro aggiunge e toglie chiunque: scelta presa il 17 novembre.
+- **Un commento non cambia task, autore né data** (M-3 del 16 novembre,
+  migrazione `20261117111335`, trigger `trg_comments_campi_immutabili`).
+  `comments_update_own` guarda solo `user_id`: cambiando `task_id` si scriveva
+  in un task non visibile. Casi di questi tre punti in
+  `src/test/integration/rlsChatAllegatiCommenti.test.js`.
+- **Edge Function: tre guardie** (B-1, B-2, B-3 del 16 novembre, test in
+  `src/test/edge/edgeFunctionGuardie.test.js`):
+  - `send-push` invia solo a endpoint https di FCM, Mozilla, Apple e Windows
+    (`send-push/endpointAmmesso.ts`); il vincolo
+    `push_subscriptions_endpoint_https` rifiuta in scrittura ciò che non è
+    https.
+  - in `delete-account` un guasto del rate limit risponde 429: lì il limite è
+    il freno ai tentativi di password (`entroLimite(…, { bloccaSeGuasto: true })`).
+  - `delete-account` e `delete-user` rispondono 409 se il bersaglio è l'ultimo
+    admin attivo (`_shared/ultimoAdmin.ts`). ⚠️ Rischio residuo accettato: è un
+    conteggio, non un lock — due admin che si eliminano a vicenda nello stesso
+    istante passano entrambi.
 - **`created_by` e `created_at` di un task non si modificano** (A-1 dello
   stesso giorno, migrazione `20261106170000`). Prima il WITH CHECK
   `created_by = auth.uid()` lasciava a un assegnatario la possibilità di farsi

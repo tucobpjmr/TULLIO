@@ -33,6 +33,7 @@ import { erroreInterno } from "../_shared/erroreInterno.ts";
 import { registraAudit } from "../_shared/audit.ts";
 import { leggiCorpoJson } from "../_shared/corpoJson.ts";
 import { livelloAal, mfaSoddisfatta } from "../_shared/adminPredicate.ts";
+import { eUltimoAdminAttivo, MSG_ULTIMO_ADMIN } from "../_shared/ultimoAdmin.ts";
 import { emailAnonima, metadatiAzzerati, verificaPassword } from "./riautenticazione.ts";
 
 Deno.serve(async (req: Request) => {
@@ -82,9 +83,16 @@ Deno.serve(async (req: Request) => {
     // A-3: il limite precede la verifica della password, e ne è il freno a
     // forza bruta. Con cinque tentativi l'ora chi trova la sessione aperta
     // non può provare password a ripetizione.
-    if (!(await entroLimite(adminClient, `delete-account:${user.id}`, 60, 5))) {
+    // B-2 del 16 novembre: qui il limite è il freno, quindi un suo guasto
+    // blocca (429) invece di lasciar passare.
+    if (!(await entroLimite(adminClient, `delete-account:${user.id}`, 60, 5, { bloccaSeGuasto: true }))) {
       return json({ error: "Troppe richieste in poco tempo: riprova più tardi" }, 429);
     }
+
+    // B-3 del 16 novembre: l'unico admin attivo non si elimina.
+    const ultimo = await eUltimoAdminAttivo(adminClient, user.id);
+    if (!ultimo.ok) return json(erroreInterno("delete-account/ultimo-admin", ultimo.errore), 500);
+    if (ultimo.ultimo) return json({ error: MSG_ULTIMO_ADMIN }, 409);
 
     // Un corpo assente o non JSON vale «password mancante» (400), non un
     // guasto (500): è una richiesta incompleta, non un errore del server.

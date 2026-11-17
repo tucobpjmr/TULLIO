@@ -1,5 +1,30 @@
 # CHANGELOG — VoyageDesk
 
+## 17 novembre — analisi del 16 novembre: M-1, M-2, M-3 (database)
+
+Applicate in produzione via MCP dopo un dry-run transazionale che impersona
+junior, senior e admin (tutto annullato a fine prova). Advisor di sicurezza:
+nessun avviso nuovo.
+
+**M-1 · Chat dirette** (`20261117111322_conversations_partecipanti_diretta`).
+Trigger BEFORE UPDATE: per chi non è admin, niente cambio di `type` e niente
+cambio di `participants` su una chat `direct`. Prima un partecipante poteva
+aggiungere un terzo (che legge la cronologia) o togliere l'altro. I gruppi
+restano aperti: scelta presa oggi. Non è SECURITY DEFINER: guarda
+`current_user`, come `tasks_campi_immutabili`.
+
+**M-2 · Allegati dei task** (`20261117111329_task_files_scrittura_senza_junior`).
+Chiude il seguito aperto del 6 novembre (iii): `task_files_insert/_delete` e
+`task_files_storage_insert/_delete` passano da `can_take_global_queue()`; il
+Junior non carica né cancella allegati in coda globale. `task_files_insert`
+vuole `uploaded_by` NULL o il chiamante.
+
+**M-3 · Commenti** (`20261117111335_comments_campi_immutabili`). Trigger BEFORE
+UPDATE: `task_id`, `user_id`, `created_at` non si cambiano dai ruoli dell'API.
+
+Test: `src/test/integration/rlsChatAllegatiCommenti.test.js` (file separato
+da `rls.test.js` per il tetto di righe).
+
 ## 16 novembre — rilievi di bassa priorità (audit stato e flusso dati)
 
 **B-1 · Paginazione robusta alle scritture concorrenti** (`lib/pagination.js`).

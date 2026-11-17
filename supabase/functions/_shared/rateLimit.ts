@@ -14,10 +14,13 @@ import type { SupabaseClient } from "jsr:@supabase/supabase-js@2.108.0";
  * @param chiave      identifica CHI va limitato, non l'operazione da sola:
  *                    `"<funzione>:<id chiamante>"`, così un secchio pieno per
  *                    un admin non tocca gli altri.
- * @returns true se la chiamata è entro il limite. Un errore della RPC stessa
- *          (rete, colonna mancante su un DB non ancora migrato) NON blocca la
- *          richiesta: un rate limit che si guasta e blocca tutto è un
- *          rilievo peggiore di uno che, guasto, lascia passare — a log
+ * @param opzioni.bloccaSeGuasto  true dove il limite è anche il freno a una
+ *                    forza bruta (delete-account, B-2 del 16 novembre): lì un
+ *                    guasto della RPC deve fermare la richiesta, non aprirla.
+ * @returns true se la chiamata è entro il limite. Per difetto un errore della
+ *          RPC stessa (rete, colonna mancante su un DB non ancora migrato) NON
+ *          blocca la richiesta: un rate limit che si guasta e blocca tutto è
+ *          un rilievo peggiore di uno che, guasto, lascia passare — a log
  *          comunque, per non farlo un fallimento silenzioso.
  */
 export async function entroLimite(
@@ -25,6 +28,7 @@ export async function entroLimite(
   chiave: string,
   finestraMinuti: number,
   soglia: number,
+  { bloccaSeGuasto = false }: { bloccaSeGuasto?: boolean } = {},
 ): Promise<boolean> {
   const { data, error } = await adminClient.rpc("rate_limit_incrementa", {
     p_chiave: chiave,
@@ -33,7 +37,7 @@ export async function entroLimite(
   });
   if (error) {
     console.error("[rateLimit] rate_limit_incrementa", error.message);
-    return true;
+    return !bloccaSeGuasto;
   }
   return data === true;
 }

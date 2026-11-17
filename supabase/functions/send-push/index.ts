@@ -17,6 +17,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.108.0";
 import * as webpush from "jsr:@negrel/webpush@0.5.0";
 import { leggiCorpoJson } from "../_shared/corpoJson.ts";
+import { endpointAmmesso } from "./endpointAmmesso.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -125,7 +126,7 @@ Deno.serve(async (req) => {
     console.error("[send-push] select subscriptions:", error);
     return json({ error: "db error" }, 500);
   }
-  if (!subs?.length) return json({ sent: 0, removed: 0, failed: 0 });
+  if (!subs?.length) return json({ sent: 0, removed: 0, failed: 0, rifiutati: 0 });
 
   // tag: stesso task/conversazione/notifica → il sistema operativo sostituisce
   // la notifica precedente invece di accumularne (es. re-promemoria
@@ -142,8 +143,16 @@ Deno.serve(async (req) => {
     },
   });
 
-  let sent = 0, removed = 0, failed = 0;
+  let sent = 0, removed = 0, failed = 0, rifiutati = 0;
   await Promise.all(subs.map(async (sub) => {
+    // B-1 del 16 novembre: niente POST verso URL che non sono un servizio
+    // push. La riga non si cancella: un browser nuovo fuori elenco va
+    // aggiunto a HOST_PUSH_AMMESSI, non perso.
+    if (!endpointAmmesso(sub.endpoint)) {
+      rifiutati++;
+      console.error(`[send-push] endpoint non ammesso, sottoscrizione ${sub.id}`);
+      return;
+    }
     const subscriber = ctx.appServer.subscribe({
       endpoint: sub.endpoint,
       keys: { p256dh: sub.p256dh, auth: sub.auth },
@@ -173,5 +182,5 @@ Deno.serve(async (req) => {
     }
   }));
 
-  return json({ sent, removed, failed });
+  return json({ sent, removed, failed, rifiutati });
 });

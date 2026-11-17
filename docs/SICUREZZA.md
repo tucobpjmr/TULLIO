@@ -447,6 +447,18 @@ Due regole che è facile leggere male:
   `comments_update_own` guarda solo `user_id`: cambiando `task_id` si scriveva
   in un task non visibile. Casi di questi tre punti in
   `src/test/integration/rlsChatAllegatiCommenti.test.js`.
+- **Edge Function: tre guardie** (B-1, B-2, B-3 del 16 novembre, test in
+  `src/test/edge/edgeFunctionGuardie.test.js`):
+  - `send-push` invia solo a endpoint https di FCM, Mozilla, Apple e Windows
+    (`send-push/endpointAmmesso.ts`); il vincolo
+    `push_subscriptions_endpoint_https` rifiuta in scrittura ciò che non è
+    https.
+  - in `delete-account` un guasto del rate limit risponde 429: lì il limite è
+    il freno ai tentativi di password (`entroLimite(…, { bloccaSeGuasto: true })`).
+  - `delete-account` e `delete-user` rispondono 409 se il bersaglio è l'ultimo
+    admin attivo (`_shared/ultimoAdmin.ts`). ⚠️ Rischio residuo accettato: è un
+    conteggio, non un lock — due admin che si eliminano a vicenda nello stesso
+    istante passano entrambi.
 - **`created_by` e `created_at` di un task non si modificano** (A-1 dello
   stesso giorno, migrazione `20261106170000`). Prima il WITH CHECK
   `created_by = auth.uid()` lasciava a un assegnatario la possibilità di farsi

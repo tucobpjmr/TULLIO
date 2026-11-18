@@ -134,6 +134,11 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // (A-1 del 15 novembre) nasce più sotto, con l'idratazione: passa da un ref.
   const ricaricaTaskRif = useRef(/** @type {(() => void)|null} */ (null));
   const ricaricaDopoCoda = useCallback(() => ricaricaTaskRif.current?.(), []);
+  // I task dell'ultimo render, per la ripresa per differenza di useAppHydration:
+  // la lettura avviene dopo un await, quando lo stato è già andato avanti.
+  const taskRif = useRef(state.tasks);
+  taskRif.current = state.tasks;
+  const leggiTask = useCallback(() => taskRif.current, []);
   const { api: codaScritture, inAttesa: scrittureInAttesa } = useCodaScritture({
     enabled: useSupabase,
     uid: state.currentUserId,
@@ -166,6 +171,8 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     onError: showError,
     // B-1 · Il team già letto da AuthContext: l'idratazione non lo rilegge.
     teamIniziale: initialTeam,
+    // La ripresa per differenza confronta il server con i task in stato.
+    leggiTask,
   });
   ricaricaTaskRif.current = ricaricaTask;
 

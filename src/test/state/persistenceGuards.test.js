@@ -692,6 +692,9 @@ const IDRATAZIONE = [
   // task hanno commenti nuovi. Idratazione come le sorelle: legge dal
   // server e scrive in stato, non persiste nulla.
   "MERGE_TASK_COMMENTS",
+  // La ripresa per differenza (hooks/sincronizzaTask.js): legge dal server
+  // come SET_TASKS, di cui è la forma ridotta. Non persiste nulla.
+  "SINCRONIZZA_TASK",
   // Idratazione dei template di messaggio (A-1 dell'audit dell'11 agosto,
   // stesso trattamento di SET_CATEGORIES): da quando message_templates ha una
   // tabella, SET_MESSAGE_TEMPLATES ne rilegge il contenuto al mount/refresh.

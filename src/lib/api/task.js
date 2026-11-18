@@ -63,6 +63,15 @@ const purgeTasks = async (ids, { blocco = PURGE_BLOCCO } = {}) => {
   return { error: null, eliminati };
 };
 
+// Il filtro comune a `list`, `modificatiDal` e `ids`: devono descrivere lo
+// STESSO insieme, o la differenza poterebbe task che la lettura intera tiene.
+const filtroTask = (q, { includeDeleted, completeDal }) => {
+  let out = q;
+  if (!includeDeleted) out = out.is('deleted_at', null);
+  if (completeDal) out = out.or(`status.neq.done,completed_at.is.null,completed_at.gte.${completeDal}`);
+  return out;
+};
+
 export const Tasks = {
   // Paginata (C-1): oltre `db-max-rows` PostgREST tronca senza errore.
   // `.order('id')` come seconda chiave: `due_date` non è unica.
@@ -77,13 +86,23 @@ export const Tasks = {
   list: async ({ includeDeleted = false, withComments = false, completeDal = /** @type {string|null} */ (null) } = {}) => {
     const supabase = await getSupabase();
     const select = withComments ? TASK_SELECT_WITH_COMMENTS : '*';
-    return fetchAllRows(() => {
-      let q = supabase.from('tasks').select(select, WITH_COUNT)
-        .order('due_date', { ascending: true }).order('id');
-      if (!includeDeleted) q = q.is('deleted_at', null);
-      if (completeDal) q = q.or(`status.neq.done,completed_at.is.null,completed_at.gte.${completeDal}`);
-      return q;
-    });
+    return fetchAllRows(() => filtroTask(supabase.from('tasks').select(select, WITH_COUNT)
+      .order('due_date', { ascending: true }).order('id'), { includeDeleted, completeDal }));
+  },
+  // Sincronizzazione a differenza (hooks/sincronizzaTask.js): le stesse righe
+  // di `list`, ma solo quelle con `updated_at` da `dal` in poi. `updated_at`
+  // lo tiene il trigger `trg_tasks_updated_at`.
+  modificatiDal: async (dal, { includeDeleted = false, completeDal = /** @type {string|null} */ (null) } = {}) => {
+    const supabase = await getSupabase();
+    return fetchAllRows(() => filtroTask(supabase.from('tasks').select(TASK_SELECT_WITH_COMMENTS, WITH_COUNT)
+      .gte('updated_at', dal).order('updated_at').order('id'), { includeDeleted, completeDal }));
+  },
+  // Gli id dello stesso insieme di `list`, nello stesso ordine: dicono quali
+  // task sono spariti (purge) o usciti dalla finestra, senza scaricarli.
+  ids: async ({ includeDeleted = false, completeDal = /** @type {string|null} */ (null) } = {}) => {
+    const supabase = await getSupabase();
+    return fetchAllRows(() => filtroTask(supabase.from('tasks').select('id', WITH_COUNT)
+      .order('due_date', { ascending: true }).order('id'), { includeDeleted, completeDal }));
   },
   create: async (task) => {
     const supabase = await getSupabase();
@@ -159,6 +178,14 @@ export const TaskThreads = {
       .select('id, task_id, user_id, text, created_at, users(name)', WITH_COUNT)
       .in('task_id', taskIds)
       .order('created_at').order('id'));
+  },
+  // Id e task di OGNI commento visibile, senza testo né join: la
+  // sincronizzazione a differenza li confronta con i thread in stato per
+  // sapere quali rileggere (commenti nuovi o cancellati mentre si era via).
+  idsCommenti: async () => {
+    const supabase = await getSupabase();
+    return fetchAllRows(() => supabase.from('comments')
+      .select('id, task_id', WITH_COUNT).order('id'));
   },
   historyForTask: async (taskId) => {
     const supabase = await getSupabase();

@@ -15,6 +15,7 @@
 // una notifica mentre un altro task è già aperto — vedi VoyageDeskInner.jsx,
 // apriTaskDaId) — senza il confronto d'identità un crash sul task precedente
 // resterebbe visibile aprendo quello nuovo.
+import { useEffect, useRef } from 'react';
 import { creaErrorBoundary } from './creaErrorBoundary.jsx';
 import { Z } from '../../styles/tokens.js';
 import { ErrorDetails } from '../ui/ErrorDetails.jsx';
@@ -39,6 +40,10 @@ const boxF13Bold = {
 };
 
 function PannelloErroreOverlay({ error, info, codice, onReset }) {
+  // B-5 dell'analisi UX del 15 novembre: il fuoco va all'uscita, così da
+  // tastiera e con lo screen reader il pannello si raggiunge subito.
+  const primo = useRef(null);
+  useEffect(() => { primo.current?.focus(); }, []);
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: Z.modal,
@@ -53,7 +58,7 @@ function PannelloErroreOverlay({ error, info, codice, onReset }) {
           segnala il codice qui sotto.
         </p>
         <ErrorDetails error={error} info={info} codice={codice} />
-        <button onClick={onReset} style={boxF13Bold}>Chiudi</button>
+        <button ref={primo} onClick={onReset} style={boxF13Bold}>Chiudi</button>
       </div>
     </div>
   );

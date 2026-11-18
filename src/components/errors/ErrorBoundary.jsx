@@ -30,8 +30,10 @@
 // e pannello) sta in creaErrorBoundary.jsx: qui restano il pannello e la via
 // d'uscita, che sono le uniche cose che distinguono questo boundary dagli
 // altri due — M-3 dell'audit del 25 agosto.
+import { useEffect, useRef } from 'react';
 import { creaErrorBoundary } from './creaErrorBoundary.jsx';
 import { ErrorDetails } from '../ui/ErrorDetails.jsx';
+import { supabaseAuth } from '../../lib/supabaseAuth.js';
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -62,18 +64,44 @@ const wrap = {
 // L'unica via d'uscita possibile a questo livello è ricaricare: quando salta la
 // shell — provider compresi — non resta niente di sano da cui ripartire senza
 // ricostruire l'albero da zero.
+const rigaBottoni = { display: 'flex', gap: 10, flexWrap: 'wrap' };
+// Stessi colori del pannello (testo e bordo della card): niente colori nuovi.
+const boxF13Ghost = {
+  ...boxF13Bold, background: 'transparent', color: wrap.color,
+  border: boxP28WFull.border, fontWeight: 600,
+};
+
+// Fuori da AuthProvider (il boundary di main.jsx lo avvolge): si parla
+// direttamente con GoTrue. La coda offline resta: è legata all'uid e non
+// riparte per un altro utente.
+const esci = () => {
+  supabaseAuth.signOut({ scope: 'local' })
+    .catch(() => {})
+    .finally(() => window.location.reload());
+};
+
 function PannelloErroreApp({ error, info, codice }) {
+  // B-5 dell'analisi UX del 15 novembre: il fuoco va all'uscita, così da
+  // tastiera e con lo screen reader il pannello si raggiunge subito.
+  const primo = useRef(null);
+  useEffect(() => { primo.current?.focus(); }, []);
   return (
     <div style={wrap}>
-      <div style={boxP28WFull}>
-        <div style={txtF36Mb10}>⚠️</div>
+      <div role="alert" style={boxP28WFull}>
+        <div style={txtF36Mb10} aria-hidden="true">⚠️</div>
         <h1 style={txtF22Bold}>Qualcosa è andato storto</h1>
         <p style={txtF135Op075}>
           L&#39;app ha incontrato un errore imprevisto durante il caricamento.
           Ricarica la pagina; se il problema persiste, segnala il codice qui sotto.
         </p>
         <ErrorDetails error={error} info={info} codice={codice} tone="dark" />
-        <button onClick={() => window.location.reload()} style={boxF13Bold}>Ricarica</button>
+        {/* B-3 dell'analisi UX del 15 novembre: se l'errore si ripete a ogni
+            avvio (un dato rotto del profilo), «Ricarica» riporta qui. «Esci»
+            chiude la sessione di QUESTO dispositivo e riparte dal login. */}
+        <div style={rigaBottoni}>
+          <button ref={primo} onClick={() => window.location.reload()} style={boxF13Bold}>Ricarica</button>
+          <button onClick={esci} style={boxF13Ghost}>Esci</button>
+        </div>
       </div>
     </div>
   );

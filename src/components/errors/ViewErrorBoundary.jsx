@@ -16,6 +16,7 @@
 // Qui l'errore resta confinato al riquadro della vista: Topbar, Sidebar e
 // bottom-nav restano vive e navigabili, e si torna alla Dashboard senza
 // ricaricare la pagina (quindi senza perdere sessione e stato in memoria).
+import { useEffect, useRef } from 'react';
 import { creaErrorBoundary } from './creaErrorBoundary.jsx';
 import { ErrorDetails } from '../ui/ErrorDetails.jsx';
 
@@ -42,6 +43,10 @@ const boxF13Bold = {
 const rigaBottoni = { display: 'flex', gap: 10, flexWrap: 'wrap' };
 
 function PannelloErroreVista({ error, info, codice, onReset }) {
+  // B-5 dell'analisi UX del 15 novembre: il fuoco va all'uscita, così da
+  // tastiera e con lo screen reader il pannello si raggiunge subito.
+  const primo = useRef(null);
+  useEffect(() => { primo.current?.focus(); }, []);
   return (
     <div className="fade-in" style={p28MaxW620}>
       <div role="alert" style={boxP24R14}>
@@ -56,7 +61,7 @@ function PannelloErroreVista({ error, info, codice, onReset }) {
         {/* Due uscite: se a rompersi è la Dashboard stessa, tornarci può
             riportare allo stesso errore, e allora serve la ricarica. */}
         <div style={rigaBottoni}>
-          <button onClick={onReset} style={boxF13Bold}>← Torna alla Dashboard</button>
+          <button ref={primo} onClick={onReset} style={boxF13Bold}>← Torna alla Dashboard</button>
           <button onClick={() => window.location.reload()} style={boxF13Bold}>Ricarica la pagina</button>
         </div>
       </div>

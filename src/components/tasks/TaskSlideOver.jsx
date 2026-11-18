@@ -35,6 +35,7 @@ import {
 import { useDispatch } from "../../state/DispatchContext.jsx";
 import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
 import { SalvatoInLinea } from "../ui/SalvatoInLinea.jsx";
+import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { useCampiSalvati } from "./useCampiSalvati.js";
 import { useTrappolaFocus } from "../../hooks/useTrappolaFocus.js";
 import { apriModale, chiudiModale, inCima } from "../ui/pilaModali.js";
@@ -58,6 +59,11 @@ export const TaskSlideOver = memo(function TaskSlideOver({ task }) {
   // (un solo UPDATE_TASK per modifica, non a ogni tasto → niente toast a raffica
   // né un round-trip DB per carattere). I select/data persistono subito.
   const [draft, setDraft] = useState({ title: "", client: "", praticaRef: "", contact: "", description: "" });
+  // B-1 dell'analisi UX del 15 novembre: il titolo svuotato tornava al valore
+  // precedente senza una parola. Ora lo si dice sotto il campo.
+  // Legato all'id: il pannello resta montato passando da un task all'altro.
+  const [avviso, impostaAvviso] = useState({ id: null, testo: "" });
+  const avvisoTitolo = avviso.id === task?.id ? avviso.testo : "";
 
   // ─── A-2 dell'audit del 4 novembre · i campi TOCCATI ──────────────────────
   // La bozza si riallineava solo all'apertura di un task diverso. Se intanto un
@@ -106,6 +112,7 @@ export const TaskSlideOver = memo(function TaskSlideOver({ task }) {
   }, [taskId, tTitolo, tCliente, tPratica, tContatto, tDescrizione]);
 
   const scriviBozza = (campo, valore) => {
+    if (campo === "title" && avviso.testo) impostaAvviso({ id: null, testo: "" });
     toccati.current.set(campo, (toccati.current.get(campo) ?? 0) + 1);
     setDraft(d => ({ ...d, [campo]: valore }));
   };
@@ -182,6 +189,7 @@ export const TaskSlideOver = memo(function TaskSlideOver({ task }) {
     if (field === "title" && !trimmed) {
       toccati.current.delete(field);
       setDraft(d => ({ ...d, title: task.title || "" }));
+      impostaAvviso({ id: task.id, testo: "Il titolo è obbligatorio: è tornato quello precedente." });
       return;
     }
     const next = nullable ? (trimmed || null) : trimmed;
@@ -271,9 +279,12 @@ export const TaskSlideOver = memo(function TaskSlideOver({ task }) {
                   onBlur={() => commitText("title")}
                   onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
                   placeholder="Titolo del task"
+                  aria-label="Titolo del task"
                   style={boxF18Bold}
+                  {...ariaCampo("vd-task-titolo-err", avvisoTitolo)}
                 />
                 <SalvatoInLinea visibile={salvato("title")} />
+                <FieldError id="vd-task-titolo-err">{avvisoTitolo}</FieldError>
               </>
             ) : (
               <div className="playfair" style={txtF18Bold}>{task.title}</div>

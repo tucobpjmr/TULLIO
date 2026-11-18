@@ -13,8 +13,9 @@
 //     console insieme al dettaglio (criticità #9): è la coppia che lo rende
 //     utile, perché quello dettato dall'utente deve essere quello scritto lì.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import { ErrorBoundary } from "../../components/errors/ErrorBoundary.jsx";
+import { supabaseAuth } from "../../lib/supabaseAuth.js";
 
 function Esplode() {
   throw new Error("crash della shell");
@@ -54,5 +55,29 @@ describe("ErrorBoundary (primo livello)", () => {
     rerender(<ErrorBoundary><div>non dovrebbe tornare</div></ErrorBoundary>);
     expect(screen.getByText("Qualcosa è andato storto")).toBeInTheDocument();
     expect(screen.queryByText("non dovrebbe tornare")).not.toBeInTheDocument();
+  });
+  // B-5 dell'analisi UX del 15 novembre: il pannello si annuncia e prende il fuoco.
+  it("si annuncia come alert e porta il fuoco su «Ricarica»", () => {
+    render(<ErrorBoundary><Esplode /></ErrorBoundary>);
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Ricarica" }));
+  });
+
+  // B-3: se l'errore si ripete a ogni avvio, «Ricarica» riporta qui.
+  it("«Esci» chiude la sessione di questo dispositivo e ricarica", async () => {
+    const signOut = vi.spyOn(supabaseAuth, "signOut").mockResolvedValue({ error: null });
+    const reload = vi.fn();
+    const originale = window.location;
+    delete window.location;
+    window.location = { ...originale, reload };
+    try {
+      render(<ErrorBoundary><Esplode /></ErrorBoundary>);
+      await act(async () => { screen.getByRole("button", { name: "Esci" }).click(); });
+      expect(signOut).toHaveBeenCalledWith({ scope: "local" });
+      expect(reload).toHaveBeenCalled();
+    } finally {
+      window.location = originale;
+      signOut.mockRestore();
+    }
   });
 });

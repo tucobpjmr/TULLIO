@@ -98,4 +98,12 @@ describe("ViewErrorBoundary", () => {
     );
     expect(screen.getByRole("button", { name: "Ricarica la pagina" })).toBeInTheDocument();
   });
+  it("porta il fuoco sull'uscita, così da tastiera si raggiunge subito (B-5)", () => {
+    render(
+      <ViewErrorBoundary viewKey="liste" onReset={() => {}}>
+        <Esplode />
+      </ViewErrorBoundary>,
+    );
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /Torna alla Dashboard/ }));
+  });
 });

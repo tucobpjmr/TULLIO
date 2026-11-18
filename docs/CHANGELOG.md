@@ -1,6 +1,6 @@
 # CHANGELOG — VoyageDesk
 
-## 18 novembre — analisi UX del 15 novembre: errori leggibili, form protetti, dialoghi, M-1…M-3
+## 18 novembre — analisi UX del 15 novembre: errori leggibili, form protetti, dialoghi, M-1…M-3, B-1…B-5
 
 **A-2 · Gli errori parlano italiano** (`erroreUtente`, `lib/errori.js`).
 - Un solo traduttore per scritture, caricamenti, chat, Liste, upload e toast
@@ -45,8 +45,22 @@ dall'utente non la accendono.
 `persist` che solleva e la mostra come toast d'errore, invece di riabilitare
 il bottone in silenzio.
 
+**B-1…B-5 · Rifiniture.**
+- B-1 · Titolo del task svuotato: torna il precedente e lo dice sotto il
+  campo («Il titolo è obbligatorio…»), invece di tornare indietro in silenzio.
+- B-2 · Upload di più file: restano visibili tutti gli errori, non l'ultimo.
+- B-3 · Pannello d'errore principale: oltre a «Ricarica», «Esci» (chiude la
+  sessione di questo dispositivo), per quando l'errore si ripete a ogni avvio.
+- B-4 · Login: `type="text" inputMode="email"` e `noValidate`, con messaggi
+  nostri in italiano al posto della bolla del browser.
+- B-5 · I tre pannelli d'errore hanno `role="alert"` e portano il fuoco
+  sull'uscita.
+- `verifica:bundle`: soglia del first load autenticato 137 → 138 kB (misura
+  137,31, +1,78 su main; nessun chunk lazy rientrato).
+
 - Test: `erroreUtente.test.js`, `chiusuraProtetta.test.jsx`,
-  `slideOverDialogo.test.jsx`, `chatDialogo.test.jsx`, più casi in
+  `slideOverDialogo.test.jsx`, `chatDialogo.test.jsx`,
+  `taskAttachmentsErrori.test.jsx`, `loginValidazione.test.jsx`, più casi in
   `viewErrorBoundary.test.jsx` e `datePickerDismiss.test.jsx`.
 
 ## 17 novembre — analisi del 16 novembre: M-1…M-3 (database), B-1…B-3 (Edge Function)

@@ -170,7 +170,13 @@ const SOGLIA_APP_KB = 53;
 // ramo 142,22 kB (+0,83), tutto nel chunk dell'app. +1 kB.
 // 18 novembre, stesso ramo · QuickAddTask lazy: 142,22 → 135,53 kB. Scende
 // con la misura, margine ~1 kB.
-const SOGLIA_AUTENTICATO_KB = 137;
+// 18 novembre · analisi UX del 15 novembre (A-2, M-2, B-3, B-4): main 135,53,
+// ramo 137,31 kB (+1,78). Codice nuovo nel percorso eager — il traduttore
+// degli errori (lib/errori.js, usato da registro e idratazione), la sessione
+// terminata in AuthContext, la validazione del login, «Esci» nel pannello
+// d'errore. Nessun chunk lazy è rientrato: l'elenco dei chunk del first load è
+// lo stesso. +1 kB.
+const SOGLIA_AUTENTICATO_KB = 138;
 
 const kb = (bytes) => bytes / 1000;
 

@@ -68,4 +68,19 @@ describe("TaskSlideOver come dialogo", () => {
     chiudiModale(sopra);
     expect(azioni(dispatch).map((a) => a.type)).not.toContain("SET_SELECTED_TASK");
   });
+  // B-1 dell'analisi UX del 15 novembre: il titolo svuotato non torna indietro in silenzio.
+  it("svuotare il titolo lo ripristina e lo DICE, e il messaggio si spegne scrivendo", async () => {
+    const dispatch = vi.fn(async () => ({ error: null }));
+    monta(dispatch);
+    const titolo = screen.getByLabelText("Titolo del task");
+    act(() => titolo.focus());
+    fireEvent.change(titolo, { target: { value: "   " } });
+    await act(async () => { titolo.blur(); });
+    expect(titolo.value).toBe("Voli Tokyo");
+    expect(screen.getByRole("alert")).toHaveTextContent("Il titolo è obbligatorio");
+    expect(titolo).toHaveAttribute("aria-invalid", "true");
+    expect(azioni(dispatch).map((a) => a.type)).not.toContain("UPDATE_TASK");
+    fireEvent.change(titolo, { target: { value: "Voli Osaka" } });
+    expect(screen.queryByText(/Il titolo è obbligatorio/)).toBeNull();
+  });
 });

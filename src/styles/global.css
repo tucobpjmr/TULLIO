@@ -243,8 +243,8 @@ body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: va
    comparendo troppo in basso. Lo stato finale di questi keyframe coincide
    con lo stato naturale dell'elemento (opacity 1, nessuna traslazione),
    quindi togliere "forwards" non cambia nulla visivamente ma libera il
-   containing block a fine animazione. I modali usano comunque ModalPortal
-   (vedi ui/ModalPortal.jsx): questa è la difesa a monte, quello il fix. */
+   containing block a fine animazione. I modali usano comunque il portale
+   (vedi ui/Modal.jsx): questa è la difesa a monte, quello il fix. */
 .fade-in { animation: fadeIn 0.3s ease; }
 .slide-right { animation: slideRight 0.3s ease; }
 .slide-up { animation: slideUp 0.35s ease; }

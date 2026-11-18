@@ -527,8 +527,9 @@ describe("persistence — rollback dichiarati", () => {
   it("DELETE_CLIENT traduce la violazione di foreign key in un messaggio actionable", () => {
     const testo = PERSISTENCE.DELETE_CLIENT.mapError({ code: "23503", message: 'violates foreign key constraint "liste_viaggio_client_id_fkey"' });
     expect(testo).toMatch(/liste viaggio collegate/i);
-    // Gli altri errori passano invariati.
-    expect(PERSISTENCE.DELETE_CLIENT.mapError({ code: "500", message: "boom" })).toBe("boom");
+    // Gli altri passano dalla traduzione comune: un codice di sistema
+    // sconosciuto non porta il suo testo tecnico a schermo.
+    expect(PERSISTENCE.DELETE_CLIENT.mapError({ code: "XX000", message: "boom" })).toBe("cliente non eliminato");
   });
 
   // A-2 dell'audit dell'11 agosto: prima ADD_CLIENTS_BULK non aveva ALCUN

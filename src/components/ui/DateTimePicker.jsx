@@ -15,6 +15,7 @@ import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { Z } from "../../styles/tokens.js";
 import { dataNumerica, meseAnno, oraBreve } from "../../lib/dates.js";
 import * as stiliComuni from "../../styles/common.js";
+import { apriModale, chiudiModale, inCima } from "./pilaModali.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -200,10 +201,14 @@ export function DateTimePicker({ value, onChange, hasError = false, style = /** 
   useEffect(() => {
     if (!open) return;
     const onDocClick = e => { if (rootRef.current && !rootRef.current.contains(e.target)) dismissRef.current(); };
-    const onKey = e => { if (e.key === "Escape") dismissRef.current(); };
+    // Il calendario aperto sta in cima alla pila dei modali: Esc chiude LUI,
+    // non anche il modale o il pannello che lo contiene (pilaModali.js).
+    const token = apriModale();
+    const onKey = e => { if (e.key === "Escape" && inCima(token)) dismissRef.current(); };
     document.addEventListener("mousedown", onDocClick);
     document.addEventListener("keydown", onKey);
     return () => {
+      chiudiModale(token);
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("keydown", onKey);
     };

@@ -23,8 +23,12 @@
 // e partono due scritture. Su `registraMovimento` sono due movimenti su un
 // saldo, ed è il modulo in cui il dato è denaro (M-1 del 25 agosto).
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { render as renderBase, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { ConfirmProvider } from "../../state/ConfirmContext.jsx";
 import { DispatchProvider } from "../../state/DispatchContext.jsx";
+
+// I form con chiusura protetta (hooks/useChiusuraProtetta.js) chiedono un ConfirmProvider.
+const render = (ui, opzioni) => renderBase(ui, { wrapper: ConfirmProvider, ...opzioni });
 
 vi.mock("../../lib/supabase", () => ({ supabase: {}, default: {} }));
 

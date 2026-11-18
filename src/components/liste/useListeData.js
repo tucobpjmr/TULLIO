@@ -25,6 +25,7 @@
 import { useState, useCallback, useRef } from "react";
 import { ListeAPI } from "../../lib/api/liste.js";
 import { useDebouncedTableSubscription } from "../../hooks/useDebouncedTableSubscription.js";
+import { erroreUtente } from "../../lib/errori.js";
 
 const VUOTO = { liste: [], cestino: [], saldi: {} };
 
@@ -102,7 +103,7 @@ export function useListeData({ enabled = true } = {}) {
 
     const fallisci = (errore) => {
       console.error("[liste] caricamento", errore);
-      setLoadError(errore.message);
+      setLoadError(erroreUtente(errore, "errore imprevisto"));
       setLoading(false);
     };
 

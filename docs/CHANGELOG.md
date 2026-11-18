@@ -1,5 +1,68 @@
 # CHANGELOG — VoyageDesk
 
+## 18 novembre — analisi UX del 15 novembre: errori leggibili, form protetti, dialoghi, M-1…M-3, B-1…B-5
+
+**A-2 · Gli errori parlano italiano** (`erroreUtente`, `lib/errori.js`).
+- Un solo traduttore per scritture, caricamenti, chat, Liste, upload e toast
+  globali: codici Postgres/PostgREST/Auth, stati HTTP dello Storage e guasti
+  di rete diventano frasi; un codice di sistema sconosciuto mostra il ripiego
+  dell'operazione («task non salvato»), mai il messaggio tecnico.
+- Passano invariati i testi nostri: eccezioni `P0001` delle RPC (senza uuid),
+  Edge Function, `erroreDiPermesso`, `RIFIUTO_RLS`, codici dell'app
+  (`CONFLITTO`).
+- `guastoDiRete` si sposta in `lib/errori.js` (`codaScritture` lo riesporta).
+
+**A-3 · Un form compilato non si chiude con un tasto** (`useChiusuraProtetta`).
+- Esc, ✕, «Annulla» e velo chiedono conferma se ci sono dati non salvati:
+  Liste (più movimenti, nuova lista, modifica movimento, modifica lista),
+  scheda cliente, task rapido, avviso, nuovo agente, nuova categoria, invito
+  multiplo. `BulkTaskCreator` passa all'hook comune.
+
+**A-1 · «Torna alla Dashboard» funziona anche se a rompersi è la Dashboard.**
+- L'uscita del pannello d'errore riarma il boundary in modo esplicito; il
+  pannello della vista offre anche «Ricarica la pagina». I pannelli d'errore
+  hanno `role="alert"`.
+
+**M-4 · Dialoghi veri.**
+- `AddTeamMemberModal`, `AddCategoryModal`, `BulkInviteModal` passano a
+  `ui/Modal.jsx` (Esc, focus trap, `role="dialog"`); `ModalPortal.jsx` e gli
+  stili `modalOverlay`/`modalCard` sono rimossi.
+- `TaskSlideOver` e `ChatPanel`: `role="dialog"`, focus trap, Esc dalla pila
+  dei modali. Nel pannello task Esc salva prima la bozza del campo a fuoco;
+  in chat, con del testo nel campo, il primo Esc toglie solo il fuoco.
+- `DateTimePicker` entra nella pila: Esc chiude il calendario, non anche il
+  modale che lo contiene (prima chiudeva entrambi, es. in «Nuovo task»).
+**M-1 · «Annulla» annulla l'azione giusta.** Un toast annullabile nuovo toglie
+il bottone ai precedenti (`lastAction` è una sola); dopo l'annullamento il
+toast si chiude.
+
+**M-2 · Un'uscita non chiesta si spiega.** Sessione scaduta, account
+disattivato o uscita da un'altra scheda: il login dice «La sessione è
+terminata…» (`sessioneTerminata` in `AuthContext`). Le uscite chieste
+dall'utente non la accendono.
+
+**M-3 · Liste: un'eccezione è un esito.** `useListeWrite` cattura una
+`persist` che solleva e la mostra come toast d'errore, invece di riabilitare
+il bottone in silenzio.
+
+**B-1…B-5 · Rifiniture.**
+- B-1 · Titolo del task svuotato: torna il precedente e lo dice sotto il
+  campo («Il titolo è obbligatorio…»), invece di tornare indietro in silenzio.
+- B-2 · Upload di più file: restano visibili tutti gli errori, non l'ultimo.
+- B-3 · Pannello d'errore principale: oltre a «Ricarica», «Esci» (chiude la
+  sessione di questo dispositivo), per quando l'errore si ripete a ogni avvio.
+- B-4 · Login: `type="text" inputMode="email"` e `noValidate`, con messaggi
+  nostri in italiano al posto della bolla del browser.
+- B-5 · I tre pannelli d'errore hanno `role="alert"` e portano il fuoco
+  sull'uscita.
+- `verifica:bundle`: soglia del first load autenticato 137 → 138 kB (misura
+  137,31, +1,78 su main; nessun chunk lazy rientrato).
+
+- Test: `erroreUtente.test.js`, `chiusuraProtetta.test.jsx`,
+  `slideOverDialogo.test.jsx`, `chatDialogo.test.jsx`,
+  `taskAttachmentsErrori.test.jsx`, `loginValidazione.test.jsx`, più casi in
+  `viewErrorBoundary.test.jsx` e `datePickerDismiss.test.jsx`.
+
 ## 17 novembre — analisi del 16 novembre: M-1…M-3 (database), B-1…B-3 (Edge Function)
 
 Applicate in produzione via MCP dopo un dry-run transazionale che impersona

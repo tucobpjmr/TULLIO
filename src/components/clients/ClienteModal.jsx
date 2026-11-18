@@ -4,6 +4,7 @@
 // differenza fra sapere cosa si sta toccando e scoprirlo da un errore di FK.
 import { useId, useRef, useState } from "react";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
+import { useChiusuraProtetta } from "../../hooks/useChiusuraProtetta.js";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { validaCampi, obbligatorio, emailValida, primoCampoInvalido } from "../../lib/validators.js";
 import { chiaveCliente } from "../../lib/chiaveCliente.js";
@@ -43,10 +44,14 @@ const ORDINE = ["name", "email"];
 /** @typedef {import("../liste/listeModuleApi.js").ConteggioListe} ConteggioListe */
 
 export function ClienteModal({ cliente, onSave, onClose, liste = /** @type {ConteggioListe|null} */ (null), tasksCollegati = [] }) {
-  const [form, setForm] = useState(cliente
+  const [formIniziale] = useState(() => (cliente
     ? { name: cliente.name, email: cliente.email || "", phone: cliente.phone || "", address: cliente.address || "", city: cliente.city || "", notes: cliente.notes || "" }
     : { ...EMPTY_FORM }
-  );
+  ));
+  const [form, setForm] = useState(formIniziale);
+  // A-3 · Esc, ✕ e «Annulla» chiedono prima di buttare via una scheda scritta.
+  const sporco = Object.keys(formIniziale).some(k => form[k] !== formIniziale[k]);
+  const chiudi = useChiusuraProtetta(onClose, sporco);
   const [renameTasks, setRenameTasks] = useState(true);
   // M-1 · `onSave` è `ClientiView.handleSave`, che ora ATTENDE le scritture e
   // ne riporta l'esito senza chiudere niente: la decisione di chiudere è qui,
@@ -100,7 +105,7 @@ export function ClienteModal({ cliente, onSave, onClose, liste = /** @type {Cont
   return (
     <Modal
       open
-      onClose={onClose}
+      onClose={chiudi}
       labelledBy="vd-cliente-title"
       width="min(540px, 96vw)"
       closeOnOverlay={false}
@@ -113,7 +118,7 @@ export function ClienteModal({ cliente, onSave, onClose, liste = /** @type {Cont
         <h2 id="vd-cliente-title" className="playfair" style={txtF20Heading}>
           {cliente ? "Modifica Cliente" : "Nuovo Cliente"}
         </h2>
-        <button onClick={onClose} style={boxF20Muted}>✕</button>
+        <button onClick={chiudi} style={boxF20Muted}>✕</button>
       </div>
       <form onSubmit={handleSubmit}>
         {cliente && (nListe > 0 || nTask > 0) && (
@@ -192,7 +197,7 @@ export function ClienteModal({ cliente, onSave, onClose, liste = /** @type {Cont
             che la scheda è ancora compilata e che riprovare è sensato. */}
         <FieldError id="cli-save-err">{erroreSalvataggio}</FieldError>
         <div style={rowGap10Mt20}>
-          <button type="button" onClick={onClose} style={boxF14Muted}>Annulla</button>
+          <button type="button" onClick={chiudi} style={boxF14Muted}>Annulla</button>
           {/* Criticità #10: il bottone NON è più disabilitato dal nome
               mancante. Un bottone spento non dice cosa manca — e a form
               appena aperto si legge come un'app rotta; premuto, ora il form

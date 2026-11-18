@@ -33,6 +33,7 @@ import { useDebouncedTableSubscription } from "./useDebouncedTableSubscription.j
 import { useErroriIdratazione, useErroriComposti } from "./useErroriIdratazione.js";
 import { stessaLista, stessaMappa } from "../lib/confrontoIdratazione.js";
 import { cursoreDa } from "./cursoreTask.js";
+import { erroreUtente } from "../lib/errori.js";
 
 // Indicizza per task_id le righe di una tabella figlia dei task, applicando il
 // mapper della sua entità. Fuori dall'hook perché è pura.
@@ -107,7 +108,7 @@ const idratazione = ({
   if (!isCurrent()) return;
   if (error) {
     console.error(tag, error);
-    const testo = `Caricamento ${etichetta} fallito: ${error.message || ""}`;
+    const testo = `Caricamento ${etichetta} fallito: ${erroreUtente(error, "errore imprevisto")}`;
     onError(testo);
     // A-3 · il toast annuncia, questo stato dura: vedi hooks/useErroriIdratazione.js.
     segnaEsito?.(entita, testo);
@@ -253,7 +254,7 @@ export function useAppHydration({
       if (!isCurrent()) return;
       if (rCommenti?.error) {
         console.error("[VoyageDesk] TaskThreads", rCommenti.error);
-        onError(`Caricamento commenti fallito: ${rCommenti.error.message || ""}`);
+        onError(`Caricamento commenti fallito: ${erroreUtente(rCommenti.error, "errore imprevisto")}`);
         return;
       }
       for (const id of ids) taskConCommentiNuovi.current.delete(id);
@@ -304,7 +305,7 @@ export function useAppHydration({
     if (!completo && storicoCompleto.current) return;
     if (error) {
       console.error("[VoyageDesk] Tasks.list", error);
-      const testo = `Caricamento task fallito: ${error.message || ""}`;
+      const testo = `Caricamento task fallito: ${erroreUtente(error, "errore imprevisto")}`;
       onError(testo);
       segnaEsito("tasks", testo);
       segnaCaricata("tasks");
@@ -360,7 +361,7 @@ export function useAppHydration({
       setCaricandoStorico(false);
       segnaCaricata("tasks");
       console.error("[VoyageDesk] Tasks.list (storico)", error);
-      onError(`Caricamento dello storico task fallito: ${error.message || ""}`);
+      onError(`Caricamento dello storico task fallito: ${erroreUtente(error, "errore imprevisto")}`);
       return;
     }
     if (!vinceIlTurno(genTask.current, turno)) return;
@@ -387,7 +388,7 @@ export function useAppHydration({
       setCaricandoClienti(false);
       segnaCaricata("clients");
       console.error("[CRM] anagrafica completa", error);
-      onError(`Caricamento clienti fallito: ${error.message || ""}`);
+      onError(`Caricamento clienti fallito: ${erroreUtente(error, "errore imprevisto")}`);
       return;
     }
     if (!vinceIlTurno(genClienti.current, turno)) return;
@@ -414,7 +415,7 @@ export function useAppHydration({
     if (!isCurrent()) return;
     if (error) {
       console.error("[VoyageDesk] Categories.list", error);
-      const testo = `Caricamento categorie fallito: ${error.message || ""}`;
+      const testo = `Caricamento categorie fallito: ${erroreUtente(error, "errore imprevisto")}`;
       onError(testo);
       segnaEsito("categories", testo);
       segnaCaricata("categories");
@@ -464,7 +465,7 @@ export function useAppHydration({
       console.error("[VoyageDesk] Users.listAll", error);
       // ⚠️ A-3 · Anche il team annuncia l'errore: i permessi lato client si
       // calcolano su `state.team`.
-      const testo = `Caricamento team fallito: ${error.message || ""}`;
+      const testo = `Caricamento team fallito: ${erroreUtente(error, "errore imprevisto")}`;
       onError(testo);
       segnaEsito("team", testo);
       segnaCaricata("team");

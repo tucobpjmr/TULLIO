@@ -145,10 +145,11 @@ describe("errorReporting", () => {
       expect(msg).toMatch(/segnala il codice VD-/);
     });
 
-    it("in produzione un errore del data layer resta leggibile", () => {
+    it("in produzione un errore del data layer diventa una frase leggibile", () => {
       vi.stubEnv("DEV", false);
       emettiRejection(new Error("new row violates row-level security policy"));
-      expect(sink).toHaveBeenCalledWith(expect.stringContaining("row-level security policy"));
+      expect(sink).toHaveBeenCalledWith(expect.stringContaining("non hai i permessi"));
+      expect(sink).not.toHaveBeenCalledWith(expect.stringContaining("row-level security"));
     });
 
     it("in DEV il TypeError resta leggibile come tutto il resto", () => {

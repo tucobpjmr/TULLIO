@@ -48,6 +48,7 @@
 // diventasse una tabella, questa è la forma in cui scriverla.
 
 import { esitoScrittura } from "../lib/esitoScrittura.js";
+import { erroreUtente } from "../lib/errori.js";
 
 // ─── vocabolario ──────────────────────────────────────────────────────────
 // I campi che una entry può dichiarare, divisi per famiglia. Non è
@@ -81,11 +82,12 @@ export const erroreDiScrittura = (res) => (
 
 /**
  * Il testo da mostrare all'utente per un errore di scrittura: quello che la
- * entry sa tradurre (`mapError`), altrimenti il messaggio grezzo, altrimenti
- * il ripiego. Un errore senza testo è un toast vuoto, ed è successo.
+ * entry sa tradurre (`mapError`), altrimenti la traduzione comune
+ * (`erroreUtente`), mai il messaggio grezzo del server. Un errore senza testo
+ * è un toast vuoto, ed è successo: per questo il ripiego chiude sempre.
  */
-export const testoErrore = (spec, err, ripiego = "errore sconosciuto") =>
-  (spec?.mapError ? spec.mapError(err) : err?.message) || ripiego;
+export const testoErrore = (spec, err, ripiego = "operazione non riuscita") =>
+  (spec?.mapError ? spec.mapError(err) : erroreUtente(err, ripiego)) || ripiego;
 
 /**
  * Il messaggio di successo di una entry, dati gli argomenti della chiamata:

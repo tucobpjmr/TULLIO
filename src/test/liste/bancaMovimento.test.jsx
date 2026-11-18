@@ -1,8 +1,12 @@
 // Banca di appoggio (BNL / BANCO NAPOLI) per i movimenti POS e bonifico:
 // facoltativa, visibile solo con quei due metodi, e mai inviata con un altro.
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render as renderBase, screen, fireEvent, waitFor } from "@testing-library/react";
+import { ConfirmProvider } from "../../state/ConfirmContext.jsx";
 import { EditMovimentoModal } from "../../components/liste/modals/EditMovimentoModal.jsx";
+
+// I form con chiusura protetta (hooks/useChiusuraProtetta.js) chiedono un ConfirmProvider.
+const render = (ui, opzioni) => renderBase(ui, { wrapper: ConfirmProvider, ...opzioni });
 
 // Import DINAMICI, come in listeApi.test.js: i moduli interni del modulo Liste
 // sono privati (no-restricted-imports, deroga dei test in eslint.config.js).

@@ -18,6 +18,7 @@ import { useConfirm } from "../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 import { attivaConTastiera, cellaAzionabile, conTastiera } from "../../lib/a11y.js";
+import { erroreUtente } from "../../lib/errori.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -78,7 +79,7 @@ export const ArchivedListe = ({ isMobile }) => {
     const failed = [rListe, rSaldi].find(r => r.error);
     if (failed) {
       console.error("[liste] archivio", failed.error);
-      setLoadError(failed.error.message);
+      setLoadError(erroreUtente(failed.error, "errore imprevisto"));
       setLoading(false);
       return;
     }

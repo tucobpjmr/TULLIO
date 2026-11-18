@@ -21,6 +21,7 @@ import { downloadBlob } from "./listeDocumenti.js";
 import { useListeWrite } from "./listePersistence.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 import { toastSuccesso } from "../../state/registroScritture.js";
+import { erroreUtente } from "../../lib/errori.js";
 
 /**
  * @param {object}   opts
@@ -51,7 +52,7 @@ export function useStrumentiDati({
       // niente, e `toastErrore` direbbe «Salvataggio fallito» di un backup che
       // non è mai partito. Vale lo stesso per i due controlli sul file qui
       // sotto, che sono validazione e non esito di una scrittura.
-      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Errore: ${error.message}` } });
+      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Backup non scaricato: ${erroreUtente(error, "errore imprevisto")}` } });
       return;
     }
     const backup = {

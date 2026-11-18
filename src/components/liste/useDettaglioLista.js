@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ListeAPI } from "../../lib/api/liste.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
+import { erroreUtente } from "../../lib/errori.js";
 
 /**
  * @param {string|null} id  la lista aperta, o null se nessuna.
@@ -33,7 +34,7 @@ export function useDettaglioLista(id) {
     const failed = [rLista, rMovs, rHist].find((r) => r.error);
     if (failed) {
       console.error("[liste] dettaglio", failed.error);
-      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Errore: ${failed.error.message}` } });
+      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Dettaglio della lista non caricato: ${erroreUtente(failed.error, "errore imprevisto")}` } });
       return;
     }
     setDetail({ lista: rLista.data, movimenti: rMovs.data || [], history: rHist.data || [] });

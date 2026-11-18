@@ -42,7 +42,14 @@ export function pushToast(toasts, { message, type, undoable }) {
   // Dedup per messaggio: cinque fetch falliti sulla stessa rete giù producono
   // lo stesso testo — cinque righe identiche in colonna non informano più di una.
   const senzaDuplicati = (toasts || []).filter(t => t.message !== message);
-  const next = [...senzaDuplicati, { id, message, type, undoable: !!undoable }];
+  // M-1 dell'analisi UX del 15 novembre: «Annulla» rifà indietro SOLO l'ultima
+  // azione (`state.lastAction` è una). Con due swipe ravvicinati restavano due
+  // toast con «Annulla», e quello più vecchio annullava l'azione più recente,
+  // su un altro task. Un toast annullabile nuovo toglie il bottone ai vecchi.
+  const precedenti = undoable
+    ? senzaDuplicati.map(t => (t.undoable ? { ...t, undoable: false } : t))
+    : senzaDuplicati;
+  const next = [...precedenti, { id, message, type, undoable: !!undoable }];
 
   // ─── A-2 · Il cap NON è più `slice(-3)` ────────────────────────────────
   // Quel taglio applicava un vincolo di RENDERING (quanti toast stanno sopra

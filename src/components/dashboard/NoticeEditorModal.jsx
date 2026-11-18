@@ -7,6 +7,7 @@ import { Modal } from "../ui/Modal.jsx";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../lib/validators.js";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
+import { useChiusuraProtetta } from "../../hooks/useChiusuraProtetta.js";
 import * as stiliComuni from "../../styles/common.js";
 import { attivaConTastiera } from "../../lib/a11y.js";
 
@@ -70,6 +71,13 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
   const [tags, setTags] = useState(Array.isArray(notice?.tags) ? notice.tags : []);
   const [tagDraft, setTagDraft] = useState("");
   const [errori, setErrori] = useState({});
+  // A-3 · Esc, ✕ e «Annulla» chiedono prima di buttare via un avviso scritto.
+  const sporco = text !== (notice?.text || "")
+    || color !== (notice?.color || NOTICE_COLORS[0])
+    || pinned !== (notice?.pinned || false)
+    || tags.length !== (Array.isArray(notice?.tags) ? notice.tags.length : 0)
+    || !!tagDraft.trim();
+  const chiudi = useChiusuraProtetta(onClose, sporco);
   const textareaRef = useRef(null);
 
   useEffect(() => { textareaRef.current?.focus(); }, []);
@@ -120,7 +128,7 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
   return (
     <Modal
       open
-      onClose={onClose}
+      onClose={chiudi}
       labelledBy="vd-notice-title"
       width={520}
       closeOnOverlay={false}
@@ -237,7 +245,7 @@ export const NoticeEditorModal = ({ notice, onClose, onSave }) => {
 
       {/* Footer buttons */}
       <div style={stiliComuni.rowGap8Mt20}>
-        <button onClick={onClose} style={boxF12Text}>Annulla</button>
+        <button onClick={chiudi} style={boxF12Text}>Annulla</button>
         {/* Il bottone resta PREMIBILE anche a testo vuoto: è premendolo che si
             ottiene il messaggio sotto il campo e il focus dentro l'area di
             testo. Spento non diceva cosa mancasse. `disabled` mentre la

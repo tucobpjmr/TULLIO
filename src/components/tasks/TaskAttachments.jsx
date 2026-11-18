@@ -13,6 +13,7 @@ import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit, source
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
+import { erroreUtente } from "../../lib/errori.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -43,7 +44,7 @@ const boxMaxWFullR6 = {
 const boxMaxWFullR62 = { maxWidth: "100%", maxHeight: 360, borderRadius: 6 };
 const wFull = { width: "100%" };
 const txtF11Light = { fontSize: 11, color: "var(--text-light)", marginTop: 4 };
-const txtF12Danger = { fontSize: 12, color: "var(--danger)", marginTop: 6 };
+const txtF12Danger = { whiteSpace: "pre-line", fontSize: 12, color: "var(--danger)", marginTop: 6 };
 
 // Il valore iniziale di `useCaricamento`, allocato una volta: l'hook lo legge
 // al primo render e un letterale nuovo a ogni render non cambierebbe nulla,
@@ -129,16 +130,24 @@ export function TaskAttachments({ taskId, editable }) {
     const arr = Array.from(fileList || []);
     if (!arr.length) return;
     setError("");
+    // B-2 dell'analisi UX del 15 novembre: ogni file scartato o fallito
+    // sovrascriveva il messaggio del precedente, e restava solo l'ultimo.
+    const falliti = [];
     for (const f of arr) {
       if (!isWithinSizeLimit(f.size)) {
-        setError(`"${f.name}" supera il limite di ${formatFileSize(MAX_TASK_FILE_SIZE)}`);
+        falliti.push(`"${f.name}" supera il limite di ${formatFileSize(MAX_TASK_FILE_SIZE)}`);
+        setError(falliti.join("\n"));
         continue;
       }
       setUploading(true);
       const { data, error: e } = await TaskFiles.upload(f, taskId, { uploadedBy: currentUserId });
       if (!montato()) return;
       setUploading(false);
-      if (e) { setError(`Upload di "${f.name}" fallito: ${e.message || "errore"}`); continue; }
+      if (e) {
+        falliti.push(`Upload di "${f.name}" fallito: ${erroreUtente(e, "errore imprevisto")}`);
+        setError(falliti.join("\n"));
+        continue;
+      }
       if (data) impostaFiles(prev => [data, ...prev]);
     }
     if (inputRef.current) inputRef.current.value = "";
@@ -288,7 +297,7 @@ export function TaskAttachments({ taskId, editable }) {
       )}
 
       {error && (
-        <div style={txtF12Danger}>{error}</div>
+        <div role="alert" style={txtF12Danger}>{error}</div>
       )}
     </div>
   );

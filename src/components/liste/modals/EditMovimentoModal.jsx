@@ -2,6 +2,7 @@ import { useId, useRef, useState } from "react";
 import { metodoConBanca, parseImporto } from "../listeFormato.js";
 import { BancaSelect } from "./BancaSelect.jsx";
 import { LvOverlay } from "./LvOverlay.jsx";
+import { useChiusuraProtetta } from "../../../hooks/useChiusuraProtetta.js";
 import { MetodoSelect } from "./MetodoSelect.jsx";
 import { SegnoSeg } from "./SegnoSeg.jsx";
 import { useSalvataggioLista } from "../useSalvataggioLista.js";
@@ -33,6 +34,14 @@ export function EditMovimentoModal({ movimento, onSave, onClose }) {
   const [metodo, setMetodo] = useState(movimento.metodo || null);
   const [banca, setBanca] = useState(movimento.banca || null);
   const [errori, setErrori] = useState({});
+  // A-3 · Esc, ✕ e «Annulla» chiedono prima di buttare via dati non salvati.
+  const sporco = data !== movimento.data_movimento
+    || desc !== movimento.descrizione
+    || segno !== (Number(movimento.importo) < 0 ? -1 : 1)
+    || imp !== Math.abs(Number(movimento.importo)).toFixed(2).replace(".", ",")
+    || metodo !== (movimento.metodo || null)
+    || banca !== (movimento.banca || null);
+  const chiudi = useChiusuraProtetta(onClose, sporco);
   const dataRef = useRef(null);
   const descRef = useRef(null);
   const impRef = useRef(null);
@@ -63,7 +72,7 @@ export function EditMovimentoModal({ movimento, onSave, onClose }) {
   };
 
   return (
-    <LvOverlay onClose={onClose}>
+    <LvOverlay onClose={chiudi}>
       {/* M-4 · `<form>` e non `<div>`: Invio deve inviare, come in AddMovBox.
           `noValidate` perché la validazione è la nostra (per campo). */}
       <form noValidate onSubmit={(e) => { e.preventDefault(); submit(); }}>
@@ -115,7 +124,7 @@ export function EditMovimentoModal({ movimento, onSave, onClose }) {
           </div>
         )}
         <div className="actions">
-          <button type="button" className="lv-btn" onClick={onClose}>Annulla</button>
+          <button type="button" className="lv-btn" onClick={chiudi}>Annulla</button>
           <button type="submit" className="lv-btn primary" disabled={inVolo}>
             {inVolo ? "Salvo…" : "Salva modifiche"}
           </button>

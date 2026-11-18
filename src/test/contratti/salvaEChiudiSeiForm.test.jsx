@@ -17,8 +17,12 @@
 // dell'esito no — due metà della stessa promessa, la prima dice cosa manca, la
 // seconda che i dati sono ancora lì.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { render as renderBase, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { ConfirmProvider } from "../../state/ConfirmContext.jsx";
 import { renderWithAppData, withDispatch, DEMO_APP_CTX } from "../helpers/appData.jsx";
+
+// I form con chiusura protetta (hooks/useChiusuraProtetta.js) chiedono un ConfirmProvider.
+const render = (ui, opzioni) => renderBase(ui, { wrapper: ConfirmProvider, ...opzioni });
 
 vi.mock("../../lib/supabase", () => ({ supabase: {}, default: {} }));
 vi.mock("../../lib/api.js", () => ({

@@ -3,15 +3,15 @@
 // Stili condivisi importati da admin/adminStyles.js (consolidati in Phase 2f).
 import { useId, useRef, useState } from "react";
 import {
-  modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
+  modalCardContenuto, labelStyle, fieldStyle, btnPrimary, btnGhost,
 } from "./adminStyles.js";
-import { ModalPortal } from "../ui/ModalPortal.jsx";
+import { Modal } from "../ui/Modal.jsx";
+import { useChiusuraProtetta } from "../../hooks/useChiusuraProtetta.js";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../lib/validators.js";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
-import { attivaConTastiera } from "../../lib/a11y.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -37,6 +37,10 @@ export const AddCategoryModal = ({ onClose, existingKeys }) => {
   const iconId = useId();
   const colorId = useId();
   const bgId = useId();
+  const titoloId = useId();
+  // A-3 · Esc, ✕, «Annulla» e velo chiedono prima di buttare via dati inseriti.
+  const sporco = !!label.trim();
+  const chiudi = useChiusuraProtetta(onClose, sporco);
 
   // A-4 · L'esito prima della chiusura (audit del 19 agosto). Era
   // `dispatch(...)` senza `await` seguito da `onClose()` nello stesso turno: su
@@ -67,89 +71,64 @@ export const AddCategoryModal = ({ onClose, existingKeys }) => {
     salva({ key, label: label.trim(), icon, color, bg });
   };
 
-  // Portale: AdminCategoriesTab è dentro il wrapper .fade-in di AdminView, che
-  // ha un transform → senza il portale l'overlay si centra sull'altezza del
-  // tab (scrollabile) invece che sullo schermo. Vedi ui/ModalPortal.jsx.
-  //
-  // A-2 dell'audit UX/errori del 1 settembre: il velo chiude solo se il click
-  // parte DAL velo stesso (e.target === e.currentTarget), non se bubbla da un
-  // figlio — lo stesso confronto usato in ui/Modal.jsx, così la card non ha
-  // bisogno di un proprio onClick di stopPropagation. Questo modale non passa
-  // da ui/Modal.jsx e non ha un equivalente da tastiera per Esc, quindi il
-  // velo stesso resta nell'ordine di tabulazione (role/tabIndex/onKeyDown)
-  // invece del disable-comment usato lì.
-  const closeOnOverlay = (e) => {
-    if (e.target === e.currentTarget) onClose();
-  };
 
   return (
-    <ModalPortal>
-      <div
-        role="button"
-        tabIndex={0}
-        aria-label="Esci"
-        onClick={closeOnOverlay}
-        onKeyDown={attivaConTastiera(closeOnOverlay)}
-        style={modalOverlay}
-      >
-        <div style={{ ...modalCard, maxWidth: 480 }}>
-          <h3 className="playfair" style={stiliComuni.txtHeadingMb16}>Aggiungi nuova categoria</h3>
-          <div style={stiliComuni.gridGap12}>
-            <div>
-              <label htmlFor={labelId} style={labelStyle}>Nome *</label>
-              <input
-                id={labelId}
-                ref={labelRef}
-                value={label}
-                onChange={e => {
-                  setLabel(e.target.value);
-                  setErrori(prec => (prec.label ? {} : prec));
-                }}
-                placeholder="Es. Trasferimenti"
-                style={fieldStyle}
-                autoFocus
-                {...ariaCampo("vd-cat-label-err", errori.label)}
-              />
-              <FieldError id="vd-cat-label-err">{errori.label}</FieldError>
-            </div>
-            <div className="vd-grid-3col" style={gridGap122}>
-              <div>
-                <label htmlFor={iconId} style={labelStyle}>Icona (emoji)</label>
-                <input id={iconId} value={icon} onChange={e => setIcon(e.target.value)} maxLength={2} style={{ ...fieldStyle, textAlign: "center", fontSize: 18 }} />
-              </div>
-              <div>
-                <label htmlFor={colorId} style={labelStyle}>Colore</label>
-                <input id={colorId} type="color" value={color} onChange={e => setColor(e.target.value)} style={{ ...fieldStyle, height: 38, padding: 2 }} />
-              </div>
-              <div>
-                <label htmlFor={bgId} style={labelStyle}>Sfondo</label>
-                <input id={bgId} type="color" value={bg} onChange={e => setBg(e.target.value)} style={{ ...fieldStyle, height: 38, padding: 2 }} />
-              </div>
-            </div>
-            {/* Preview */}
-            <div style={boxP12R8}>
-              <div style={txtF11Muted}>Anteprima</div>
-              <div style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "4px 10px", borderRadius: 999, background: bg, color: color,
-                fontSize: 12, fontWeight: 600,
-              }}>
-                <span>{icon}</span> {label || "Nome categoria"}
-              </div>
-            </div>
+    <Modal open onClose={chiudi} labelledBy={titoloId} width={480} cardStyle={modalCardContenuto}>
+      <h3 id={titoloId} className="playfair" style={stiliComuni.txtHeadingMb16}>Aggiungi nuova categoria</h3>
+      <div style={stiliComuni.gridGap12}>
+        <div>
+          <label htmlFor={labelId} style={labelStyle}>Nome *</label>
+          <input
+            id={labelId}
+            ref={labelRef}
+            value={label}
+            onChange={e => {
+              setLabel(e.target.value);
+              setErrori(prec => (prec.label ? {} : prec));
+            }}
+            placeholder="Es. Trasferimenti"
+            style={fieldStyle}
+            autoFocus
+            {...ariaCampo("vd-cat-label-err", errori.label)}
+          />
+          <FieldError id="vd-cat-label-err">{errori.label}</FieldError>
+        </div>
+        <div className="vd-grid-3col" style={gridGap122}>
+          <div>
+            <label htmlFor={iconId} style={labelStyle}>Icona (emoji)</label>
+            <input id={iconId} value={icon} onChange={e => setIcon(e.target.value)} maxLength={2} style={{ ...fieldStyle, textAlign: "center", fontSize: 18 }} />
           </div>
-          {/* A-4 · Il toast del registry dice cosa ha risposto il database;
-              questo dice che i dati sono ancora qui. */}
-          <FieldError id="vd-cat-save-err">{erroreSalvataggio}</FieldError>
-
-          <div style={stiliComuni.rowGap8Mt20}>
-            <button onClick={onClose} style={btnGhost}>Annulla</button>
-            <button onClick={submit} disabled={inVolo} style={btnPrimary}>
-              {inVolo ? "Creazione…" : "Crea categoria"}
-            </button>
+          <div>
+            <label htmlFor={colorId} style={labelStyle}>Colore</label>
+            <input id={colorId} type="color" value={color} onChange={e => setColor(e.target.value)} style={{ ...fieldStyle, height: 38, padding: 2 }} />
+          </div>
+          <div>
+            <label htmlFor={bgId} style={labelStyle}>Sfondo</label>
+            <input id={bgId} type="color" value={bg} onChange={e => setBg(e.target.value)} style={{ ...fieldStyle, height: 38, padding: 2 }} />
+          </div>
+        </div>
+        {/* Preview */}
+        <div style={boxP12R8}>
+          <div style={txtF11Muted}>Anteprima</div>
+          <div style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "4px 10px", borderRadius: 999, background: bg, color: color,
+            fontSize: 12, fontWeight: 600,
+          }}>
+            <span>{icon}</span> {label || "Nome categoria"}
           </div>
         </div>
       </div>
-    </ModalPortal>
+      {/* A-4 · Il toast del registry dice cosa ha risposto il database;
+          questo dice che i dati sono ancora qui. */}
+      <FieldError id="vd-cat-save-err">{erroreSalvataggio}</FieldError>
+
+      <div style={stiliComuni.rowGap8Mt20}>
+        <button onClick={chiudi} style={btnGhost}>Annulla</button>
+        <button onClick={submit} disabled={inVolo} style={btnPrimary}>
+          {inVolo ? "Creazione…" : "Crea categoria"}
+        </button>
+      </div>
+    </Modal>
   );
 };

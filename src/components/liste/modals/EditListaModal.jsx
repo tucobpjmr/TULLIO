@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { LvOverlay } from "./LvOverlay.jsx";
+import { useChiusuraProtetta } from "../../../hooks/useChiusuraProtetta.js";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 import { useSalvataggioLista } from "../useSalvataggioLista.js";
 
@@ -25,6 +26,9 @@ export function EditListaModal({ lista, onSave, onClose }) {
   const [titolo, setTitolo] = useState(lista.titolo || "");
   const [rinomina, setRinomina] = useState(false);
   const [errore, setErrore] = useState(null);
+  // A-3 · Esc, ✕ e «Annulla» chiedono prima di buttare via dati non salvati.
+  const sporco = name !== nomeOriginale || titolo !== (lista.titolo || "");
+  const chiudi = useChiusuraProtetta(onClose, sporco);
   const rifNome = useRef(null);
 
   const { salva, inVolo } = useSalvataggioLista(onSave.run);
@@ -54,7 +58,7 @@ export function EditListaModal({ lista, onSave, onClose }) {
   };
 
   return (
-    <LvOverlay onClose={onClose}>
+    <LvOverlay onClose={chiudi}>
       <h2>Modifica dati lista</h2>
       <div className="row lv-field">
         <label htmlFor="el-title">Titolo della lista (facoltativo)</label>
@@ -94,7 +98,7 @@ export function EditListaModal({ lista, onSave, onClose }) {
           : "Per correggere solo questa lista basta il titolo: il nome del titolare resta com'è. I cointestatari (se presenti) si aggiungono e rimuovono dal dettaglio della lista, non da qui."}
       </p>
       <div className="actions">
-        <button className="lv-btn" onClick={onClose}>Annulla</button>
+        <button className="lv-btn" onClick={chiudi}>Annulla</button>
         <button className="lv-btn primary" disabled={inVolo} onClick={submit}>
           {inVolo ? "Salvo…" : "Salva modifiche"}
         </button>

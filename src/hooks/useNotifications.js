@@ -27,6 +27,7 @@ import { Notifications as NotificationsAPI } from "../lib/api.js";
 import { fromDbNotification, isUuid } from "../lib/mappers.js";
 import { fondiScrittureInVolo } from "../state/pendingWrites.js";
 import { useDebouncedTableSubscription } from "./useDebouncedTableSubscription.js";
+import { erroreUtente } from "../lib/errori.js";
 
 /**
  * @typedef {{ id: string, userId: string, type: string, payload: object,
@@ -132,7 +133,7 @@ export function useNotifications({ enabled, onError }) {
     if (!isCurrent()) return;
     if (error) {
       console.error("[notifications] list", error);
-      onError(`Notifiche: caricamento fallito: ${error.message || ""}`);
+      onError(`Notifiche: caricamento fallito: ${erroreUtente(error, "errore imprevisto")}`);
       return;
     }
     // `fromDbNotification` ritorna `null` solo per una riga falsy — qui non

@@ -40,6 +40,9 @@ import { useConfirm } from "../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 import { attivaConTastiera } from "../../lib/a11y.js";
+import { useTrappolaFocus } from "../../hooks/useTrappolaFocus.js";
+import { apriModale, chiudiModale, inCima } from "../ui/pilaModali.js";
+import { erroreUtente } from "../../lib/errori.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -207,7 +210,7 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
         const { path, error } = await MessagesAPI.copyFile(src.fileUrl, destConvId, voiceName);
         if (error || !path) {
           console.error("[chat] forward voice copyFile", error);
-          dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Inoltro vocale fallito: ${error?.message || "errore sconosciuto"}` } });
+          dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Inoltro vocale fallito: ${erroreUtente(error, "errore imprevisto")}` } });
           return;
         }
         newMsg.fileUrl = path;
@@ -224,7 +227,7 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
         const { path, error } = await MessagesAPI.copyFile(src.fileUrl, destConvId, src.fileName);
         if (error || !path) {
           console.error("[chat] forward copyFile", error);
-          dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Inoltro allegato fallito: ${error?.message || "errore sconosciuto"}` } });
+          dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Inoltro allegato fallito: ${erroreUtente(error, "errore imprevisto")}` } });
           return;
         }
         newMsg.fileUrl = path;
@@ -312,6 +315,33 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
     onForward: handleForwardStart,
   }), [tasks, me, presenceMap, messageTemplates, handleForwardStart]);
 
+  // M-4 dell'analisi UX del 15 novembre: il pannello è un dialogo — Esc,
+  // fuoco che entra e resta, ritorno del fuoco alla chiusura. Le bozze della
+  // chat non si salvano: con del testo nel campo, il primo Esc toglie solo il
+  // fuoco, il secondo chiude.
+  const pannelloRef = useRef(null);
+  useTrappolaFocus(pannelloRef, open);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    if (!open) return undefined;
+    const token = apriModale();
+    const onKey = (e) => {
+      if (e.key !== "Escape" || !inCima(token)) return;
+      const attivo = document.activeElement;
+      const campoConTesto = (attivo instanceof HTMLInputElement || attivo instanceof HTMLTextAreaElement)
+        && pannelloRef.current?.contains(attivo) && attivo.value.trim() !== "";
+      if (campoConTesto) { attivo.blur(); return; }
+      onCloseRef.current?.();
+    };
+    window.addEventListener("keydown", onKey);
+    if (!pannelloRef.current?.contains(document.activeElement)) pannelloRef.current?.focus();
+    return () => {
+      chiudiModale(token);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   if (!open) return null;
 
   // Le conv nuove nascono in NewConversationView con id locale "c<timestamp>".
@@ -329,10 +359,9 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
   return (
     <ChatContext.Provider value={ctxValue}>
     <>
-      {/* A-2 dell'audit UX/errori del 1 settembre: a differenza dei veli dei
-          modali (vedi ui/Modal.jsx) questo pannello non ha un onKey per Esc,
-          quindi l'equivalente da tastiera del click sul velo è il velo
-          stesso — role/tabIndex/onKeyDown, non una disable-line. */}
+      {/* Il velo chiude al click. Da tastiera la chiusura è Esc (sopra) e il
+          bottone ✕: il velo resta comunque un controllo con nome, per chi
+          naviga con uno screen reader. */}
       <div
         role="button"
         tabIndex={0}
@@ -342,7 +371,14 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
         style={{
           position: "fixed", inset: 0, background: "rgba(15,32,68,0.3)", zIndex: Z.chatBackdrop,
         }} />
-      <div className="slide-right vd-sheet-full" style={{
+      <div
+        ref={pannelloRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Messaggi"
+        tabIndex={-1}
+        className="slide-right vd-sheet-full" style={{
+        outline: "none",
         position: "fixed", top: 0, right: 0, width: isMobile ? "100vw" : 420,
         background: "var(--card)", zIndex: Z.chat, boxShadow: "-20px 0 60px rgba(0,0,0,0.2)",
         display: "flex", flexDirection: "column", overflow: "hidden",

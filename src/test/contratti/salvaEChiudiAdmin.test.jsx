@@ -13,7 +13,11 @@
 // sul valore di `busy`, `setBusy(false)` fuori da un `finally`, nessun guard
 // di smontaggio. Verificati contro il file PRIMA della correzione.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { render as renderBase, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { ConfirmProvider } from "../../state/ConfirmContext.jsx";
+
+// I form con chiusura protetta (hooks/useChiusuraProtetta.js) chiedono un ConfirmProvider.
+const render = (ui, opzioni) => renderBase(ui, { wrapper: ConfirmProvider, ...opzioni });
 
 const inviteMock = vi.fn();
 vi.mock("../../lib/api.js", () => ({

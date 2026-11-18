@@ -37,8 +37,11 @@ export const ToastItem = ({ toast }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast.type, toast.undoable, toast.id]);
 
+  // Dopo l'annullamento il toast se ne va: lasciato a schermo, il suo
+  // «Annulla» non farebbe più nulla.
   const handleUndo = () => {
     dispatch({ type: "UNDO_LAST_ACTION" });
+    dispatch({ type: "CLEAR_TOAST", payload: toast.id });
   };
   const handleClose = () => {
     dispatch({ type: "CLEAR_TOAST", payload: toast.id });

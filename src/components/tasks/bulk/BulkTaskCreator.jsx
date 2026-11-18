@@ -17,7 +17,7 @@ import { ImportTab } from "./ImportTab.jsx";
 import { TemplateTab } from "./TemplateTab.jsx";
 import { Modal } from "../../ui/Modal.jsx";
 import { Icona } from "../../ui/Icona.jsx";
-import { useConfirm } from "../../../state/ConfirmContext.jsx";
+import { useChiusuraProtetta } from "../../../hooks/useChiusuraProtetta.js";
 import { useClients } from "../../../state/ClientsContext.jsx";
 import * as stiliComuni from "../../../styles/common.js";
 
@@ -63,6 +63,12 @@ const txtF12Muted = { fontSize: 12, color: "var(--text-muted)", lineHeight: 1.45
 
 // Descrizione breve di ogni modalità: mostrata sotto le tab per orientare
 // l'operatore su "quando" usare ciascuna (v-bulk-ux fase 1).
+const TESTI_CHIUSURA = {
+  title: "Chiudere senza creare?",
+  body: "Ci sono dati inseriti che non sono ancora stati trasformati in task: chiudendo vanno persi.",
+  cta: "Chiudi e perdi",
+};
+
 const TAB_META = [
   { id: "manual",    icon: "✏️", label: "Manuale",     desc: "Inserisci le task a mano, una per riga. Le impostazioni comuni valgono per le righe che non specificano un valore." },
   { id: "duplicate", icon: "🔁", label: "Duplica",      desc: "Riparti da task esistenti: scegli quali duplicare, cambia il titolo e sposta le scadenze." },
@@ -72,7 +78,6 @@ const TAB_META = [
 
 // ─── BULK TASK CREATOR (modale principale) ─────────────────────────────────
 export const BulkTaskCreator = memo(function BulkTaskCreator({ existingTasks, onCreate, onClose }) {
-  const conferma = useConfirm();
   // ST-11 · L'anagrafica dal contesto, non come prop (vedi QuickAddTask). Alle
   // due tab che la usano continua ad arrivare come prop: il rilievo riguarda il
   // confine con VoyageDesk, non la composizione interna della modale.
@@ -89,17 +94,7 @@ export const BulkTaskCreator = memo(function BulkTaskCreator({ existingTasks, on
   const [dirty, setDirty] = useState({});
   const markDirty = (id) => (v) => setDirty(d => (d[id] === v ? d : { ...d, [id]: v }));
   const anyDirty = Object.values(dirty).some(Boolean);
-  const requestClose = async () => {
-    if (anyDirty) {
-      const ok = await conferma({
-        title: "Chiudere senza creare?",
-        body: "Ci sono dati inseriti che non sono ancora stati trasformati in task: chiudendo vanno persi.",
-        cta: "Chiudi e perdi", danger: true,
-      });
-      if (!ok) return;
-    }
-    onClose();
-  };
+  const requestClose = useChiusuraProtetta(onClose, anyDirty, TESTI_CHIUSURA);
 
   const activeMeta = TAB_META.find(t => t.id === tab);
 

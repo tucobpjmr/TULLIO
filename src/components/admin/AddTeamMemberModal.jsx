@@ -6,9 +6,10 @@
 // profilo pending); altrimenti resta il vecchio comportamento "agente locale".
 import { useId, useRef, useState } from "react";
 import {
-  modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
+  modalCardContenuto, labelStyle, fieldStyle, btnPrimary, btnGhost,
 } from "./adminStyles.js";
-import { ModalPortal } from "../ui/ModalPortal.jsx";
+import { Modal } from "../ui/Modal.jsx";
+import { useChiusuraProtetta } from "../../hooks/useChiusuraProtetta.js";
 import { Users } from "../../lib/api.js";
 import { emailValida, obbligatorio, primoCampoInvalido, validaCampi } from "../../lib/validators.js";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
@@ -18,7 +19,7 @@ import {
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
-import { attivaConTastiera } from "../../lib/a11y.js";
+import { erroreUtente } from "../../lib/errori.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -76,6 +77,10 @@ export const AddTeamMemberModal = ({ onClose, existingIds, onInvited }) => {
   const coloreId = useId();
   // M-4 dell'audit del 2 settembre: come gli altri campi qui sopra.
   const pendingId = useId();
+  const titoloId = useId();
+  // A-3 · Esc, ✕, «Annulla» e velo chiedono prima di buttare via dati inseriti.
+  const sporco = !!(name.trim() || email.trim());
+  const chiudi = useChiusuraProtetta(onClose, sporco);
 
   // ─── M-6 (audit del 26 agosto) · anche questo form è nel contratto ───────
   //
@@ -133,7 +138,7 @@ export const AddTeamMemberModal = ({ onClose, existingIds, onInvited }) => {
     },
     {
       alSuccesso: onClose,
-      messaggioErrore: (e) => e?.message || "Invito non riuscito.",
+      messaggioErrore: (e) => erroreUtente(e, "Invito non riuscito."),
     },
   );
 
@@ -152,107 +157,84 @@ export const AddTeamMemberModal = ({ onClose, existingIds, onInvited }) => {
     salva(trimmedEmail);
   };
 
-  // Portale: AdminTeamTab vive dentro il wrapper .fade-in di AdminView (transform
-  // → containing block per i fixed). Vedi ui/ModalPortal.jsx.
-  // A-2 dell'audit UX/errori del 1 settembre: il velo chiude solo se il click
-  // parte DAL velo stesso (e.target === e.currentTarget), non se bubbla da un
-  // figlio — lo stesso confronto usato in ui/Modal.jsx, così la card non ha
-  // bisogno di un proprio onClick di stopPropagation. Questo modale non passa
-  // da ui/Modal.jsx e non ha un equivalente da tastiera per Esc, quindi il
-  // velo stesso resta nell'ordine di tabulazione (role/tabIndex/onKeyDown)
-  // invece del disable-comment usato lì.
-  const closeOnOverlay = (e) => {
-    if (e.target === e.currentTarget) onClose();
-  };
 
   return (
-    <ModalPortal>
-      <div
-        role="button"
-        tabIndex={0}
-        aria-label="Esci"
-        onClick={closeOnOverlay}
-        onKeyDown={attivaConTastiera(closeOnOverlay)}
-        style={modalOverlay}
-      >
-        <div style={{ ...modalCard, maxWidth: 480 }}>
-          <h3 className="playfair" style={stiliComuni.txtHeadingMb16}>Aggiungi nuovo agente</h3>
-          <div style={stiliComuni.gridGap12}>
-            <div>
-              <label htmlFor={nomeId} style={labelStyle}>Nome completo *</label>
-              <input
-                id={nomeId}
-                ref={rifNome}
-                value={name}
-                onChange={e => {
-                  setName(e.target.value);
-                  setErrori(prec => (prec.name ? { ...prec, name: undefined } : prec));
-                }}
-                placeholder="Es. Anna Bianchi" style={fieldStyle} autoFocus
-                {...ariaCampo("vd-membro-nome-err", errori.name)}
-              />
-              <FieldError id="vd-membro-nome-err">{errori.name}</FieldError>
-            </div>
-            <div>
-              <label htmlFor={emailId} style={labelStyle}>Email (per invitare via email)</label>
-              {/* `type="text" inputMode="email"` e non `type="email"`: la
-                  validazione nativa bloccherebbe il submit prima del nostro
-                  handler, mostrando la propria bolla non traducibile al posto
-                  del messaggio inline (docs/CLAUDE.md). */}
-              <input
-                id={emailId}
-                ref={rifEmail}
-                type="text" inputMode="email" autoComplete="email"
-                value={email}
-                onChange={e => {
-                  setEmail(e.target.value);
-                  setErrori(prec => (prec.email ? { ...prec, email: undefined } : prec));
-                }}
-                placeholder="anna@agenzia.it" style={fieldStyle}
-                {...ariaCampo("vd-membro-email-err", errori.email)}
-              />
-              <FieldError id="vd-membro-email-err">{errori.email}</FieldError>
-              <div style={txtF115Muted}>
-                Con email: invio un invito reale (l'utente crea la password e resta in attesa di approvazione). Senza email: aggiungo solo un agente locale.
-              </div>
-            </div>
-            <div>
-              <label htmlFor={ruoloId} style={labelStyle}>Ruolo</label>
-              <select id={ruoloId} value={role} onChange={e => setRole(e.target.value)} aria-label="Ruolo" style={fieldStyle}>
-                {DB_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-              </select>
-              {role === "agent" && (
-                <select value={seniority} onChange={e => setSeniority(e.target.value)}
-                  aria-label="Livello" style={{ ...fieldStyle, marginTop: 8 }}>
-                  {SENIORITY_LEVELS.map(sv => <option key={sv} value={sv}>{SENIORITY_LABELS[sv]} Agent</option>)}
-                </select>
-              )}
-            </div>
-            <div>
-              <label htmlFor={coloreId} style={labelStyle}>Colore</label>
-              <input id={coloreId} type="color" value={color} onChange={e => setColor(e.target.value)} style={{...fieldStyle, height: 38, padding: 2}} />
-            </div>
-            {!email.trim() && (
-              <label style={rowCenterGap8} htmlFor={pendingId}>
-                <input id={pendingId} type="checkbox" checked={pending} onChange={e => setPending(e.target.checked)} />
-                Crea come "in attesa di approvazione" (simula iscrizione)
-              </label>
-            )}
-            {/* L'esito del SERVER (invito rifiutato): `role="alert"` perché
-                compare dopo un'attesa, quando l'utente può aver già distolto
-                lo sguardo dal bottone. */}
-            {errore && (
-              <div role="alert" style={boxF125Danger}>{errore}</div>
-            )}
-          </div>
-          <div style={stiliComuni.rowGap8Mt20}>
-            <button onClick={onClose} style={btnGhost} disabled={inVolo}>Annulla</button>
-            <button onClick={submit} style={btnPrimary} disabled={inVolo}>
-              {inVolo ? "Invio…" : (email.trim() ? "Invia invito" : "Crea agente")}
-            </button>
+    <Modal open onClose={chiudi} labelledBy={titoloId} width={480} cardStyle={modalCardContenuto}>
+      <h3 id={titoloId} className="playfair" style={stiliComuni.txtHeadingMb16}>Aggiungi nuovo agente</h3>
+      <div style={stiliComuni.gridGap12}>
+        <div>
+          <label htmlFor={nomeId} style={labelStyle}>Nome completo *</label>
+          <input
+            id={nomeId}
+            ref={rifNome}
+            value={name}
+            onChange={e => {
+              setName(e.target.value);
+              setErrori(prec => (prec.name ? { ...prec, name: undefined } : prec));
+            }}
+            placeholder="Es. Anna Bianchi" style={fieldStyle} autoFocus
+            {...ariaCampo("vd-membro-nome-err", errori.name)}
+          />
+          <FieldError id="vd-membro-nome-err">{errori.name}</FieldError>
+        </div>
+        <div>
+          <label htmlFor={emailId} style={labelStyle}>Email (per invitare via email)</label>
+          {/* `type="text" inputMode="email"` e non `type="email"`: la
+              validazione nativa bloccherebbe il submit prima del nostro
+              handler, mostrando la propria bolla non traducibile al posto
+              del messaggio inline (docs/CLAUDE.md). */}
+          <input
+            id={emailId}
+            ref={rifEmail}
+            type="text" inputMode="email" autoComplete="email"
+            value={email}
+            onChange={e => {
+              setEmail(e.target.value);
+              setErrori(prec => (prec.email ? { ...prec, email: undefined } : prec));
+            }}
+            placeholder="anna@agenzia.it" style={fieldStyle}
+            {...ariaCampo("vd-membro-email-err", errori.email)}
+          />
+          <FieldError id="vd-membro-email-err">{errori.email}</FieldError>
+          <div style={txtF115Muted}>
+            Con email: invio un invito reale (l'utente crea la password e resta in attesa di approvazione). Senza email: aggiungo solo un agente locale.
           </div>
         </div>
+        <div>
+          <label htmlFor={ruoloId} style={labelStyle}>Ruolo</label>
+          <select id={ruoloId} value={role} onChange={e => setRole(e.target.value)} aria-label="Ruolo" style={fieldStyle}>
+            {DB_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+          </select>
+          {role === "agent" && (
+            <select value={seniority} onChange={e => setSeniority(e.target.value)}
+              aria-label="Livello" style={{ ...fieldStyle, marginTop: 8 }}>
+              {SENIORITY_LEVELS.map(sv => <option key={sv} value={sv}>{SENIORITY_LABELS[sv]} Agent</option>)}
+            </select>
+          )}
+        </div>
+        <div>
+          <label htmlFor={coloreId} style={labelStyle}>Colore</label>
+          <input id={coloreId} type="color" value={color} onChange={e => setColor(e.target.value)} style={{...fieldStyle, height: 38, padding: 2}} />
+        </div>
+        {!email.trim() && (
+          <label style={rowCenterGap8} htmlFor={pendingId}>
+            <input id={pendingId} type="checkbox" checked={pending} onChange={e => setPending(e.target.checked)} />
+            Crea come "in attesa di approvazione" (simula iscrizione)
+          </label>
+        )}
+        {/* L'esito del SERVER (invito rifiutato): `role="alert"` perché
+            compare dopo un'attesa, quando l'utente può aver già distolto
+            lo sguardo dal bottone. */}
+        {errore && (
+          <div role="alert" style={boxF125Danger}>{errore}</div>
+        )}
       </div>
-    </ModalPortal>
+      <div style={stiliComuni.rowGap8Mt20}>
+        <button onClick={chiudi} style={btnGhost} disabled={inVolo}>Annulla</button>
+        <button onClick={submit} style={btnPrimary} disabled={inVolo}>
+          {inVolo ? "Invio…" : (email.trim() ? "Invia invito" : "Crea agente")}
+        </button>
+      </div>
+    </Modal>
   );
 };

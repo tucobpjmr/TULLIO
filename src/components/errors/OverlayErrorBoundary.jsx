@@ -15,6 +15,7 @@
 // una notifica mentre un altro task è già aperto — vedi VoyageDeskInner.jsx,
 // apriTaskDaId) — senza il confronto d'identità un crash sul task precedente
 // resterebbe visibile aprendo quello nuovo.
+import { useEffect, useRef } from 'react';
 import { creaErrorBoundary } from './creaErrorBoundary.jsx';
 import { Z } from '../../styles/tokens.js';
 import { ErrorDetails } from '../ui/ErrorDetails.jsx';
@@ -39,21 +40,25 @@ const boxF13Bold = {
 };
 
 function PannelloErroreOverlay({ error, info, codice, onReset }) {
+  // B-5 dell'analisi UX del 15 novembre: il fuoco va all'uscita, così da
+  // tastiera e con lo screen reader il pannello si raggiunge subito.
+  const primo = useRef(null);
+  useEffect(() => { primo.current?.focus(); }, []);
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: Z.modal,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: 'rgba(8,21,45,0.35)', padding: 20,
     }}>
-      <div className="fade-in" style={boxP24WFull}>
-        <div style={txtF30Mb10}>⚠️</div>
+      <div className="fade-in" role="alert" style={boxP24WFull}>
+        <div style={txtF30Mb10} aria-hidden="true">⚠️</div>
         <h2 className="playfair" style={txtF20Heading}>Non è stato possibile aprire questo pannello</h2>
         <p style={txtF135Muted}>
           Il resto di Tullio continua a funzionare. Se il problema si ripete,
           segnala il codice qui sotto.
         </p>
         <ErrorDetails error={error} info={info} codice={codice} />
-        <button onClick={onReset} style={boxF13Bold}>Chiudi</button>
+        <button ref={primo} onClick={onReset} style={boxF13Bold}>Chiudi</button>
       </div>
     </div>
   );

@@ -41,32 +41,10 @@ export const MAX_VOCI = 200;
 /** Una voce più vecchia di così non viene più rigiocata: vedi `elenco`. */
 export const ETA_MASSIMA_MS = 7 * 24 * 60 * 60 * 1000;
 
-// I messaggi con cui un fetch fallito si presenta, per browser. Non c'è un
-// codice: `fetch` rifiuta con un `TypeError` e un testo che ogni motore
-// scrive a modo suo — Chrome «Failed to fetch», Firefox «NetworkError when
-// attempting to fetch resource», Safari «Load failed», e supabase-js a volte
-// lo re-impacchetta in `error.message` invece di rifiutare.
-const TESTI_DI_RETE = /failed to fetch|networkerror|network request failed|load failed|fetch failed|err_internet_disconnected|econnrefused|timeout/i;
-
-/**
- * È un guasto di RETE (la scrittura non è mai arrivata al server) o un rifiuto
- * DEL server (RLS, vincolo, dato invalido)? La distinzione è tutta la coda:
- * il primo si rigioca identico, il secondo si rigiocherebbe all'infinito.
- *
- * `navigator.onLine === false` ha la precedenza su qualunque testo: se il
- * browser dichiara che non c'è rete nel momento in cui la scrittura fallisce,
- * il motivo è quello — qualunque cosa dica il messaggio.
- *
- * @param {unknown} err
- * @returns {boolean}
- */
-export function guastoDiRete(err) {
-  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
-  const testo = err && typeof err === "object"
-    ? String(/** @type {{message?: unknown}} */ (err).message ?? "")
-    : String(err ?? "");
-  return TESTI_DI_RETE.test(testo);
-}
+// Il riconoscimento del guasto di rete vive in lib/errori.js: lo usa anche
+// il testo degli errori mostrati all'utente. Qui resta esportato per i
+// chiamanti della coda.
+export { guastoDiRete } from "../lib/errori.js";
 
 /**
  * La riga c'era GIÀ con il nostro id: la scrittura era arrivata al server, ed

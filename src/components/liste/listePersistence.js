@@ -225,7 +225,15 @@ export function useListeWrite() {
       return { ok: false, data: null };
     }
 
-    const res = await spec.persist(...args);
+    // M-3 dell'analisi UX del 15 novembre: una persist che SOLLEVA (rete
+    // caduta, JSON non valido) non passava dal toast — il bottone si
+    // riabilitava e l'utente non leggeva niente. Ora è un esito come gli altri.
+    let res;
+    try {
+      res = await spec.persist(...args);
+    } catch (e) {
+      res = { data: null, error: e };
+    }
     // ⚠️ Oggi le diciotto operazioni di questo registry passano tutte da una
     // RPC, che non ritorna un conteggio di righe: `erroreDiScrittura` si comporta
     // quindi esattamente come l'`if (error)` che sostituisce. È voluto e non

@@ -2,7 +2,7 @@
 import React, { useId, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { PasswordField } from '../components/ui/PasswordField.jsx';
-import { REQUISITI_PASSWORD_TESTO } from '../lib/validators.js';
+import { REQUISITI_PASSWORD_TESTO, isValidEmail } from '../lib/validators.js';
 import * as stiliComuni from '../styles/common.js';
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
@@ -51,7 +51,7 @@ function localizeAuthError(error) {
 }
 
 export default function LoginScreen() {
-  const { signIn, resetPassword, resendConfirmation } = useAuth();
+  const { signIn, resetPassword, resendConfirmation, sessioneTerminata } = useAuth();
   // La registrazione self-service è stata rimossa (S-13): su un gestionale
   // interno con un flusso di invito completo (Edge Function invite-user) non
   // aveva una funzione chiara, e lasciava a chiunque conoscesse l'URL la
@@ -83,8 +83,14 @@ export default function LoginScreen() {
 
   async function onSubmit(e) {
     e.preventDefault();
-    setErr(null); setInfo(null); setShowResend(false); setLoading(true);
+    setErr(null); setInfo(null); setShowResend(false);
     const mail = email.trim().toLowerCase();
+    // B-4 dell'analisi UX del 15 novembre: la validazione è nostra, in
+    // italiano, non la bolla del browser (il form ha `noValidate`).
+    if (!mail) { setErr('Inserisci la tua email.'); return; }
+    if (!isValidEmail(mail)) { setErr('Email non valida: controlla di averla scritta per intero.'); return; }
+    if (mode === 'login' && !password) { setErr('Inserisci la password.'); return; }
+    setLoading(true);
     try {
       if (mode === 'login') {
         const { error } = await signIn(mail, password);
@@ -135,14 +141,14 @@ export default function LoginScreen() {
 
   return (
     <div style={wrapStyle}>
-      <form onSubmit={onSubmit} style={cardStyle}>
+      <form onSubmit={onSubmit} noValidate style={cardStyle}>
         <h1 style={titleStyle}>VoyageDesk</h1>
         <p style={txtF13Op07}>{subtitle}</p>
 
         <label htmlFor={emailId} style={labelStyle}>Email</label>
         <input
           id={emailId}
-          type="email" autoComplete="email" required
+          type="text" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} required
           value={email} onChange={e => setEmail(e.target.value)}
           style={inputStyle}
         />
@@ -160,7 +166,14 @@ export default function LoginScreen() {
           </>
         )}
 
-        {err && <div style={errStyle}>{err}</div>}
+        {/* M-2 · Un'uscita non chiesta si spiega, finché non arriva un altro messaggio. */}
+        {sessioneTerminata && !err && !info && (
+          <div role="status" style={infoStyle}>
+            La sessione è terminata: può essere scaduta o essere stata chiusa
+            da un&#39;altra scheda o da un amministratore. Accedi di nuovo per continuare.
+          </div>
+        )}
+        {err && <div role="alert" style={errStyle}>{err}</div>}
         {showResend && (
           <button
             type="button"

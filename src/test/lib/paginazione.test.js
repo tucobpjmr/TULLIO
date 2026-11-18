@@ -192,6 +192,71 @@ describe("TaskThreads.historyForTask — legge la cronologia di UN task", () => 
   });
 });
 
+// Punto 5 dell'analisi del 15 novembre · il COUNT(*) solo dove la lettura può
+// finire: alla prima pagina e a quelle che, col totale noto, possono essere
+// l'ultima. Le intermedie lo saltano.
+describe("fetchAllRows — il conteggio si chiede solo dove serve", () => {
+  // Un server con `righe()` righe ordinate per id, cap a 1000 per pagina.
+  const server = (righe) => {
+    const richieste = [];
+    const build = (conteggio) => ({
+      range: (da, a) => {
+        const tutte = righe();
+        richieste.push({ da, conteggio: conteggio?.count === "exact" });
+        return Promise.resolve({
+          data: tutte.slice(da, Math.min(a + 1, da + CAP)),
+          count: conteggio?.count === "exact" ? tutte.length : null,
+          error: null,
+        });
+      },
+    });
+    return { build, richieste };
+  };
+  const genera = (n, prefisso = "r") => Array.from({ length: n }, (_, i) => ({ id: `${prefisso}${String(i).padStart(5, "0")}` }));
+
+  it("quattro pagine, due conteggi: la prima e l'ultima", async () => {
+    const righe = genera(3500);
+    const { build, richieste } = server(() => righe);
+    const { data, error } = await fetchAllRows(build);
+
+    expect(error).toBeNull();
+    expect(data).toHaveLength(3500);
+    expect(richieste.map((r) => r.conteggio)).toEqual([true, false, false, true]);
+  });
+
+  it("una riga inserita durante la lettura non fa perdere l'ultima", async () => {
+    let righe = genera(3500);
+    const { build, richieste } = server(() => righe);
+    const lettura = fetchAllRows((c) => {
+      // Dopo la prima pagina, un INSERT in testa sposta tutto di una posizione.
+      if (richieste.length === 1) righe = [{ id: "a-nuova" }, ...righe];
+      return build(c);
+    });
+    const { data } = await lettura;
+
+    // Nessuna riga che esisteva va persa: con il totale della prima pagina
+    // ci si sarebbe fermati a 3500 posizioni, e l'ultima sarebbe rimasta
+    // fuori. La riga nuova cade in una zona già letta: nessuna paginazione a
+    // offset la vede, la porta il realtime.
+    const ids = new Set(data.map((r) => r.id));
+    expect(genera(3500).every((r) => ids.has(r.id))).toBe(true);
+    expect(richieste.at(-1).conteggio).toBe(true);
+  });
+
+  it("senza `count` dal server lo richiede a ogni pagina e si ferma sulla vuota", async () => {
+    const righe = genera(1200);
+    const richieste = [];
+    const { data } = await fetchAllRows((conteggio) => ({
+      range: (da) => {
+        richieste.push(conteggio?.count === "exact");
+        return Promise.resolve({ data: righe.slice(da, da + CAP), count: null, error: null });
+      },
+    }));
+    expect(data).toHaveLength(1200);
+    expect(richieste.every(Boolean)).toBe(true);
+  });
+});
+
 describe("fetchAllRows — il contratto della paginazione", () => {
   it("propaga l'errore invece di restituire una lista parziale", async () => {
     const { data, error } = await fetchAllRows(() => ({

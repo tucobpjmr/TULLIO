@@ -9,7 +9,7 @@
 // diretto qui lo aggirerebbe senza che nulla lo segnali.
 
 import { getSupabase } from '../supabase';
-import { fetchAllRows, WITH_COUNT } from '../pagination.js';
+import { fetchAllRows } from '../pagination.js';
 import { withOrigin } from '../realtime.js';
 import { CONTA_RIGHE } from './comuni.js';
 
@@ -28,7 +28,7 @@ export const Notices = {
   // stessa ragione del `.order('name').order('id')` di Clients.list.
   list: async () => {
     const supabase = await getSupabase();
-    return fetchAllRows(() => supabase.from('notices').select('*, users(name, color)', WITH_COUNT)
+    return fetchAllRows((conteggio) => supabase.from('notices').select('*, users(name, color)', conteggio)
       .order('pinned', { ascending: false })
       .order('created_at', { ascending: false })
       .order('id'));

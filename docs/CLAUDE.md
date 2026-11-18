@@ -64,7 +64,7 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 - **Le scritture fuori dal registry hanno comunque un guard nell'AZIONE** (`TaskFiles`, `Messages`, `Users.uploadAvatar`, `Users.invite`).
 
 **Letture e realtime**
-- **Letture che devono arrivare INTERE**: `fetchAllRows` + `WITH_COUNT` (`lib/pagination.js`), mai una `select` nuda (PostgREST tronca a 1000 righe senza errore), con un ordinamento chiuso su una colonna unica.
+- **Letture che devono arrivare INTERE**: `fetchAllRows((conteggio) => ….select(colonne, conteggio))` (`lib/pagination.js`), mai una `select` nuda (PostgREST tronca a 1000 righe senza errore), con un ordinamento chiuso su una colonna unica. Il conteggio lo decide `fetchAllRows`: prima pagina e pagine che possono essere l'ultima.
 - **Una finestra sull'idratazione, e chi si carica il resto**: all'avvio arrivano i task non completati più i completati degli ultimi 60 giorni. Chi guarda il resto chiede il corpus con `useStoricoTaskCompleto()`: **5 viste chiedono `useStoricoTaskCompleto`**.
 - **L'anagrafica clienti non si scarica all'avvio: la chiede chi la guarda**, con `useClientiCompleti()`: **2 viste chiedono `useClientiCompleti`**.
 - **La cronologia di un task si legge quando quel task si apre**: `task_history` non entra nell'idratazione né nel realtime.

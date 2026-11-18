@@ -10,7 +10,7 @@
 
 import { getSupabase } from '../supabase';
 import { getClientId } from '../clientId';
-import { fetchAllRows, WITH_COUNT } from '../pagination.js';
+import { fetchAllRows } from '../pagination.js';
 import { withOrigin } from '../realtime.js';
 import { CONTA_RIGHE } from './comuni.js';
 import { signedUrlCache, creaSignedUrlGetter, sanitizeFileName, baseMimeType } from './storage.js';
@@ -24,7 +24,7 @@ export const Conversations = {
   // lette a cavallo di un invio potrebbero saltare una conversazione.
   listMine: async () => {
     const supabase = await getSupabase();
-    return fetchAllRows(() => supabase.from('conversations').select('*', WITH_COUNT)
+    return fetchAllRows((conteggio) => supabase.from('conversations').select('*', conteggio)
       .order('updated_at', { ascending: false })
       .order('id'));
   },

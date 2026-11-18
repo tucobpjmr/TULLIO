@@ -4,7 +4,7 @@
 // (VIETATI_MODULI_API_INTERNI).
 
 import { getSupabase } from '../supabase';
-import { fetchAllRows, WITH_COUNT } from '../pagination.js';
+import { fetchAllRows } from '../pagination.js';
 import { withOrigin } from '../realtime.js';
 import { CONTA_RIGHE } from './comuni.js';
 
@@ -86,7 +86,7 @@ export const Tasks = {
   list: async ({ includeDeleted = false, withComments = false, completeDal = /** @type {string|null} */ (null) } = {}) => {
     const supabase = await getSupabase();
     const select = withComments ? TASK_SELECT_WITH_COMMENTS : '*';
-    return fetchAllRows(() => filtroTask(supabase.from('tasks').select(select, WITH_COUNT)
+    return fetchAllRows((conteggio) => filtroTask(supabase.from('tasks').select(select, conteggio)
       .order('due_date', { ascending: true }).order('id'), { includeDeleted, completeDal }));
   },
   // Sincronizzazione a differenza (hooks/sincronizzaTask.js): le stesse righe
@@ -94,14 +94,14 @@ export const Tasks = {
   // lo tiene il trigger `trg_tasks_updated_at`.
   modificatiDal: async (dal, { includeDeleted = false, completeDal = /** @type {string|null} */ (null) } = {}) => {
     const supabase = await getSupabase();
-    return fetchAllRows(() => filtroTask(supabase.from('tasks').select(TASK_SELECT_WITH_COMMENTS, WITH_COUNT)
+    return fetchAllRows((conteggio) => filtroTask(supabase.from('tasks').select(TASK_SELECT_WITH_COMMENTS, conteggio)
       .gte('updated_at', dal).order('updated_at').order('id'), { includeDeleted, completeDal }));
   },
   // Gli id dello stesso insieme di `list`, nello stesso ordine: dicono quali
   // task sono spariti (purge) o usciti dalla finestra, senza scaricarli.
   ids: async ({ includeDeleted = false, completeDal = /** @type {string|null} */ (null) } = {}) => {
     const supabase = await getSupabase();
-    return fetchAllRows(() => filtroTask(supabase.from('tasks').select('id', WITH_COUNT)
+    return fetchAllRows((conteggio) => filtroTask(supabase.from('tasks').select('id', conteggio)
       .order('due_date', { ascending: true }).order('id'), { includeDeleted, completeDal }));
   },
   create: async (task) => {
@@ -163,8 +163,8 @@ export const Tasks = {
 export const TaskThreads = {
   comments: async () => {
     const supabase = await getSupabase();
-    return fetchAllRows(() => supabase.from('comments')
-      .select('id, task_id, user_id, text, created_at, users(name)', WITH_COUNT)
+    return fetchAllRows((conteggio) => supabase.from('comments')
+      .select('id, task_id, user_id, text, created_at, users(name)', conteggio)
       .order('created_at').order('id'));
   },
   // A-1 · I commenti dei SOLI task toccati da un evento realtime (ramo
@@ -174,8 +174,8 @@ export const TaskThreads = {
   // dal cap.
   commentsForTasks: async (taskIds) => {
     const supabase = await getSupabase();
-    return fetchAllRows(() => supabase.from('comments')
-      .select('id, task_id, user_id, text, created_at, users(name)', WITH_COUNT)
+    return fetchAllRows((conteggio) => supabase.from('comments')
+      .select('id, task_id, user_id, text, created_at, users(name)', conteggio)
       .in('task_id', taskIds)
       .order('created_at').order('id'));
   },
@@ -184,13 +184,13 @@ export const TaskThreads = {
   // sapere quali rileggere (commenti nuovi o cancellati mentre si era via).
   idsCommenti: async () => {
     const supabase = await getSupabase();
-    return fetchAllRows(() => supabase.from('comments')
-      .select('id, task_id', WITH_COUNT).order('id'));
+    return fetchAllRows((conteggio) => supabase.from('comments')
+      .select('id, task_id', conteggio).order('id'));
   },
   historyForTask: async (taskId) => {
     const supabase = await getSupabase();
-    return fetchAllRows(() => supabase.from('task_history')
-      .select('id, task_id, actor_id, action, old_value, new_value, created_at, users(name)', WITH_COUNT)
+    return fetchAllRows((conteggio) => supabase.from('task_history')
+      .select('id, task_id, actor_id, action, old_value, new_value, created_at, users(name)', conteggio)
       .eq('task_id', taskId)
       .order('created_at').order('id'));
   },

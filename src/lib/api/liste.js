@@ -147,6 +147,15 @@ export const ListeAPI = {
     return fetchAllRows(() => supabase.from('liste_saldi').select('*', WITH_COUNT).order('lista_id'));
   },
 
+  // I saldi delle sole liste indicate: il reload dopo un evento su
+  // movimenti_lista (components/liste/useListeData.js). Una riga per lista,
+  // quindi il risultato è limitato da `ids`: il chiamante tiene `ids` sotto
+  // il tetto, e senza paginazione la query non rischia il cap delle 1000 righe.
+  saldiPerListe: async (ids) => {
+    const supabase = await getSupabase();
+    return supabase.from('liste_saldi').select('*').in('lista_id', ids);
+  },
+
   // Come sopra, per un solo cliente: il tab dentro la scheda cliente mostra
   // le liste di quel cliente (titolare o cointestatario) e non ha motivo di
   // scaricare i saldi di tutti. `liste_saldi` è raggruppata per client_id

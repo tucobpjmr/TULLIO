@@ -34,6 +34,20 @@ const VUOTO = { liste: [], cestino: [], saldi: {} };
 const perListaId = (righe) =>
   Object.fromEntries((righe || []).map((s) => [s.lista_id, s]));
 
+// Oltre questo numero di liste toccate in una finestra di debounce (un import
+// di backup, un reset) si rilegge la vista intera: un `in(...)` con centinaia
+// di id allunga l'URL più di quanto faccia risparmiare.
+export const TETTO_SALDI_MIRATI = 100;
+
+// I saldi delle liste in `ids`, sostituiti in `saldi`. Un id senza riga di
+// ritorno (lista cestinata nel frattempo) esce dalla mappa: la vista
+// `liste_saldi` non lo contiene più, e la lettura completa farebbe lo stesso.
+const fondiSaldi = (saldi, ids, righe) => {
+  const out = { ...saldi };
+  for (const id of ids) delete out[id];
+  return { ...out, ...perListaId(righe) };
+};
+
 /**
  * @param {object}  [opts]
  * @param {boolean} [opts.enabled=true]  false per i ruoli senza accesso al
@@ -57,6 +71,13 @@ export function useListeData({ enabled = true } = {}) {
   // partito è sempre quello che vince, indipendentemente da chi lo ha
   // lanciato o da quanto ci mette a rispondere.
   const genRef = useRef(0);
+
+  // Le liste i cui movimenti sono cambiati dall'ultimo reload, raccolte in
+  // `applyRow`. `null` = c'è stato un evento senza `lista_id` leggibile (una
+  // DELETE: `movimenti_lista` ha la replica identity di default, e `old` porta
+  // solo la chiave primaria) → si rilegge tutta la vista. Un ref: è il
+  // parametro della prossima query, non un dato da disegnare.
+  const listeToccate = useRef(/** @type {Set<string>|null} */ (new Set()));
 
   // `isCurrent` arriva da useDebouncedTableSubscription per il ramo realtime
   // (default `() => true` per il ramo manuale, che non ha un effetto da cui
@@ -110,18 +131,37 @@ export function useListeData({ enabled = true } = {}) {
       && [...tabelle].every((t) => t === "movimenti_lista");
 
     if (soloSaldi) {
-      const rSaldi = await ListeAPI.saldi();
-      if (!attuale()) return;
-      if (rSaldi.error) return fallisci(rSaldi.error);
+      // Presi e azzerati PRIMA dell'await: un evento che arriva durante la
+      // query appartiene al giro successivo.
+      const toccate = listeToccate.current;
+      listeToccate.current = new Set();
+      // Insieme vuoto (un giro concorrente l'ha già consumato) o oltre il tetto:
+      // si rilegge la vista intera, che è più lento ma mai sbagliato.
+      const ids = toccate && toccate.size > 0 && toccate.size <= TETTO_SALDI_MIRATI
+        ? [...toccate] : null;
+      // ⚠️ Un giro scartato o fallito rimette le sue liste nell'insieme: senza,
+      // quei saldi resterebbero vecchi fino al prossimo reload completo.
+      const rimetti = () => {
+        if (!ids || !listeToccate.current) { listeToccate.current = null; return; }
+        for (const id of ids) listeToccate.current.add(id);
+      };
+      const rSaldi = ids ? await ListeAPI.saldiPerListe(ids) : await ListeAPI.saldi();
+      if (!attuale()) { rimetti(); return; }
+      if (rSaldi.error) { rimetti(); return fallisci(rSaldi.error); }
       // Aggiornamento funzionale: liste e cestino restano quelli già in stato,
       // e non vanno letti dalle deps di useCallback (che deve restare vuoto
       // perché `reload` è passato a useDebouncedTableSubscription, dove
       // un'identità instabile provocherebbe una ri-sottoscrizione a ogni render).
-      setDati((d) => ({ ...d, saldi: perListaId(rSaldi.data) }));
+      setDati((d) => ({
+        ...d,
+        saldi: ids ? fondiSaldi(d.saldi, ids, rSaldi.data) : perListaId(rSaldi.data),
+      }));
       setLoading(false);
       return;
     }
 
+    // Il ramo completo rilegge tutti i saldi: le liste raccolte sono coperte.
+    listeToccate.current = new Set();
     const [rListe, rCestino, rSaldi] = await Promise.all([
       ListeAPI.list(), ListeAPI.listTrash(), ListeAPI.saldi(),
     ]);
@@ -144,7 +184,19 @@ export function useListeData({ enabled = true } = {}) {
   useDebouncedTableSubscription(
     ["liste_viaggio", "movimenti_lista", "lista_beneficiari"],
     reload,
-    { enabled, deps: [enabled] },
+    {
+      enabled, deps: [enabled],
+      // Raccoglie QUALE lista ha cambiato movimenti, poi lascia partire il
+      // reload (`false`). `lista_id` di un movimento non cambia mai (nessuna
+      // RPC lo aggiorna), quindi `new.lista_id` basta per INSERT e UPDATE.
+      applyRow: (tbl, payload) => {
+        if (tbl !== "movimenti_lista" || !listeToccate.current) return false;
+        const id = payload?.new?.lista_id ?? payload?.old?.lista_id;
+        if (id) listeToccate.current.add(id);
+        else listeToccate.current = null;
+        return false;
+      },
+    },
   );
 
   return { ...dati, loading, loadError, reload };

@@ -2,9 +2,9 @@
 // Estratto dal monolite (Step P Phase 2f).
 import { memo, useState, useCallback, useMemo } from "react";
 import { useViewport } from "../ui/Viewport.jsx";
-import { formatTime, isActiveTask } from "../../lib/taskUtils.js";
+import { formatTime } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
-import { useTasks } from "../../state/TasksContext.jsx";
+import { useTasks, useTaskAttivi } from "../../state/TasksContext.jsx";
 
 import { exportTasksToIcs } from "./calendarIcs.js";
 import { CalendarAgentLoad } from "./CalendarAgentLoad.jsx";
@@ -43,6 +43,7 @@ export const CalendarPlanner = memo(function CalendarPlanner({ loading = false }
   const { isMobile } = useViewport();
   const { categories, getAssignableTeam, io } = useAppData();
   const tasks = useTasks();
+  const attivi = useTaskAttivi();
   const [viewMode, setViewMode] = useState("month"); // "month" | "week" | "week-full" | "day"
   const [dayDate, setDayDate] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -58,8 +59,8 @@ export const CalendarPlanner = memo(function CalendarPlanner({ loading = false }
   // dipende solo da `tasks`/`canViewTask`/`uid` — non da `viewMode` o dalla
   // data corrente. Senza `useMemo` girava a ogni render comunque.
   const baseTasks = useMemo(
-    () => tasks.filter(t => isActiveTask(t) && io.vedeTask(t)),
-    [tasks, io],
+    () => attivi.filter(t => io.vedeTask(t)),
+    [attivi, io],
   );
 
   // "Sto ancora caricando e non ho ancora nulla": vedi Dashboard.jsx.

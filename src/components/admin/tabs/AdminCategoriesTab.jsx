@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useSalvataggio } from "../../../hooks/useSalvataggio.js";
 import { fieldStyle, btnPrimary, btnGhost, btnDanger } from "../adminStyles.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
-import { useTasks } from "../../../state/TasksContext.jsx";
+import { useConteggiTaskAttivi } from "../../../state/TasksContext.jsx";
 import { AddCategoryModal } from "../AddCategoryModal.jsx";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 import { obbligatorio, validaCampi } from "../../../lib/validators.js";
@@ -32,13 +32,13 @@ export const AdminCategoriesTab = () => {
   const dispatch = useDispatch();
   const conferma = useConfirm();
   const { categories } = useAppData();
-  const tasks = useTasks();
+  const { perCategoria } = useConteggiTaskAttivi();
   const [editingKey, setEditingKey] = useState(null);
   const [errori, setErrori] = useState({});
   const [draft, setDraft] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
 
-  const usageCount = (key) => tasks.filter(t => !t.deletedAt && t.category === key).length;
+  const usageCount = (key) => perCategoria.get(key) ?? 0;
 
   const startEdit = (key, c) => { setEditingKey(key); setDraft({ key, ...c }); setErrori({}); };
   const cancelEdit = () => { setEditingKey(null); setDraft(null); setErrori({}); };

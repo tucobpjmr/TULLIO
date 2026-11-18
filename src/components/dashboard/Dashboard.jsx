@@ -18,9 +18,9 @@ import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { TaskRow } from "../tasks/TaskRow.jsx";
 import { SkeletonRows } from "../ui/SkeletonRows.jsx";
-import { formatDate, isOverdue, isUrgent, isMyTask, isInGlobalQueue, getActiveTasks } from "../../lib/taskUtils.js";
+import { formatDate, isOverdue, isUrgent, isMyTask, isInGlobalQueue } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
-import { useTasks } from "../../state/TasksContext.jsx";
+import { useTaskAttivi } from "../../state/TasksContext.jsx";
 import { NoticeBoard } from "./NoticeBoard.jsx";
 import { roleLabel } from "../../lib/taskConstants.js";
 import { giornoLungo } from "../../lib/dates.js";
@@ -100,7 +100,6 @@ export const Dashboard = memo(function Dashboard({
   const {
     currentUserId, getMember, getAssignableTeam, io,
   } = useAppData();
-  const tasks = useTasks();
   const [activeQueue, setActiveQueue] = useState("personal");
   const openTask = useOpenTask();
   const uid = currentUserId;
@@ -120,7 +119,8 @@ export const Dashboard = memo(function Dashboard({
   // ricalcolate anche per un cambio estraneo (toast, un carattere in ricerca
   // altrove). `useMemo` con le dipendenze reali le limita al cambio di ciò da
   // cui dipendono davvero (tasks, team, tab attiva).
-  const allTasks = useMemo(() => getActiveTasks(tasks), [tasks]);
+  // I task attivi li calcola una volta il provider (state/TasksContext.jsx).
+  const allTasks = useTaskAttivi();
   // Filtro permessi: solo task visibili all'utente
   const visibleTasks = useMemo(() => io.taskVisibili(allTasks), [allTasks, io]);
 

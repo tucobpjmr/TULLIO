@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useViewport } from "../../ui/Viewport.jsx";
 import { useAppData } from "../../../state/AppDataContext.jsx";
-import { useTasks } from "../../../state/TasksContext.jsx";
+import { useConteggiTaskAttivi } from "../../../state/TasksContext.jsx";
 import { sectionH, fieldStyle, btnPrimary, btnGold, btnGhost, btnDanger, btnWarning } from "../adminStyles.js";
 import {
   DB_ROLES, ROLE_LABELS, SENIORITY_LEVELS, SENIORITY_LABELS, roleLabel, toSeniority,
@@ -43,7 +43,7 @@ export const AdminTeamTab = () => {
   const conferma = useConfirm();
   const { isMobile } = useViewport();
   const { team } = useAppData();
-  const tasks = useTasks();
+  const { perAssegnatario } = useConteggiTaskAttivi();
   // A-3 · I pallini invecchiano col tempo, non con i dati: `computePresence`
   // legge `Date.now()`, quindi senza un tick un «Online» resterebbe verde
   // finché qualcosa d'altro non ri-renderizza questa tab. Stessa regola e
@@ -103,7 +103,7 @@ export const AdminTeamTab = () => {
   const active = team.filter(m => !m.pending && m.active);
   const disabled = team.filter(m => !m.pending && !m.active);
 
-  const taskCount = (id) => tasks.filter(t => !t.deletedAt && (t.assignees || []).includes(id)).length;
+  const taskCount = (id) => perAssegnatario.get(id) ?? 0;
 
   // seniority normalizzata già nel draft: il <select> qui sotto è controllato e
   // con un valore undefined React lo renderebbe non controllato.

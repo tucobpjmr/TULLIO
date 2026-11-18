@@ -14,8 +14,10 @@
 // calendario aperto, digitare "rossi" significava cinque ricostruzioni
 // complete del layout del calendario su tutti i task.
 //
-// COME SI CONTANO I RENDER. Spiando `getActiveTasks`, che la Dashboard chiama
-// una volta nel proprio corpo: una chiamata in più = un render in più. Il primo
+// COME SI CONTANO I RENDER. Spiando `useTaskAttivi`, che la Dashboard chiama
+// una volta nel proprio corpo: una chiamata in più = un render in più. (Fino
+// al 18 novembre si spiava `getActiveTasks`; ora i task attivi li calcola il
+// provider, e la Dashboard li legge con l'hook.) Il primo
 // tentativo usava <Profiler>, ed era sbagliato — onRender scatta al commit del
 // SOTTOALBERO, e il wrapper Profiler si ri-renderizza col genitore anche quando
 // il figlio memoizzato salta il proprio render: misurava il wrapper, non la
@@ -26,9 +28,9 @@ import { render, screen, act } from "@testing-library/react";
 
 vi.mock("../../lib/supabase", () => ({ supabase: {}, default: {} }));
 
-vi.mock("../../lib/taskUtils.js", async (importOriginal) => {
+vi.mock("../../state/TasksContext.jsx", async (importOriginal) => {
   const actual = await importOriginal();
-  return { ...actual, getActiveTasks: vi.fn(actual.getActiveTasks) };
+  return { ...actual, useTaskAttivi: vi.fn(actual.useTaskAttivi) };
 });
 
 // ClientiView (montata da un test più sotto) interroga il modulo Liste al
@@ -42,10 +44,9 @@ vi.mock("../../lib/api/liste.js", async (importOriginal) => ({
   },
 }));
 
-const { getActiveTasks } = await import("../../lib/taskUtils.js");
 const { AppDataProvider } = await import("../../state/AppDataContext.jsx");
 const { DispatchProvider } = await import("../../state/DispatchContext.jsx");
-const { TasksProvider, useTasks } = await import("../../state/TasksContext.jsx");
+const { TasksProvider, useTasks, useTaskAttivi } = await import("../../state/TasksContext.jsx");
 const { ClientsProvider, useClients } = await import("../../state/ClientsContext.jsx");
 // Criticità #8: la Dashboard monta la bacheca, che chiede conferma prima di
 // eliminare un avviso. Il guscio del test replica quello dell'app, provider
@@ -165,7 +166,7 @@ describe("Viste — un'azione che non le riguarda non le fa ri-renderizzare", ()
 
   it("la Dashboard non si ri-renderizza quando cambia solo lo stato del guscio", () => {
     render(<Guscio tasks={[TASK]} />);
-    const dopoMount = getActiveTasks.mock.calls.length;
+    const dopoMount = useTaskAttivi.mock.calls.length;
     expect(dopoMount).toBeGreaterThan(0);
 
     act(() => { screen.getByRole("button", { name: /azione non correlata/ }).click(); });
@@ -173,7 +174,7 @@ describe("Viste — un'azione che non le riguarda non le fa ri-renderizzare", ()
     // Prima di questo refactor la Dashboard riceveva `state` — oggetto nuovo a
     // ogni azione — e qui avrebbe ri-renderizzato l'intero sottoalbero: le
     // quattro code, le card, la bacheca.
-    expect(getActiveTasks.mock.calls.length).toBe(dopoMount);
+    expect(useTaskAttivi.mock.calls.length).toBe(dopoMount);
     // Il guscio SI è ri-renderizzato: è la prova che il test sta misurando il
     // bail-out della vista e non un click andato a vuoto.
     expect(screen.getByRole("button", { name: /azione non correlata 1/ })).toBeTruthy();
@@ -181,11 +182,11 @@ describe("Viste — un'azione che non le riguarda non le fa ri-renderizzare", ()
 
   it("…ma si aggiorna quando cambiano davvero i task", () => {
     const { rerender } = render(<Guscio tasks={[TASK]} />);
-    const dopoMount = getActiveTasks.mock.calls.length;
+    const dopoMount = useTaskAttivi.mock.calls.length;
 
     rerender(<Guscio tasks={[TASK, { ...TASK, id: "t2", title: "Hotel" }]} />);
 
-    expect(getActiveTasks.mock.calls.length).toBeGreaterThan(dopoMount);
+    expect(useTaskAttivi.mock.calls.length).toBeGreaterThan(dopoMount);
     expect(screen.getByText("Hotel")).toBeTruthy();
   });
 });

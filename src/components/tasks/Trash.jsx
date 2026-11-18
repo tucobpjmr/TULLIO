@@ -5,9 +5,9 @@ import { Avatar } from "../ui/Avatar.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
 import { STATUS_LABELS } from "../../lib/taskConstants.js";
-import { formatDate, getTrashedTasks } from "../../lib/taskUtils.js";
+import { formatDate } from "../../lib/taskUtils.js";
 import { useAppData } from "../../state/AppDataContext.jsx";
-import { useTasks } from "../../state/TasksContext.jsx";
+import { useTasks, useTaskCestinati } from "../../state/TasksContext.jsx";
 import { useStoricoTaskCompleto } from "../../state/StoricoTaskContext.jsx";
 import { SkeletonCards } from "../ui/SkeletonCards.jsx";
 import { RipristinaTaskModal } from "./RipristinaTaskModal.jsx";
@@ -41,6 +41,7 @@ export const Trash = memo(function Trash({ loading = false }) {
   const conferma = useConfirm();
   const { io } = useAppData();
   const tasks = useTasks();
+  const cestinati = useTaskCestinati();
   // A-3: dal 17 agosto l'idratazione non chiede più `includeDeleted`, quindi
   // il cestino non è in stato per costruzione — lo carica questa vista. È
   // anche quella in cui la risposta sbagliata costa di più: ci si viene a
@@ -65,9 +66,9 @@ export const Trash = memo(function Trash({ loading = false }) {
   // controllo di permesso per riga e ordinamento sono tre passate su tutte le
   // task, e senza memo si rifacevano a ogni cambio di chip del periodo.
   const trashed = useMemo(
-    () => io.taskVisibili(getTrashedTasks(tasks))
+    () => io.taskVisibili(cestinati)
       .sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime()),
-    [tasks, io]);
+    [cestinati, io]);
   const visible = useMemo(
     () => filterByPeriod(trashed, period, "deletedAt"), [trashed, period]);
   const editableCount = useMemo(

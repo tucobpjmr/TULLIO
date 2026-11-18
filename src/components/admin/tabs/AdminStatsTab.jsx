@@ -4,7 +4,7 @@ import { cardStyle, cardH } from "../adminStyles.js";
 import { STATUSES, STATUS_LABELS, STATUS_COLORS } from "../../../lib/taskConstants.js";
 import { isOverdue } from "../../../lib/taskUtils.js";
 import { useAppData } from "../../../state/AppDataContext.jsx";
-import { useTasks } from "../../../state/TasksContext.jsx";
+import { useTaskAttivi, useTaskCestinati } from "../../../state/TasksContext.jsx";
 import { useStoricoTaskCompleto } from "../../../state/StoricoTaskContext.jsx";
 import { MessageTemplatesSection } from "./MessageTemplatesSection.jsx";
 import * as stiliComuni from "../../../styles/common.js";
@@ -34,7 +34,8 @@ const rowCenterMiddle = {
 // ─── ADMIN TAB: SISTEMA / STATS ────────────────────────────────────────────
 export const AdminStatsTab = ({ messageTemplates = [], templatesLoading = false }) => {
   const { team, categories } = useAppData();
-  const tasks = useTasks();
+  const active = useTaskAttivi();
+  const trashed = useTaskCestinati();
   // A-3. Il tasso di completamento è un rapporto fra due conteggi sullo stesso
   // array: la finestra dell'idratazione ne pota UNO SOLO (le completate
   // vecchie), quindi senza il corpus intero questa scheda non mostrerebbe un
@@ -45,8 +46,6 @@ export const AdminStatsTab = ({ messageTemplates = [], templatesLoading = false 
   // costruzione — scaduti, agenti, carico di lavoro: contano solo task NON
   // completate e non cestinate.
   const conta = (n) => (caricandoStorico ? "…" : n);
-  const active = tasks.filter(t => !t.deletedAt);
-  const trashed = tasks.filter(t => t.deletedAt);
   const overdue = active.filter(t => isOverdue(t));
   const done = active.filter(t => t.status === "done");
   const completionRate = active.length ? Math.round((done.length / active.length) * 100) : 0;

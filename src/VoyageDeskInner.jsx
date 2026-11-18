@@ -2,7 +2,7 @@
 // L'orchestratore: compone hook e viste. VoyageDesk.jsx è il wrapper che
 // fornisce ViewportProvider.
 
-import { useReducer, useEffect, useCallback, useRef, lazy, Suspense, Profiler } from "react";
+import { useReducer, useEffect, useCallback, useMemo, useRef, lazy, Suspense, Profiler } from "react";
 
 // ── Stato ──────────────────────────────────────────────────────────────────
 import { registraSinkErrori } from "./lib/errorReporting.js";
@@ -43,7 +43,6 @@ import { AdminRollbackBanner } from "./components/shell/AdminRollbackBanner.jsx"
 import { OfflineBanner } from "./components/shell/OfflineBanner.jsx";
 
 // ── Viste ──────────────────────────────────────────────────────────────────
-import { QuickAddTask } from "./components/tasks/QuickAddTask.jsx";
 
 // Stili costanti: allocati una volta, non a ogni render.
 const col = { display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--surface)", fontFamily: "'DM Sans', sans-serif" };
@@ -64,6 +63,11 @@ const ClientiView = lazy(() =>
 const ChatPanel = lazy(() =>
   import("./components/chat/ChatPanel.jsx").then(m => ({ default: m.ChatPanel }))
 );
+// Il form del FAB (con il DateTimePicker) si vede solo aprendo il FAB o con
+// il tasto «k»: lazy, e precaricato a browser libero dopo il primo render
+// (vedi l'effetto in VoyageDeskInner), così l'apertura non aspetta la rete.
+const caricaQuickAddTask = () => import("./components/tasks/QuickAddTask.jsx");
+const QuickAddTask = lazy(() => caricaQuickAddTask().then(m => ({ default: m.QuickAddTask })));
 const BulkTaskCreator = lazy(() =>
   import("./components/tasks/bulk/BulkTaskCreator.jsx").then(m => ({ default: m.BulkTaskCreator }))
 );
@@ -134,6 +138,11 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   // (A-1 del 15 novembre) nasce più sotto, con l'idratazione: passa da un ref.
   const ricaricaTaskRif = useRef(/** @type {(() => void)|null} */ (null));
   const ricaricaDopoCoda = useCallback(() => ricaricaTaskRif.current?.(), []);
+  // I task dell'ultimo render, per la ripresa per differenza di useAppHydration:
+  // la lettura avviene dopo un await, quando lo stato è già andato avanti.
+  const taskRif = useRef(state.tasks);
+  taskRif.current = state.tasks;
+  const leggiTask = useCallback(() => taskRif.current, []);
   const { api: codaScritture, inAttesa: scrittureInAttesa } = useCodaScritture({
     enabled: useSupabase,
     uid: state.currentUserId,
@@ -166,6 +175,8 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
     onError: showError,
     // B-1 · Il team già letto da AuthContext: l'idratazione non lo rilegge.
     teamIniziale: initialTeam,
+    // La ripresa per differenza confronta il server con i task in stato.
+    leggiTask,
   });
   ricaricaTaskRif.current = ricaricaTask;
 
@@ -211,6 +222,26 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
   const ui = useShellUi();
   // Estratte per nome: `ui` è nuovo a ogni render, queste tre sono stabili.
   const { apriFAB, alternaScorciatoie, chiudiPannelli } = ui;
+
+  // Prop stabili per i pannelli del FAB e della creazione in blocco: il guscio
+  // si ridisegna a ogni toast, battuta nella ricerca o messaggio di chat, e una
+  // freccia nuova a ogni render li ridisegnerebbe con lui.
+  const aggiungiTask = useCallback(t => dispatch({ type: "ADD_TASK", payload: t }), [dispatch]);
+  const creaInBlocco = useCallback(tasks => dispatch({ type: "ADD_TASKS_BULK", payload: tasks }), [dispatch]);
+  const taskAttivi = useMemo(() => getActiveTasks(state.tasks), [state.tasks]);
+
+  // Precarica il form del FAB quando il browser è libero: fuori dal primo
+  // caricamento, ma pronto prima che serva. Un errore qui non conta: al primo
+  // uso il lazy() riprova e, se fallisce, lo mostra il LazyPanel.
+  useEffect(() => {
+    const precarica = () => { caricaQuickAddTask().catch(() => {}); };
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(precarica, { timeout: 5000 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(precarica, 2000);
+    return () => clearTimeout(t);
+  }, []);
 
   usePushNavigation({
     enabled: useSupabase,
@@ -394,7 +425,11 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {state.activeView !== "trash" && state.activeView !== "archivio" && state.activeView !== "admin" && (
           <FAB onClick={ui.apriFAB} />
         )}
-        {ui.fabAperto && <QuickAddTask onAdd={t => dispatch({ type: "ADD_TASK", payload: t })} onClose={ui.chiudiFAB} />}
+        {ui.fabAperto && (
+          <LazyPanel resetKey="fab" onReset={ui.chiudiFAB} overlay>
+            <QuickAddTask onAdd={aggiungiTask} onClose={ui.chiudiFAB} />
+          </LazyPanel>
+        )}
 
         {/* Overlay scorciatoie tastiera */}
         {ui.scorciatoieAperte && <KeyboardHelpOverlay onClose={ui.chiudiScorciatoie} />}
@@ -403,8 +438,8 @@ export function VoyageDeskInner({ initialTeam, initialCurrentUserId }) {
         {ui.bulkAperto && (
           <LazyPanel resetKey="bulk" onReset={ui.chiudiBulk} overlay>
             <BulkTaskCreator
-              existingTasks={getActiveTasks(state.tasks)}
-              onCreate={(tasks) => dispatch({ type: "ADD_TASKS_BULK", payload: tasks })}
+              existingTasks={taskAttivi}
+              onCreate={creaInBlocco}
               onClose={ui.chiudiBulk}
             />
           </LazyPanel>

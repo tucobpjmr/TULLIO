@@ -49,23 +49,28 @@ export function applicaRighe(mappa, righe) {
 }
 
 /**
- * Fonde la rilettura del corpus con ciò che è già in stato.
- * - Corpus intero (`troncato` falso): il server è tutta la verità.
- * - Corpus troncato al tetto: il server copre solo da `soglia` in poi (il suo
- *   messaggio più vecchio). I messaggi più vecchi già caricati a pagine
- *   restano, o ogni rilettura ributterebbe via la storia appena letta.
+ * Fonde la lettura delle ULTIME pagine delle conversazioni `lette` con ciò che
+ * è già in stato (hooks/useChatData.js).
+ * - Conversazione non troncata (pagina non piena): il server è tutta la verità.
+ * - Troncata: il server copre solo dal suo messaggio più vecchio in poi; i
+ *   messaggi più vecchi già caricati a pagine restano, o ogni rilettura
+ *   ributterebbe via la storia appena letta.
+ * - `parziale`: si sono lette solo alcune conversazioni (quelle nuove), le
+ *   altre restano com'erano. Altrimenti le conversazioni non lette spariscono:
+ *   la lettura completa è la lista delle conversazioni visibili.
+ * @param {Record<string, any[]>} prima
+ * @param {Record<string, any[]>} dalServer
+ * @param {{ lette: string[], troncate: Set<string>, parziale?: boolean }} opts
  */
-export function fondiCorpus(prima, dalServer, { troncato }) {
-  if (!troncato) return dalServer;
-  let soglia = Infinity;
-  for (const lista of Object.values(dalServer)) {
-    if (lista.length) soglia = Math.min(soglia, ms(lista[0].time));
-  }
-  const out = { ...dalServer };
-  for (const [convId, lista] of Object.entries(prima)) {
-    const nuovi = new Set((dalServer[convId] || []).map((m) => m.id));
-    const vecchi = lista.filter((m) => ms(m.time) < soglia && !nuovi.has(m.id));
-    if (vecchi.length) out[convId] = [...vecchi, ...(dalServer[convId] || [])];
+export function fondiFinestre(prima, dalServer, { lette, troncate, parziale = false }) {
+  const out = parziale ? { ...prima } : {};
+  for (const convId of lette) {
+    const server = dalServer[convId] || [];
+    if (!troncate.has(convId) || !server.length) { out[convId] = server; continue; }
+    const soglia = ms(server[0].time);
+    const nuovi = new Set(server.map((m) => m.id));
+    const vecchi = (prima[convId] || []).filter((m) => ms(m.time) < soglia && !nuovi.has(m.id));
+    out[convId] = vecchi.length ? [...vecchi, ...server] : server;
   }
   return out;
 }

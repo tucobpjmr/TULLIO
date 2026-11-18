@@ -4,7 +4,7 @@
 // IL BUG CHE QUESTO FILE BLOCCA. La chat è l'unico sottosistema che, a
 // differenza del core (state/persistence.js + pendingWrites), non aveva
 // alcuna nozione di "questo messaggio l'ho appena inviato e non è ancora
-// committato". `useChatData` ricarica `Messages.listAll()` a ogni evento
+// committato". `useChatData` rilegge i messaggi a ogni evento
 // realtime su `messages`/`conversations` e SOSTITUISCE l'intera mappa dei
 // messaggi: se quell'evento arriva (da un ALTRO utente) prima che la nostra
 // INSERT abbia fatto commit, la risposta del reload non contiene ancora il
@@ -28,7 +28,7 @@ const ConversationsAPI = {
   listMine: vi.fn(async () => ({ data: [], error: null })),
 };
 const MessagesAPI = {
-  listAll: vi.fn(async () => ({ data: [], error: null })),
+  ultimiPerConversazioni: vi.fn(async () => ({ data: [], error: null, troncate: [] })),
   listForConversation: vi.fn(async () => ({ data: [], error: null })),
   send: vi.fn(() => new Promise(() => {})), // non risolve mai: l'INSERT resta "in volo"
   contaNonLetti: vi.fn(async () => ({ data: [], error: null })),
@@ -41,7 +41,8 @@ vi.mock("../../lib/api.js", () => ({
   subscribeToTable: (...a) => subscribeToTable(...a),
 }));
 
-const { useChatData, TETTO_CORPUS, PAGINA_STORIA } = await import("../../hooks/useChatData.js");
+const { useChatData, PAGINA_STORIA } = await import("../../hooks/useChatData.js");
+const { comeServer } = await import("../helpers/messaggiServer.js");
 
 const UUID_CONV = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 
@@ -49,7 +50,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   for (const k of Object.keys(handlers)) delete handlers[k];
   ConversationsAPI.listMine.mockResolvedValue({ data: [{ id: UUID_CONV, type: "direct", participants: ["u1", "u2"] }], error: null });
-  MessagesAPI.listAll.mockResolvedValue({ data: [], error: null });
+  MessagesAPI.ultimiPerConversazioni.mockImplementation(comeServer({ data: [], error: null }));
   MessagesAPI.send.mockImplementation(() => new Promise(() => {}));
   MessagesAPI.contaNonLetti.mockResolvedValue({ data: [], error: null });
   MessagesAPI.markReadBulk.mockResolvedValue({ data: 0, error: null });
@@ -108,13 +109,13 @@ describe("useChatData — un messaggio in volo sopravvive a un reload concorrent
 
     // Il server ora HA il messaggio (commit avvenuto): il prossimo reload lo
     // include nella risposta.
-    MessagesAPI.listAll.mockResolvedValue({
+    MessagesAPI.ultimiPerConversazioni.mockImplementation(comeServer({
       data: [{
         id: normalized.id, conversation_id: UUID_CONV, sender_id: "u1",
         type: "text", text: "ciao", created_at: new Date().toISOString(),
       }],
       error: null,
-    });
+    }));
     await eventoRealtime("messages");
 
     const dopo = result.current.messages[UUID_CONV] || [];
@@ -129,7 +130,7 @@ describe("useChatData — una lettura fallita non svuota la chat", () => {
   const MSG = { id: "m1", conversation_id: UUID_CONV, sender_id: "u2", text: "ciao", created_at: "2026-11-10T10:00:00Z", read_by: [] };
 
   const monta = async (onError) => {
-    MessagesAPI.listAll.mockResolvedValue({ data: [MSG], error: null });
+    MessagesAPI.ultimiPerConversazioni.mockImplementation(comeServer({ data: [MSG], error: null }));
     const r = renderHook(() => useChatData({
       enabled: true, team: [{ id: "u1" }, { id: "u2" }], currentUserId: "u1",
       mockConversations: [], mockMessages: {}, onError, onSuccess: () => {},
@@ -142,7 +143,7 @@ describe("useChatData — una lettura fallita non svuota la chat", () => {
   it("messaggi in errore: conversazioni e messaggi restano, e l'errore si vede", async () => {
     const onError = vi.fn();
     const { result } = await monta(onError);
-    MessagesAPI.listAll.mockResolvedValue({ data: null, error: { message: "Failed to fetch" } });
+    MessagesAPI.ultimiPerConversazioni.mockImplementation(comeServer({ data: null, error: { message: "Failed to fetch" } }));
 
     // Un evento senza riga non si può applicare da solo: riparte la rilettura.
     await eventoRealtime("messages");
@@ -165,7 +166,7 @@ describe("useChatData — una lettura fallita non svuota la chat", () => {
   });
 
   it("primo caricamento in errore: lo spinner si chiude comunque", async () => {
-    MessagesAPI.listAll.mockResolvedValue({ data: null, error: { message: "giù" } });
+    MessagesAPI.ultimiPerConversazioni.mockImplementation(comeServer({ data: null, error: { message: "giù" } }));
     const { result } = renderHook(() => useChatData({
       enabled: true, team: [], currentUserId: "u1",
       mockConversations: [], mockMessages: {}, onError: () => {}, onSuccess: () => {},
@@ -183,13 +184,13 @@ describe("useChatData — eventi di messages applicati riga per riga", () => {
   });
 
   const monta = async (iniziali = [riga("m1")]) => {
-    MessagesAPI.listAll.mockResolvedValue({ data: iniziali, error: null });
+    MessagesAPI.ultimiPerConversazioni.mockImplementation(comeServer({ data: iniziali, error: null }));
     const r = renderHook(() => useChatData({
       enabled: true, team: [{ id: "u1" }, { id: "u2" }], currentUserId: "u1",
       mockConversations: [], mockMessages: {}, onError: vi.fn(), onSuccess: () => {},
     }));
     await waitFor(() => expect(r.result.current.loading).toBe(false));
-    MessagesAPI.listAll.mockClear();
+    MessagesAPI.ultimiPerConversazioni.mockClear();
     ConversationsAPI.listMine.mockClear();
     return r;
   };
@@ -199,7 +200,7 @@ describe("useChatData — eventi di messages applicati riga per riga", () => {
     await eventoRealtime("messages", { eventType: "INSERT", new: riga("m2", { created_at: "2026-11-10T10:01:00Z" }) });
 
     expect(result.current.messages[UUID_CONV].map(m => m.id)).toEqual(["m1", "m2"]);
-    expect(MessagesAPI.listAll).not.toHaveBeenCalled();
+    expect(MessagesAPI.ultimiPerConversazioni).not.toHaveBeenCalled();
     expect(ConversationsAPI.listMine).not.toHaveBeenCalled();
   });
 
@@ -210,7 +211,7 @@ describe("useChatData — eventi di messages applicati riga per riga", () => {
 
     await eventoRealtime("messages", { eventType: "DELETE", old: { id: "m2", conversation_id: UUID_CONV } });
     expect(result.current.messages[UUID_CONV].map(m => m.id)).toEqual(["m1"]);
-    expect(MessagesAPI.listAll).not.toHaveBeenCalled();
+    expect(MessagesAPI.ultimiPerConversazioni).not.toHaveBeenCalled();
   });
 
   it("UPDATE di un messaggio non in stato: ignorato (niente buchi nella storia)", async () => {
@@ -222,20 +223,20 @@ describe("useChatData — eventi di messages applicati riga per riga", () => {
   it("controllo positivo: un evento senza riga leggibile rilegge il corpus", async () => {
     await monta();
     await eventoRealtime("messages", { eventType: "INSERT" });
-    expect(MessagesAPI.listAll).toHaveBeenCalledTimes(1);
+    expect(MessagesAPI.ultimiPerConversazioni).toHaveBeenCalledTimes(1);
   });
 });
 
-describe("useChatData — storia per conversazione sopra il tetto del corpus", () => {
+describe("useChatData — storia di una conversazione con la pagina piena", () => {
   const riga = (i, extra = {}) => ({
     id: `m${i}`, conversation_id: UUID_CONV, sender_id: "u2", text: `t${i}`,
     created_at: new Date(Date.UTC(2026, 0, 1) + i * 60_000).toISOString(), read_by: [], ...extra,
   });
-  // Corpus «troncato»: il server ne consegna esattamente TETTO_CORPUS.
-  const CORPUS = Array.from({ length: TETTO_CORPUS }, (_, i) => riga(10_000 + i));
+  // Conversazione «troncata»: il server ne consegna una pagina piena.
+  const CORPUS = Array.from({ length: PAGINA_STORIA }, (_, i) => riga(10_000 + i));
 
   const monta = async (corpus = CORPUS) => {
-    MessagesAPI.listAll.mockResolvedValue({ data: corpus, error: null });
+    MessagesAPI.ultimiPerConversazioni.mockImplementation(comeServer({ data: corpus, error: null }));
     const onError = vi.fn();
     const r = renderHook(() => useChatData({
       enabled: true, team: [{ id: "u1" }, { id: "u2" }], currentUserId: "u1",
@@ -245,7 +246,7 @@ describe("useChatData — storia per conversazione sopra il tetto del corpus", (
     return { ...r, onError };
   };
 
-  it("sotto il tetto il corpus è completo e non c'è niente da caricare", async () => {
+  it("una pagina non piena: storia completa, niente da caricare", async () => {
     const { result } = await monta([riga(1)]);
     expect(result.current.storiaMessaggi.corpusCompleto).toBe(true);
   });
@@ -261,7 +262,7 @@ describe("useChatData — storia per conversazione sopra il tetto del corpus", (
     expect(MessagesAPI.listForConversation).toHaveBeenCalledWith(
       UUID_CONV, { fino: CORPUS[0].created_at, limit: PAGINA_STORIA });
     const lista = result.current.messages[UUID_CONV];
-    expect(lista).toHaveLength(TETTO_CORPUS + PAGINA_STORIA);
+    expect(lista).toHaveLength(PAGINA_STORIA + PAGINA_STORIA);
     expect(lista[0].id).toBe("m9000");
     expect(result.current.storiaMessaggi.perConv[UUID_CONV].completa).toBe(false);
   });
@@ -271,7 +272,7 @@ describe("useChatData — storia per conversazione sopra il tetto del corpus", (
     MessagesAPI.listForConversation.mockResolvedValueOnce({ data: [riga(1), CORPUS[0]], error: null });
     await act(async () => { await result.current.commands.caricaPrecedenti(UUID_CONV); });
     expect(result.current.storiaMessaggi.perConv[UUID_CONV].completa).toBe(true);
-    expect(result.current.messages[UUID_CONV]).toHaveLength(TETTO_CORPUS + 1);
+    expect(result.current.messages[UUID_CONV]).toHaveLength(PAGINA_STORIA + 1);
 
     MessagesAPI.listForConversation.mockClear();
     await act(async () => { await result.current.commands.caricaPrecedenti(UUID_CONV); });
@@ -285,10 +286,10 @@ describe("useChatData — storia per conversazione sopra il tetto del corpus", (
 
     expect(onError).toHaveBeenCalledWith(expect.stringContaining("precedenti"));
     expect(result.current.storiaMessaggi.perConv[UUID_CONV]).toMatchObject({ completa: false, errore: true, caricando: false });
-    expect(result.current.messages[UUID_CONV]).toHaveLength(TETTO_CORPUS);
+    expect(result.current.messages[UUID_CONV]).toHaveLength(PAGINA_STORIA);
   });
 
-  it("una rilettura del corpus troncato non butta via la storia già caricata", async () => {
+  it("una rilettura della conversazione troncata non butta via la storia già caricata", async () => {
     const { result } = await monta();
     MessagesAPI.listForConversation.mockResolvedValueOnce({ data: [riga(1), riga(2)], error: null });
     await act(async () => { await result.current.commands.caricaPrecedenti(UUID_CONV); });
@@ -297,21 +298,21 @@ describe("useChatData — storia per conversazione sopra il tetto del corpus", (
 
     const ids = result.current.messages[UUID_CONV].map(m => m.id);
     expect(ids.slice(0, 2)).toEqual(["m1", "m2"]);
-    expect(ids).toHaveLength(TETTO_CORPUS + 2);
+    expect(ids).toHaveLength(PAGINA_STORIA + 2);
   });
 });
 
 // ─── B-7 del 16 novembre · non letti oltre il corpus, contati dal server ────
-describe("useChatData — non letti più vecchi del corpus", () => {
+describe("useChatData — non letti più vecchi della finestra", () => {
   const riga = (i, extra = {}) => ({
     id: `n${i}`, conversation_id: UUID_CONV, sender_id: "u2", text: `t${i}`,
     created_at: new Date(Date.UTC(2026, 0, 1) + i * 60_000).toISOString(), read_by: ["u1"], ...extra,
   });
-  // Corpus troncato con 2 non letti dentro; il server ne conta 5.
-  const corpus = () => Array.from({ length: TETTO_CORPUS }, (_, i) => riga(i, i < 2 ? { read_by: [] } : {}));
+  // Pagina piena con 2 non letti dentro; il server ne conta 5.
+  const corpus = () => Array.from({ length: PAGINA_STORIA }, (_, i) => riga(i, i < 2 ? { read_by: [] } : {}));
 
   const monta = async (data) => {
-    MessagesAPI.listAll.mockResolvedValue({ data, error: null });
+    MessagesAPI.ultimiPerConversazioni.mockImplementation(comeServer({ data, error: null }));
     const r = renderHook(() => useChatData({
       enabled: true, team: [{ id: "u1" }, { id: "u2" }], currentUserId: "u1",
       mockConversations: [], mockMessages: {}, onError: vi.fn(), onSuccess: () => {},
@@ -320,7 +321,7 @@ describe("useChatData — non letti più vecchi del corpus", () => {
     return r;
   };
 
-  it("corpus troncato: il badge somma i non letti che il corpus non contiene", async () => {
+  it("pagina piena: il badge somma i non letti che la finestra non contiene", async () => {
     MessagesAPI.contaNonLetti.mockResolvedValue({ data: [{ conversation_id: UUID_CONV, non_letti: 5 }], error: null });
     const { result } = await monta(corpus());
     expect(MessagesAPI.contaNonLetti).toHaveBeenCalledTimes(1);
@@ -336,7 +337,7 @@ describe("useChatData — non letti più vecchi del corpus", () => {
     expect(result.current.storiaMessaggi.nonLettiOltre).toEqual({});
   });
 
-  it("sotto il tetto il server non si interroga: il corpus è già tutto", async () => {
+  it("pagina non piena: il server non si interroga, c'è già tutto", async () => {
     const { result } = await monta([riga(1, { read_by: [] })]);
     expect(MessagesAPI.contaNonLetti).not.toHaveBeenCalled();
     expect(result.current.unreadChat).toBe(1);
@@ -349,5 +350,50 @@ describe("useChatData — non letti più vecchi del corpus", () => {
     expect(result.current.unreadChat).toBe(2);
     expect(result.current.storiaMessaggi.nonLettiOltre).toEqual({});
     warn.mockRestore();
+  });
+});
+
+// ─── Punto 4 dell'analisi del 15 novembre · una finestra per conversazione ──
+describe("useChatData — gli ultimi messaggi di OGNI conversazione", () => {
+  const C2 = "bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+  const riga = (conv, i) => ({
+    id: `${conv.slice(0, 2)}${i}`, conversation_id: conv, sender_id: "u2", text: `t${i}`,
+    created_at: new Date(Date.UTC(2026, 0, 1) + i * 60_000).toISOString(), read_by: ["u1"],
+  });
+  const monta = async () => {
+    const r = renderHook(() => useChatData({
+      enabled: true, team: [{ id: "u1" }, { id: "u2" }], currentUserId: "u1",
+      mockConversations: [], mockMessages: {}, onError: vi.fn(), onSuccess: () => {},
+    }));
+    await waitFor(() => expect(r.result.current.loading).toBe(false));
+    return r;
+  };
+
+  it("chiede le conversazioni elencate, e la storia è per conversazione", async () => {
+    ConversationsAPI.listMine.mockResolvedValue({ data: [{ id: UUID_CONV }, { id: C2 }], error: null });
+    const piena = Array.from({ length: PAGINA_STORIA }, (_, i) => riga(UUID_CONV, i));
+    MessagesAPI.ultimiPerConversazioni.mockImplementation(comeServer({ data: [...piena, riga(C2, 1)], error: null }));
+
+    const { result } = await monta();
+
+    expect(MessagesAPI.ultimiPerConversazioni).toHaveBeenCalledWith([UUID_CONV, C2], { limit: PAGINA_STORIA });
+    expect(result.current.storiaMessaggi.corpusCompleto).toBe(false);
+    expect(result.current.storiaMessaggi.perConv[C2]?.completa).toBe(true);
+    expect(result.current.storiaMessaggi.perConv[UUID_CONV]?.completa).toBeFalsy();
+  });
+
+  it("una conversazione nuova legge SOLO i suoi messaggi, e le altre restano", async () => {
+    ConversationsAPI.listMine.mockResolvedValue({ data: [{ id: UUID_CONV }], error: null });
+    MessagesAPI.ultimiPerConversazioni.mockImplementation(comeServer({ data: [riga(UUID_CONV, 1), riga(C2, 2)], error: null }));
+    const { result } = await monta();
+    MessagesAPI.ultimiPerConversazioni.mockClear();
+
+    ConversationsAPI.listMine.mockResolvedValue({ data: [{ id: UUID_CONV }, { id: C2 }], error: null });
+    await eventoRealtime("conversations", { eventType: "INSERT" });
+
+    expect(MessagesAPI.ultimiPerConversazioni).toHaveBeenCalledTimes(1);
+    expect(MessagesAPI.ultimiPerConversazioni.mock.calls[0][0]).toEqual([C2]);
+    expect(result.current.messages[UUID_CONV].map(m => m.id)).toEqual(["aa1"]);
+    expect(result.current.messages[C2].map(m => m.id)).toEqual(["bb2"]);
   });
 });

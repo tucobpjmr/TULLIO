@@ -46,7 +46,11 @@ const TasksContext = createContext(null);
  * @param {import('react').ReactNode} props.children
  */
 export function TasksProvider({ tasks, children }) {
-  const value = useMemo(() => ({ tasks: tasks || [] }), [tasks]);
+  // Punto 8 dell'analisi del 15 novembre · Le derivazioni che più viste
+  // rifacevano ciascuna per conto suo (attivi, cestinati, conteggi per
+  // assegnatario e categoria) si calcolano QUI, una volta per cambio di
+  // `tasks`, e le viste le leggono già pronte.
+  const value = useMemo(() => derivaTask(tasks || []), [tasks]);
   return <TasksContext.Provider value={value}>{children}</TasksContext.Provider>;
 }
 
@@ -59,6 +63,48 @@ export function TasksProvider({ tasks, children }) {
  * mostrerebbe una vista plausibile ma priva di dati, ed è esattamente il tipo
  * di guasto che si scopre in produzione invece che al primo render in test.
  */
+/**
+ * Le derivazioni condivise, in un solo passaggio sull'array.
+ * @param {Array<{ id: string, deletedAt?: string|null, assignees?: string[], category?: string }>} tasks
+ */
+export function derivaTask(tasks) {
+  const attivi = [];
+  const cestinati = [];
+  /** @type {Map<string, number>} */
+  const attiviPerAssegnatario = new Map();
+  /** @type {Map<string, number>} */
+  const attiviPerCategoria = new Map();
+  for (const t of tasks) {
+    if (t.deletedAt) { cestinati.push(t); continue; }
+    attivi.push(t);
+    for (const id of t.assignees || []) attiviPerAssegnatario.set(id, (attiviPerAssegnatario.get(id) ?? 0) + 1);
+    if (t.category) attiviPerCategoria.set(t.category, (attiviPerCategoria.get(t.category) ?? 0) + 1);
+  }
+  return { tasks, attivi, cestinati, attiviPerAssegnatario, attiviPerCategoria };
+}
+
+const leggi = (ctx, nome) => {
+  if (!ctx) {
+    throw new Error(
+      `${nome}() richiede <TasksProvider>. Nei test usa renderWithAppData(ui, { tasks: [...] }).`
+    );
+  }
+  return ctx;
+};
+
+/** I task NON cestinati, calcolati una volta nel provider. */
+export const useTaskAttivi = () => leggi(useContext(TasksContext), "useTaskAttivi").attivi;
+/** I task nel cestino (`deletedAt` valorizzato), calcolati una volta nel provider. */
+export const useTaskCestinati = () => leggi(useContext(TasksContext), "useTaskCestinati").cestinati;
+/**
+ * Conteggi dei task attivi per assegnatario e per categoria (Map id → n).
+ * @returns {{ perAssegnatario: Map<string, number>, perCategoria: Map<string, number> }}
+ */
+export const useConteggiTaskAttivi = () => {
+  const ctx = leggi(useContext(TasksContext), "useConteggiTaskAttivi");
+  return { perAssegnatario: ctx.attiviPerAssegnatario, perCategoria: ctx.attiviPerCategoria };
+};
+
 export function useTasks() {
   const ctx = useContext(TasksContext);
   if (!ctx) {

@@ -160,6 +160,23 @@ function baseReducer(state, action) {
     }
     // Gemello per riga di SET_TASKS (vedi applicaRigaRealtime). `comments` non è
     // una colonna di `tasks`: si preservano quelli in stato.
+    case "SINCRONIZZA_TASK": {
+      // La ripresa per differenza (hooks/sincronizzaTask.js): `ids` è l'insieme
+      // intero e ne dà l'ordine, `righe` i task cambiati, `commenti` i thread da
+      // sostituire. Un id che lo stato non ha più (cestinato qui nel frattempo)
+      // e che la differenza non porta resta fuori: lo rimette il prossimo giro.
+      const { ids, righe, commenti } = action.payload || {};
+      if (!Array.isArray(ids)) return state;
+      const perId = new Map(state.tasks.map(t => [t.id, t]));
+      const nuove = new Map((righe || []).map(r => [r.id, r]));
+      const lista = [];
+      for (const id of ids) {
+        const riga = nuove.get(id) ?? perId.get(id);
+        if (!riga) continue;
+        lista.push(!nuove.has(id) && commenti?.[id] ? { ...riga, comments: commenti[id] } : riga);
+      }
+      return { ...state, tasks: fondiScrittureInVolo(lista, state.tasks, action.inVolo) };
+    }
     case "MERGE_TASK_ROW": {
       const fondiTask = (prev, row) => ({ ...row, comments: prev.comments });
       return { ...state, tasks: applicaRigaRealtime(state.tasks, action.inVolo, action.payload, fondiTask) };

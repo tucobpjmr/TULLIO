@@ -9,7 +9,7 @@
 // La cartella è `tasks/bulk/` e non `modals/bulk/` dal 23 agosto (A-6): questa
 // è la creazione di TASK in blocco, e «modale» è come si presenta, non cosa
 // fa. Vedi la regola sulle cartelle in docs/CLAUDE.md.
-import { useState } from "react";
+import { useState, memo } from "react";
 import { useViewport } from "../../ui/Viewport.jsx";
 import { ManualTab } from "./ManualTab.jsx";
 import { DuplicateTab } from "./DuplicateTab.jsx";
@@ -71,7 +71,7 @@ const TAB_META = [
 ];
 
 // ─── BULK TASK CREATOR (modale principale) ─────────────────────────────────
-export const BulkTaskCreator = ({ existingTasks, onCreate, onClose }) => {
+export const BulkTaskCreator = memo(function BulkTaskCreator({ existingTasks, onCreate, onClose }) {
   const conferma = useConfirm();
   // ST-11 · L'anagrafica dal contesto, non come prop (vedi QuickAddTask). Alle
   // due tab che la usano continua ad arrivare come prop: il rilievo riguarda il
@@ -211,4 +211,4 @@ export const BulkTaskCreator = ({ existingTasks, onCreate, onClose }) => {
       </>
     </Modal>
   );
-};
+});

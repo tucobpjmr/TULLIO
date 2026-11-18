@@ -68,7 +68,7 @@ const MessageTemplatesAPI = { list: vi.fn(vuoto) };
 // `messages` o `conversations`. `ConversationsAPI` conta le chiamate a
 // listMine: è il costo che un messaggio nuovo non deve più generare.
 const ConversationsAPI = { listMine: vi.fn(vuoto) };
-const MessagesAPI = { listAll: vi.fn(vuoto) };
+const MessagesAPI = { ultimiPerConversazioni: vi.fn(vuoto) };
 
 vi.mock("../../lib/api.js", () => ({
   subscribeToTable: (...a) => subscribeToTable(...a),
@@ -98,7 +98,7 @@ beforeEach(() => {
   ConversationsAPI.listMine.mockResolvedValue({
     data: [{ id: "c1", updated_at: "2026-08-01T10:00:00Z" }], error: null,
   });
-  MessagesAPI.listAll.mockResolvedValue({ data: [], error: null });
+  MessagesAPI.ultimiPerConversazioni.mockResolvedValue({ data: [], error: null });
 });
 
 describe("useDebouncedTableSubscription — quale tabella ha generato l'evento", () => {
@@ -547,48 +547,49 @@ describe("useChatData — un messaggio non ricarica le conversazioni (ST-4)", ()
     const { result } = idrata();
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(ConversationsAPI.listMine).toHaveBeenCalledTimes(1);
-    expect(MessagesAPI.listAll).toHaveBeenCalledTimes(1);
+    expect(MessagesAPI.ultimiPerConversazioni).toHaveBeenCalledTimes(1);
   });
 
   it("un evento su messages ricarica SOLO i messaggi", async () => {
     idrata();
-    await waitFor(() => expect(MessagesAPI.listAll).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(MessagesAPI.ultimiPerConversazioni).toHaveBeenCalledTimes(1));
     vi.clearAllMocks();
-    MessagesAPI.listAll.mockResolvedValue({ data: [], error: null });
+    MessagesAPI.ultimiPerConversazioni.mockResolvedValue({ data: [], error: null });
 
     await act(async () => { emetti("messages"); await new Promise(r => setTimeout(r, 250)); });
 
-    expect(MessagesAPI.listAll).toHaveBeenCalledTimes(1);
+    expect(MessagesAPI.ultimiPerConversazioni).toHaveBeenCalledTimes(1);
     expect(ConversationsAPI.listMine).not.toHaveBeenCalled();
   });
 
   // A-2 dell'analisi del 10 novembre: un evento su conversations rilegge le
-  // conversazioni. Il corpus solo se ne compare una mai vista, i cui messaggi
+  // conversazioni. I messaggi solo di quelle mai viste, i cui messaggi
   // non sono passati dal canale.
   it("un evento su una conversazione già nota ricarica SOLO le conversazioni", async () => {
     idrata();
-    await waitFor(() => expect(MessagesAPI.listAll).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(MessagesAPI.ultimiPerConversazioni).toHaveBeenCalledTimes(1));
     vi.clearAllMocks();
     ConversationsAPI.listMine.mockResolvedValue({ data: [{ id: "c1" }], error: null });
-    MessagesAPI.listAll.mockResolvedValue({ data: [], error: null });
+    MessagesAPI.ultimiPerConversazioni.mockResolvedValue({ data: [], error: null });
 
     await act(async () => { emetti("conversations"); await new Promise(r => setTimeout(r, 250)); });
 
     expect(ConversationsAPI.listMine).toHaveBeenCalledTimes(1);
-    expect(MessagesAPI.listAll).not.toHaveBeenCalled();
+    expect(MessagesAPI.ultimiPerConversazioni).not.toHaveBeenCalled();
   });
 
-  it("una conversazione nuova ricarica anche il corpus", async () => {
+  it("una conversazione nuova legge i messaggi della SOLA conversazione nuova", async () => {
     idrata();
-    await waitFor(() => expect(MessagesAPI.listAll).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(MessagesAPI.ultimiPerConversazioni).toHaveBeenCalledTimes(1));
     vi.clearAllMocks();
     ConversationsAPI.listMine.mockResolvedValue({ data: [{ id: "c1" }, { id: "c2" }], error: null });
-    MessagesAPI.listAll.mockResolvedValue({ data: [], error: null });
+    MessagesAPI.ultimiPerConversazioni.mockResolvedValue({ data: [], error: null });
 
     await act(async () => { emetti("conversations"); await new Promise(r => setTimeout(r, 250)); });
 
     expect(ConversationsAPI.listMine).toHaveBeenCalledTimes(1);
-    expect(MessagesAPI.listAll).toHaveBeenCalledTimes(1);
+    expect(MessagesAPI.ultimiPerConversazioni).toHaveBeenCalledTimes(1);
+    expect(MessagesAPI.ultimiPerConversazioni.mock.calls[0][0]).toEqual(["c2"]);
   });
 
   it("il reload parziale non tocca le conversazioni già in stato", async () => {
@@ -614,9 +615,9 @@ describe("useChatData — un messaggio non ricarica le conversazioni (ST-4)", ()
       enabled: true, team: [{ id: "marco" }], currentUserId: "marco",
       onError, onSuccess: vi.fn(), onConversationRead: vi.fn(),
     }));
-    await waitFor(() => expect(MessagesAPI.listAll).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(MessagesAPI.ultimiPerConversazioni).toHaveBeenCalledTimes(1));
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    MessagesAPI.listAll.mockResolvedValueOnce({ data: null, error: { message: "RLS negata" } });
+    MessagesAPI.ultimiPerConversazioni.mockResolvedValueOnce({ data: null, error: { message: "RLS negata" } });
 
     await act(async () => { emetti("messages"); await new Promise(r => setTimeout(r, 250)); });
 

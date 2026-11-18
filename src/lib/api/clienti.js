@@ -9,7 +9,7 @@
 // diretto qui lo aggirerebbe senza che nulla lo segnali.
 
 import { getSupabase } from '../supabase';
-import { fetchAllRows, WITH_COUNT } from '../pagination.js';
+import { fetchAllRows } from '../pagination.js';
 import { withOrigin } from '../realtime.js';
 import { CONTA_RIGHE } from './comuni.js';
 import { terminiRicerca } from '../searchUtils.js';
@@ -50,8 +50,8 @@ export const Clients = {
   // deve arrivare INTERA è paginata.
   list: async () => {
     const supabase = await getSupabase();
-    return fetchAllRows(() => supabase.from('clients')
-      .select('*', WITH_COUNT).order('name').order('id'));
+    return fetchAllRows((conteggio) => supabase.from('clients')
+      .select('*', conteggio).order('name').order('id'));
   },
   // ─── M-1 (passo 2) · la ricerca cliente si fa sul SERVER ────────────────
   // (audit performance/UX del 19 agosto)

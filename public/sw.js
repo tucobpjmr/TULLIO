@@ -75,7 +75,30 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Gli asset con hash nel nome (JS/CSS/font): cache prima, aggiornamento in
+  // `/assets/` contiene SOLO file con l'hash nel nome (output di Vite): un
+  // file lì non cambia mai, quindi una copia in cache non va riconvalidata.
+  // Prima passavano dal ramo qui sotto, che a ogni apertura rifaceva una
+  // richiesta di rete per ciascuno dei chunk già in cache.
+  // ⛔ Solo `/assets/`: font e icone in `public/` NON hanno hash e restano
+  // nel ramo con aggiornamento in sottofondo.
+  if (url.pathname.startsWith('/assets/')) {
+    e.respondWith(
+      caches.match(request).then((hit) => hit || fetch(request).then((res) => {
+        // ⚠️ Un chunk di una build vecchia non esiste più, e la rewrite di
+        // `vercel.json` risponde con `index.html` e 200: non va messa in cache
+        // al posto dello script.
+        if (res.ok && !(res.headers.get('content-type') || '').includes('text/html')) {
+          // Copia subito, prima che la pagina consumi il corpo (vedi sotto).
+          const copia = res.clone();
+          caches.open(GUSCIO).then((c) => c.put(request, copia));
+        }
+        return res;
+      }))
+    );
+    return;
+  }
+
+  // Il resto del guscio (font, icone, manifest): cache prima, aggiornamento in
   // sottofondo. Il nome cambia a ogni build, quindi non c'è versione vecchia
   // da servire per sbaglio — è il contratto del filename hashing di Vite.
   //

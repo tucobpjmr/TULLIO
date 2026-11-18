@@ -37,7 +37,7 @@ const TaskThreadsAPI = {
 
 let rispostaConv = () => Promise.resolve(vuoto);
 const ConversationsAPI = { listMine: vi.fn(() => rispostaConv()) };
-const MessagesAPI = { listAll: vi.fn(risposta), listForConversation: vi.fn(risposta) };
+const MessagesAPI = { ultimiPerConversazioni: vi.fn(risposta), listForConversation: vi.fn(risposta) };
 
 vi.mock("../../lib/api.js", () => ({
   subscribeToTable: vi.fn((tabella, handler) => {

@@ -32,6 +32,7 @@ import {
 import { useDebouncedTableSubscription } from "./useDebouncedTableSubscription.js";
 import { useErroriIdratazione, useErroriComposti } from "./useErroriIdratazione.js";
 import { stessaLista, stessaMappa } from "../lib/confrontoIdratazione.js";
+import { cursoreDa } from "./cursoreTask.js";
 
 // Indicizza per task_id le righe di una tabella figlia dei task, applicando il
 // mapper della sua entità. Fuori dall'hook perché è pura.
@@ -164,7 +165,10 @@ const applicaRiga = ({ action, mapper, dispatch, quandoIgnorare, registro }) => 
   return true;
 };
 
-export function useAppHydration({ enabled, currentUserId, dispatch, onError, teamIniziale = /** @type {any[]|null} */ (null) }) {
+export function useAppHydration({
+  enabled, currentUserId, dispatch, onError, teamIniziale = /** @type {any[]|null} */ (null),
+  leggiTask = /** @type {(() => any[])|null} */ (null),
+}) {
   // M-1 · `clients` parte da `false`: all'avvio nessuno ha chiesto l'anagrafica.
   // Il flag si alza in `caricaClienti`.
   const [caricamento, impostaCaricamento] = useState(
@@ -218,6 +222,11 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
   // prossima query, non un dato da disegnare.
   const taskConCommentiNuovi = useRef(new Set());
 
+  // Il più recente `updated_at` letto dal server: il punto da cui la ripresa
+  // chiede la differenza (hooks/sincronizzaTask.js). `null` finché la prima
+  // lettura intera non è arrivata.
+  const cursoreTask = useRef(/** @type {string|null} */ (null));
+
   // M-1 · La coda dell'applyRow dei task è quella comune; la testa (`comments`)
   // è sua.
   const applicaRigaTask = applicaRiga({
@@ -263,11 +272,30 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     // B-3 · Il reload completo porta anche i commenti: gli id raccolti fin qui
     // sono coperti, e a reload consegnato si tolgono dal set.
     const coperti = [...taskConCommentiNuovi.current];
-    const { data, error } = await TasksAPI.list({
-      withComments: true,
-      includeDeleted: completo,
-      completeDal: completo ? null : inizioFinestra(),
-    });
+    const filtro = { includeDeleted: completo, completeDal: completo ? null : inizioFinestra() };
+
+    // La ripresa (`tabelle === null` dopo la prima lettura): la differenza dal
+    // cursore. Un evento realtime durante la lettura la rende superata (gen di
+    // useDebouncedTableSubscription), e il giro riparte.
+    if (tabelle === null && cursoreTask.current && leggiTask) {
+      const { sincronizzaTask } = await import("./sincronizzaTask.js");
+      const r = await sincronizzaTask({ cursore: cursoreTask.current, filtro, taskInStato: leggiTask, isCurrent });
+      if (r.esito === "superato") return;
+      if (r.esito === "ok") {
+        if (!completo && storicoCompleto.current) return;
+        if (!vinceIlTurno(genTask.current, turno)) return;
+        dispatch({ type: "SINCRONIZZA_TASK", payload: r.payload });
+        cursoreTask.current = r.cursore;
+        for (const id of coperti) taskConCommentiNuovi.current.delete(id);
+        segnaEsito("tasks", null);
+        segnaCaricata("tasks");
+        if (completo) chiudiAttesaStorico();
+        return;
+      }
+      // `completo`: si ricade sulla lettura intera qui sotto.
+    }
+
+    const { data, error } = await TasksAPI.list({ withComments: true, ...filtro });
     // Due guardie diverse: `isCurrent()` = l'effetto è ancora vivo; `genTask` =
     // sono l'ultima partita fra tutti gli scrittori della fetta.
     if (!isCurrent()) return;
@@ -287,6 +315,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     }
     if (!vinceIlTurno(genTask.current, turno)) return;
     dispatch({ type: "SET_TASKS", payload: (data || []).map(fromDbTask) });
+    cursoreTask.current = cursoreDa(data);
     for (const id of coperti) taskConCommentiNuovi.current.delete(id);
     segnaEsito("tasks", null);
     segnaCaricata("tasks");
@@ -336,6 +365,7 @@ export function useAppHydration({ enabled, currentUserId, dispatch, onError, tea
     }
     if (!vinceIlTurno(genTask.current, turno)) return;
     dispatch({ type: "SET_TASKS", payload: (data || []).map(fromDbTask) });
+    cursoreTask.current = cursoreDa(data);
     righe.forEach(dispatch);
     setCaricandoStorico(false);
     segnaCaricata("tasks");

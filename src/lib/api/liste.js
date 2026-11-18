@@ -47,7 +47,7 @@ import { getClientId } from '../clientId.js';
 // (818 righe) ne aveva bisogno quanto liste_viaggio e movimenti_lista, e la
 // regola non doveva esistere in due copie per essere applicata in due posti
 // (ST-3 di docs/archivio/audit/AUDIT_STRUTTURA_2026-08-10.md).
-import { fetchAllRows, WITH_COUNT } from '../pagination.js';
+import { fetchAllRows } from '../pagination.js';
 
 // Le liste portano sempre con sé il nome del titolare (clients) e degli
 // eventuali cointestatari (lista_beneficiari → clients, es. marito e moglie):
@@ -101,7 +101,7 @@ export const ListeAPI = {
   // Liste non archiviate, più recenti in cima (l'ordinamento fine è lato client).
   list: async () => {
     const supabase = await getSupabase();
-    return fetchAllRows(() => supabase.from('liste_viaggio').select(LISTA_SELECT, WITH_COUNT)
+    return fetchAllRows((conteggio) => supabase.from('liste_viaggio').select(LISTA_SELECT, conteggio)
       .is('deleted_at', null)
       .order('updated_at', { ascending: false })
       .order('id'));
@@ -110,7 +110,7 @@ export const ListeAPI = {
   // Cestino: archiviate (soft delete), più recenti in cima.
   listTrash: async () => {
     const supabase = await getSupabase();
-    return fetchAllRows(() => supabase.from('liste_viaggio').select(LISTA_SELECT, WITH_COUNT)
+    return fetchAllRows((conteggio) => supabase.from('liste_viaggio').select(LISTA_SELECT, conteggio)
       .not('deleted_at', 'is', null)
       .order('deleted_at', { ascending: false })
       .order('id'));
@@ -144,7 +144,16 @@ export const ListeAPI = {
   // invece del saldo reale.
   saldi: async () => {
     const supabase = await getSupabase();
-    return fetchAllRows(() => supabase.from('liste_saldi').select('*', WITH_COUNT).order('lista_id'));
+    return fetchAllRows((conteggio) => supabase.from('liste_saldi').select('*', conteggio).order('lista_id'));
+  },
+
+  // I saldi delle sole liste indicate: il reload dopo un evento su
+  // movimenti_lista (components/liste/useListeData.js). Una riga per lista,
+  // quindi il risultato è limitato da `ids`: il chiamante tiene `ids` sotto
+  // il tetto, e senza paginazione la query non rischia il cap delle 1000 righe.
+  saldiPerListe: async (ids) => {
+    const supabase = await getSupabase();
+    return supabase.from('liste_saldi').select('*').in('lista_id', ids);
   },
 
   // Come sopra, per un solo cliente: il tab dentro la scheda cliente mostra
@@ -178,14 +187,14 @@ export const ListeAPI = {
   // lista ha più partecipanti) perché fetchAllRows richiede una chiave stabile.
   clientiConListe: async () => {
     const supabase = await getSupabase();
-    return fetchAllRows(() => supabase.from('lista_partecipanti').select('client_id, deleted_at', WITH_COUNT)
+    return fetchAllRows((conteggio) => supabase.from('lista_partecipanti').select('client_id, deleted_at', conteggio)
       .order('lista_id').order('client_id'));
   },
 
   movimenti: async (listaId) => {
     const supabase = await getSupabase();
     // B-2 · A pagine: una lettura sola si ferma a 1000 righe senza dirlo.
-    return fetchAllRows(() => supabase.from('movimenti_lista').select('*', WITH_COUNT)
+    return fetchAllRows((conteggio) => supabase.from('movimenti_lista').select('*', conteggio)
       .eq('lista_id', listaId)
       .is('deleted_at', null)
       .order('data_movimento').order('created_at').order('id'));
@@ -428,10 +437,10 @@ export const ListeAPI = {
   backupData: async () => {
     const supabase = await getSupabase();
     const [rClients, rListe, rBeneficiari, rMovimenti] = await Promise.all([
-      fetchAllRows(() => supabase.from('clients').select('*', WITH_COUNT).order('id')),
-      fetchAllRows(() => supabase.from('liste_viaggio').select('*', WITH_COUNT).order('id')),
-      fetchAllRows(() => supabase.from('lista_beneficiari').select('*', WITH_COUNT).order('lista_id').order('client_id')),
-      fetchAllRows(() => supabase.from('movimenti_lista').select('*', WITH_COUNT).order('id')),
+      fetchAllRows((conteggio) => supabase.from('clients').select('*', conteggio).order('id')),
+      fetchAllRows((conteggio) => supabase.from('liste_viaggio').select('*', conteggio).order('id')),
+      fetchAllRows((conteggio) => supabase.from('lista_beneficiari').select('*', conteggio).order('lista_id').order('client_id')),
+      fetchAllRows((conteggio) => supabase.from('movimenti_lista').select('*', conteggio).order('id')),
     ]);
     const failed = [rClients, rListe, rBeneficiari, rMovimenti].find((r) => r.error);
     if (failed) return { data: null, error: failed.error };

@@ -63,7 +63,7 @@ vi.mock("../../lib/supabase", () => {
   return { supabase, getSupabase: () => Promise.resolve(supabase) };
 });
 
-const { Clients, Tasks, TaskThreads, Messages, Notices, Conversations } = await import("../../lib/api.js");
+const { Clients, Tasks, TaskThreads, Notices, Conversations } = await import("../../lib/api.js");
 const { fetchAllRows, fetchRowsUpTo } = await import("../../lib/pagination.js");
 
 beforeEach(() => { chiamate.length = 0; });
@@ -192,32 +192,68 @@ describe("TaskThreads.historyForTask — legge la cronologia di UN task", () => 
   });
 });
 
-// ─── B-2 · Messages.listAll dichiarava un limite (2000) che il cap del
-// server (1000) troncava in silenzio, restituendo sempre e solo i 1000
-// messaggi più recenti anche quando ne erano stati chiesti 2000.
-describe("Messages.listAll — il limite dichiarato deve essere davvero consegnato", () => {
-  it("pagina con .range() invece di un .limit() nudo", async () => {
-    await Messages.listAll(2000);
-    expect(chiamate.length).toBeGreaterThan(0);
-    expect(chiamate[0].da).toBe(0);
-  });
+// Punto 5 dell'analisi del 15 novembre · il COUNT(*) solo dove la lettura può
+// finire: alla prima pagina e a quelle che, col totale noto, possono essere
+// l'ultima. Le intermedie lo saltano.
+describe("fetchAllRows — il conteggio si chiede solo dove serve", () => {
+  // Un server con `righe()` righe ordinate per id, cap a 1000 per pagina.
+  const server = (righe) => {
+    const richieste = [];
+    const build = (conteggio) => ({
+      range: (da, a) => {
+        const tutte = righe();
+        richieste.push({ da, conteggio: conteggio?.count === "exact" });
+        return Promise.resolve({
+          data: tutte.slice(da, Math.min(a + 1, da + CAP)),
+          count: conteggio?.count === "exact" ? tutte.length : null,
+          error: null,
+        });
+      },
+    });
+    return { build, richieste };
+  };
+  const genera = (n, prefisso = "r") => Array.from({ length: n }, (_, i) => ({ id: `${prefisso}${String(i).padStart(5, "0")}` }));
 
-  it("ordina in modo deterministico, chiudendo su id", async () => {
-    await Messages.listAll(2000);
-    expect(chiamate[0].ordini).toEqual(["created_at", "id"]);
-  });
+  it("quattro pagine, due conteggi: la prima e l'ultima", async () => {
+    const righe = genera(3500);
+    const { build, richieste } = server(() => righe);
+    const { data, error } = await fetchAllRows(build);
 
-  it("restituisce fino a 2000 righe, non le prime 1000 troncate dal cap", async () => {
-    const { data, error } = await Messages.listAll(2000);
     expect(error).toBeNull();
-    expect(data).toHaveLength(TOTALE); // 1500: sotto il limite di 2000, sopra il cap di 1000
+    expect(data).toHaveLength(3500);
+    expect(richieste.map((r) => r.conteggio)).toEqual([true, false, false, true]);
   });
 
-  it("non richiede più pagine di quelle necessarie a coprire il limite", async () => {
-    chiamate.length = 0;
-    await Messages.listAll(2000);
-    // 2000 / 1000 (PAGE_SIZE) = al più due richieste, non una scarica-tutto.
-    expect(chiamate.length).toBeLessThanOrEqual(2);
+  it("una riga inserita durante la lettura non fa perdere l'ultima", async () => {
+    let righe = genera(3500);
+    const { build, richieste } = server(() => righe);
+    const lettura = fetchAllRows((c) => {
+      // Dopo la prima pagina, un INSERT in testa sposta tutto di una posizione.
+      if (richieste.length === 1) righe = [{ id: "a-nuova" }, ...righe];
+      return build(c);
+    });
+    const { data } = await lettura;
+
+    // Nessuna riga che esisteva va persa: con il totale della prima pagina
+    // ci si sarebbe fermati a 3500 posizioni, e l'ultima sarebbe rimasta
+    // fuori. La riga nuova cade in una zona già letta: nessuna paginazione a
+    // offset la vede, la porta il realtime.
+    const ids = new Set(data.map((r) => r.id));
+    expect(genera(3500).every((r) => ids.has(r.id))).toBe(true);
+    expect(richieste.at(-1).conteggio).toBe(true);
+  });
+
+  it("senza `count` dal server lo richiede a ogni pagina e si ferma sulla vuota", async () => {
+    const righe = genera(1200);
+    const richieste = [];
+    const { data } = await fetchAllRows((conteggio) => ({
+      range: (da) => {
+        richieste.push(conteggio?.count === "exact");
+        return Promise.resolve({ data: righe.slice(da, da + CAP), count: null, error: null });
+      },
+    }));
+    expect(data).toHaveLength(1200);
+    expect(richieste.every(Boolean)).toBe(true);
   });
 });
 

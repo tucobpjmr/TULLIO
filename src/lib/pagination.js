@@ -47,7 +47,19 @@ export const SOVRAPPOSIZIONE = 50;
  * stabile Postgres non garantisce lo stesso ordine fra due query, e pagine
  * successive potrebbero ripetere o saltare righe.
  *
- * @param {() => object} buildQuery
+ * `buildQuery` riceve l'opzione di conteggio da passare a `.select(colonne,
+ * conteggio)`: `WITH_COUNT` o `undefined`. Il conteggio esatto è un COUNT(*)
+ * in più sul server, e serve solo dove la lettura può FINIRE:
+ *   · alla prima pagina, che dà il totale;
+ *   · a ogni pagina che, con quel totale, può essere l'ultima.
+ * Le pagine intermedie lo saltano. ⚠️ Non basta il totale della prima pagina:
+ * una riga inserita durante la lettura sposta le altre in avanti, e fermarsi
+ * su un totale vecchio lascerebbe fuori l'ultima in silenzio. Per questo si
+ * conclude SOLO su una pagina che ha chiesto il conteggio (o su una vuota), e
+ * con il conteggio di quella pagina. Un `buildQuery` che passa sempre
+ * `WITH_COUNT` resta corretto: paga solo i conteggi in più.
+ *
+ * @param {(conteggio: typeof WITH_COUNT | undefined) => object} buildQuery
  * @returns {Promise<{ data: object[]|null, error: object|null }>}
  */
 export const fetchAllRows = async (buildQuery) => {
@@ -55,15 +67,20 @@ export const fetchAllRows = async (buildQuery) => {
   const perId = new Map();
   let senzaId = 0;
   let offset = 0;
+  /** @type {number|null} */
+  let totale = null;
   for (;;) {
-    const { data, count, error } = await buildQuery().range(offset, offset + PAGE_SIZE - 1);
+    const puoFinire = totale === null || offset + PAGE_SIZE >= totale;
+    const conteggio = puoFinire ? WITH_COUNT : undefined;
+    const { data, count, error } = await buildQuery(conteggio).range(offset, offset + PAGE_SIZE - 1);
     if (error) return { data: null, error };
     const page = data || [];
     for (const r of page) perId.set(r?.id ?? `\u0000${senzaId++}`, r);
     const fine = offset + page.length;
+    if (puoFinire && typeof count === 'number') totale = count;
     // Pagina vuota: il database ha finito le righe (vale anche come rete di
     // sicurezza se `count` non arrivasse, così il ciclo non è infinito).
-    if (page.length === 0 || (typeof count === 'number' && fine >= count)) {
+    if (page.length === 0 || (puoFinire && typeof count === 'number' && fine >= count)) {
       return { data: [...perId.values()], error: null };
     }
     offset = page.length > SOVRAPPOSIZIONE ? fine - SOVRAPPOSIZIONE : fine;
@@ -72,7 +89,8 @@ export const fetchAllRows = async (buildQuery) => {
 
 // B-2 dell'audit del 13 agosto. `fetchAllRows` scarica TUTTO — corretto per
 // una tabella che deve arrivare intera (clients, task_history…), sbagliato
-// per una lettura che dichiara volutamente un tetto (es. Messages.listAll):
+// per una lettura che dichiara volutamente un tetto (era il caso del vecchio
+// corpus della chat, Messages.listAll):
 // non c'è un `limit` da rispettare, solo un `count` da esaurire. Serviva una
 // terza via fra ".limit(n)" (tronca a `n` SOLO se n <= db-max-rows, altrimenti
 // PostgREST tronca lui a 1000 senza dirlo — il difetto che B-2 descrive: un

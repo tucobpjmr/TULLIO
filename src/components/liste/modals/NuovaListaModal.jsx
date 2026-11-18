@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { LvOverlay } from "./LvOverlay.jsx";
+import { useChiusuraProtetta } from "../../../hooks/useChiusuraProtetta.js";
 import { useSalvataggioLista } from "../useSalvataggioLista.js";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
 import { validaCampi, primoCampoInvalido } from "../../../lib/validators.js";
@@ -16,6 +17,9 @@ export function NuovaListaModal({ clients, onCreate, onClose, presetClientId = n
   const [newName, setNewName] = useState("");
   const [titolo, setTitolo] = useState("");
   const [errori, setErrori] = useState({});
+  // A-3 · Esc, ✕ e «Annulla» chiedono prima di buttare via dati non salvati.
+  const sporco = !!(newName.trim() || titolo.trim() || clientId !== (presetClientId || ""));
+  const chiudi = useChiusuraProtetta(onClose, sporco);
   const clientRef = useRef(null);
   const newNameRef = useRef(null);
   const rifCampo = { clientId: clientRef, newName: newNameRef };
@@ -49,7 +53,7 @@ export function NuovaListaModal({ clients, onCreate, onClose, presetClientId = n
   };
 
   return (
-    <LvOverlay onClose={onClose}>
+    <LvOverlay onClose={chiudi}>
       {/* M-4 · `<form>` e non `<div>`: Invio deve inviare. */}
       <form noValidate onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <h2>Nuova lista</h2>
@@ -83,7 +87,7 @@ export function NuovaListaModal({ clients, onCreate, onClose, presetClientId = n
           <input id="nl-title" value={titolo} onChange={(e) => setTitolo(e.target.value)} placeholder="Es. Buono viaggio 2026" />
         </div>
         <div className="actions">
-          <button type="button" className="lv-btn" onClick={onClose}>Annulla</button>
+          <button type="button" className="lv-btn" onClick={chiudi}>Annulla</button>
           <button type="submit" className="lv-btn primary" disabled={inVolo}>
             {inVolo ? "Creo…" : "Crea lista"}
           </button>

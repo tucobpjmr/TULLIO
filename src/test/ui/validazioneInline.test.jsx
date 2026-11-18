@@ -14,7 +14,8 @@
 //   2. il FOCUS va sul primo campo sbagliato in ordine visivo;
 //   3. l'errore si spegne appena si corregge quel campo, non al submit dopo.
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render as renderBase, screen, fireEvent, waitFor } from "@testing-library/react";
+import { ConfirmProvider } from "../../state/ConfirmContext.jsx";
 import {
   validaCampi, primoCampoInvalido, obbligatorio, emailValida, interpretabile,
   isValidEmail,
@@ -41,6 +42,9 @@ import { EditListaModal } from "../../components/liste/modals/EditListaModal.jsx
 import { Trash } from "../../components/tasks/Trash.jsx";
 import { TemplateTab } from "../../components/tasks/bulk/TemplateTab.jsx";
 import { renderWithAppData, withDispatch, DEMO_APP_CTX } from "../helpers/appData.jsx";
+
+// I form con chiusura protetta (hooks/useChiusuraProtetta.js) chiedono un ConfirmProvider.
+const render = (ui, opzioni) => renderBase(ui, { wrapper: ConfirmProvider, ...opzioni });
 
 // ─── La metà pura ───────────────────────────────────────────────────────────
 describe("validators — validatori componibili", () => {

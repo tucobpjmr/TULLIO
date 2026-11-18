@@ -18,7 +18,7 @@ import {
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost } from "./bulkStyles.js";
 import * as stiliComuni from "../../../styles/common.js";
 import { attivaConTastiera, conTastiera } from "../../../lib/a11y.js";
-import { testoEccezione } from "../../../lib/errori.js";
+import { erroreUtente, testoEccezione } from "../../../lib/errori.js";
 import {
   boxF12Bold, boxF12Warning, boxF13Danger, boxR8, boxR82, boxStickyBold, boxTxtCenterR12,
   boxW8H8, gridGap8, maxW180, mt4Op085, rowCenterBetween, rowCenterBetween3, rowCenterGap5,
@@ -167,7 +167,7 @@ export const ImportTab = ({ onCreate, onClose, onCancel, onDirty }) => {
     {
       alSuccesso: onClose,
       messaggioErrore: (e) =>
-        `Importazione non riuscita: ${e?.message || "errore sconosciuto"}. Il file e la mappatura sono ancora qui, riprova.`,
+        `Importazione non riuscita: ${erroreUtente(e, "errore imprevisto")}. Il file e la mappatura sono ancora qui, riprova.`,
     },
   );
 

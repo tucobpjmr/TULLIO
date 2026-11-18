@@ -133,11 +133,14 @@ describe("primitive condivise", () => {
       .toBe(RIFIUTO_RLS);
   });
 
-  it("testoErrore preferisce mapError, poi il messaggio, poi il ripiego", () => {
+  it("testoErrore preferisce mapError, poi la traduzione comune, poi il ripiego", () => {
     expect(testoErrore({ mapError: () => "tradotto" }, { message: "grezzo" })).toBe("tradotto");
+    // Senza codice il testo è nostro (Edge Function, RIFIUTO_RLS): passa.
     expect(testoErrore({}, { message: "grezzo" })).toBe("grezzo");
+    // Con un codice di Postgres si traduce, mai il messaggio tecnico.
+    expect(testoErrore({}, { code: "23505", message: "duplicate key value" })).toBe("esiste già un elemento con questi dati");
     expect(testoErrore({}, {}, "ripiego")).toBe("ripiego");
-    expect(testoErrore({}, undefined)).toBe("errore sconosciuto");
+    expect(testoErrore({}, undefined)).toBe("operazione non riuscita");
   });
 
   it("messaggioSuccesso accetta stringa, funzione degli argomenti, o niente", () => {

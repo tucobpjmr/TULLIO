@@ -48,6 +48,7 @@ import { getClientId } from '../clientId.js';
 // regola non doveva esistere in due copie per essere applicata in due posti
 // (ST-3 di docs/archivio/audit/AUDIT_STRUTTURA_2026-08-10.md).
 import { fetchAllRows } from '../pagination.js';
+import { erroreUtente } from "../errori.js";
 
 // Le liste portano sempre con sé il nome del titolare (clients) e degli
 // eventuali cointestatari (lista_beneficiari → clients, es. marito e moglie):
@@ -398,7 +399,10 @@ export const ListeAPI = {
           data: null,
           error: fatte === 0 ? error : {
             ...error,
-            message: `${error.message} — importate ${fatte} righe su ${totale} prima dell'errore. `
+            // Il codice si toglie: il testo è già tradotto, e tradurlo di
+            // nuovo dal codice perderebbe il conteggio delle righe importate.
+            code: undefined,
+            message: `${erroreUtente(error, "importazione interrotta")} — importate ${fatte} righe su ${totale} prima dell'errore. `
               + 'I dati già caricati restano validi: ricarica lo stesso file per riprendere.',
           },
         };

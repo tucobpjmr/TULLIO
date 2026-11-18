@@ -15,6 +15,7 @@ import { conTastiera } from "../../lib/a11y.js";
 import { useTema } from "../../hooks/useTema.js";
 import { useConfermaUscita } from "./useConfermaUscita.js";
 import { ETICHETTE_TEMA, TEMI } from "../../lib/tema.js";
+import { erroreUtente } from "../../lib/errori.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -95,7 +96,7 @@ export const UserSwitcher = () => {
     const { error } = await signOut();
     if (error) {
       setSigningOut(false);
-      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Logout fallito: ${error.message}` } });
+      dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Logout fallito: ${erroreUtente(error, "riprova")}` } });
     }
   };
   const curr = getMember(currentUserId) || { name: "—", role: "—", avatar: "??", color: "#999" };

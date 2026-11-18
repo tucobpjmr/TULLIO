@@ -21,11 +21,12 @@ import { toDbConversation, toDbMessage, newId, isUuid } from "../../lib/mappers.
 // A-2 · «Andata bene» non è `!res.error`: la RLS può rifiutare con un 2xx
 // (vedi lib/esitoScrittura.js).
 import { esitoScrittura } from "../../lib/esitoScrittura.js";
+import { erroreUtente } from "../../lib/errori.js";
 
 const noop = () => {};
 
 // `esitoScrittura()` ritorna `unknown`: qui serve solo il messaggio, se c'è.
-const msgErrore = (e) => (e instanceof Error ? e.message : "");
+const msgErrore = (e) => erroreUtente(e, "riprova");
 
 /**
  * I tipi dei setter sono quelli reali di `useChatData.js`: con un default a
@@ -201,7 +202,7 @@ export function makeChatCommands({
       // Il testo torna al mittente (A-5): un errore di rete non deve distruggere
       // ciò che ha scritto.
       onInvioFallito(convId, normalized);
-      fallito("msg.send", errore, `Chat: invio messaggio fallito: ${errore?.message || ""}`);
+      fallito("msg.send", errore, `Chat: invio messaggio fallito: ${msgErrore(errore)}`);
     };
 
     const invia = () => MessagesAPI.send(toDbMessage(normalized, convId))
@@ -287,7 +288,7 @@ export function makeChatCommands({
     if (!enabled || !isUuid(convId)) return;
     MessagesAPI.markReadBulk(convId).then(r => {
       if (r?.error) {
-        fallito("markReadBulk", r.error, `Chat: aggiornamento "letto" fallito: ${r.error.message || ""}`);
+        fallito("markReadBulk", r.error, `Chat: aggiornamento "letto" fallito: ${msgErrore(r.error)}`);
       }
     });
   };

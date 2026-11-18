@@ -21,7 +21,7 @@ const rpc = { calls: [], failAt: null };
 const fakeRpc = (name, args) => {
   rpc.calls.push({ name, payload: args.p_data });
   if (rpc.failAt !== null && rpc.calls.length === rpc.failAt) {
-    return Promise.resolve({ data: null, error: { message: "statement timeout" } });
+    return Promise.resolve({ data: null, error: { code: "57014", message: "canceling statement due to statement timeout" } });
   }
   const p = args.p_data;
   return Promise.resolve({
@@ -247,7 +247,8 @@ describe("importaBackup — ripristino a blocchi", () => {
     const { data, error } = await ListeAPI.importaBackup(backup(0, 0, 5000));
 
     expect(data).toBeNull();
-    expect(error.message).toContain("statement timeout");
+    // Il testo è già tradotto (lib/errori.js), con il conteggio in coda.
+    expect(error.message).toContain("troppo a rispondere");
     expect(error.message).toContain("2000 righe su 5000");
     expect(error.message).toContain("riprendere");
   });
@@ -256,7 +257,8 @@ describe("importaBackup — ripristino a blocchi", () => {
     rpc.failAt = 1;
     const { error } = await ListeAPI.importaBackup(backup(0, 0, 5000));
 
-    expect(error.message).toBe("statement timeout");
+    // Nessuna riga entrata: l'errore originale, che il registro traduce.
+    expect(error.code).toBe("57014");
   });
 
   it("un backup vuoto non chiama la RPC e non inventa conteggi", async () => {

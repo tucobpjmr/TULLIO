@@ -23,6 +23,7 @@ import { obbligatorio, validaCampi } from "../../../lib/validators.js";
 import * as stiliComuni from "../../../styles/common.js";
 import { useDispatch } from "../../../state/DispatchContext.jsx";
 import { useCaricamento } from "../../../hooks/useCaricamento.js";
+import { erroreUtente } from "../../../lib/errori.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -92,7 +93,7 @@ export const AdminTeamTab = () => {
     }
     const { error } = await Users.invite({ email, name: m.name, role: m.role, capacity: m.capacity, color: m.color, resend: true });
     if (error) {
-      setResendMap(prev => ({ ...prev, [m.id]: error.message || 'Errore' }));
+      setResendMap(prev => ({ ...prev, [m.id]: erroreUtente(error, "invio non riuscito") }));
     } else {
       setResendMap(prev => ({ ...prev, [m.id]: 'ok' }));
     }

@@ -29,6 +29,7 @@
 //
 // L'orchestratore è src/hooks/useSyncedDispatch.js.
 
+import { erroreUtente } from "../lib/errori.js";
 import {
   Tasks as TasksAPI, Comments as CommentsAPI, Notices as NoticesAPI,
   Clients as ClientsAPI, Categories as CategoriesAPI,
@@ -101,7 +102,7 @@ export const PERSISTENCE = {
     // Riusa ROLLBACK_TASKS_BULK (un array di id) come fa ADD_CLIENT con
     // ROLLBACK_CLIENTS_BULK.
     rollback: (s, a) => ({ type: "ROLLBACK_TASKS_BULK", payload: [a.payload.id] }),
-    mapError: (err) => err?.message || "task non salvato",
+    mapError: (err) => erroreUtente(err, "task non salvato"),
   },
 
   ADD_TASKS_BULK: {
@@ -145,7 +146,7 @@ export const PERSISTENCE = {
       const prev = findTask(s, a.payload?.id);
       return prev ? { type: "ROLLBACK_TASK", payload: { ...campiPrima(prev, a.payload), id: prev.id } } : null;
     },
-    mapError: (err) => err?.message || "task non aggiornato",
+    mapError: (err) => erroreUtente(err, "task non aggiornato"),
   },
 
   MOVE_TASK: {
@@ -170,7 +171,7 @@ export const PERSISTENCE = {
       const prev = findTask(s, a.payload?.taskId);
       return prev ? { type: "MOVE_TASK", payload: { taskId: a.payload.taskId, newStatus: prev.status } } : null;
     },
-    mapError: (err) => err?.message || "task non spostato",
+    mapError: (err) => erroreUtente(err, "task non spostato"),
   },
 
   DELETE_TASK: {
@@ -183,7 +184,7 @@ export const PERSISTENCE = {
     persist: (s, a) => TasksAPI.softDelete(a.payload),
     // RESTORE_TASK è l'inversa del soft delete.
     rollback: (s, a) => ({ type: "RESTORE_TASK", payload: a.payload }),
-    mapError: (err) => err?.message || "task non spostato nel cestino",
+    mapError: (err) => erroreUtente(err, "task non spostato nel cestino"),
   },
 
   RESTORE_TASK: {
@@ -195,7 +196,7 @@ export const PERSISTENCE = {
     entityId: (a) => a.payload,
     persist: (s, a) => TasksAPI.restore(a.payload),
     rollback: (s, a) => ({ type: "DELETE_TASK", payload: a.payload }),
-    mapError: (err) => err?.message || "task non ripristinato",
+    mapError: (err) => erroreUtente(err, "task non ripristinato"),
   },
 
   PURGE_TASK: {
@@ -211,7 +212,7 @@ export const PERSISTENCE = {
       const prev = findTask(s, a.payload);
       return prev ? { type: "ROLLBACK_EMPTY_TRASH", payload: [prev] } : null;
     },
-    mapError: (err) => err?.message || "task non eliminato definitivamente",
+    mapError: (err) => erroreUtente(err, "task non eliminato definitivamente"),
   },
 
   // Senza questa entry «↩ Annulla» tornava indietro solo in UI.
@@ -250,7 +251,7 @@ export const PERSISTENCE = {
       }
       return null;
     },
-    mapError: (err) => err?.message || "annullamento non riuscito",
+    mapError: (err) => erroreUtente(err, "annullamento non riuscito"),
   },
 
   // ⚠️ Il filtro coincide con quello del reducer (daPurgare): un non-admin non
@@ -269,7 +270,7 @@ export const PERSISTENCE = {
       const tornati = daPurgare(s, s.currentUserId).filter(t => !giaEliminati.has(t.id));
       return tornati.length ? { type: "ROLLBACK_EMPTY_TRASH", payload: tornati } : null;
     },
-    mapError: (err) => err?.message || "cestino non svuotato",
+    mapError: (err) => erroreUtente(err, "cestino non svuotato"),
   },
 
   ADD_COMMENT: {
@@ -290,7 +291,7 @@ export const PERSISTENCE = {
       type: "ROLLBACK_COMMENT",
       payload: { taskId: a.payload?.taskId, commentId: a.payload?.comment?.id },
     }),
-    mapError: (err) => err?.message || "commento non inviato",
+    mapError: (err) => erroreUtente(err, "commento non inviato"),
   },
 
   // ─── BACHECA AVVISI ────────────────────────────────────────────────────────
@@ -308,7 +309,7 @@ export const PERSISTENCE = {
     // A-1 · Un'INSERT respinta non emette eventi: senza rollback l'avviso resta
     // pubblicato solo per chi l'ha scritto. Riusa DELETE_NOTICE.
     rollback: (s, a) => ({ type: "DELETE_NOTICE", payload: a.payload.id }),
-    mapError: (err) => err?.message || "avviso non pubblicato",
+    mapError: (err) => erroreUtente(err, "avviso non pubblicato"),
   },
   // A-1 · Qui la RLS nega davvero (`author_id = auth.uid() OR
   // is_manager_or_admin()`, vedi canEditNotice): guard e rollback necessari.
@@ -362,7 +363,7 @@ export const PERSISTENCE = {
     // Riga mai arrivata: va tolta, o la prossima scrittura che la usa fallisce
     // per foreign key. Riusa ROLLBACK_CLIENTS_BULK.
     rollback: (s, a) => ({ type: "ROLLBACK_CLIENTS_BULK", payload: [a.payload.id] }),
-    mapError: (err) => err?.message || "cliente non salvato",
+    mapError: (err) => erroreUtente(err, "cliente non salvato"),
   },
 
   // A-2 · Import in blocco con rollback: un fallimento a metà lasciava in lista
@@ -388,7 +389,7 @@ export const PERSISTENCE = {
     },
     mapError: (err) => (err?.code === "23505"
       ? "alcune righe erano già presenti in anagrafica: import interrotto, i clienti già inseriti restano"
-      : err?.message),
+      : erroreUtente(err, "import clienti non completato")),
   },
 
   // toDbClientPatch: l'id è già nel WHERE, non si riscrive la chiave primaria.
@@ -401,7 +402,7 @@ export const PERSISTENCE = {
       const prev = (s.clients || []).find(c => c.id === a.payload?.id);
       return prev ? { type: "UPDATE_CLIENT", payload: prev } : null;
     },
-    mapError: (err) => err?.message || "cliente non aggiornato",
+    mapError: (err) => erroreUtente(err, "cliente non aggiornato"),
   },
 
   // Rename del cliente nei task che lo citano (task.client è testo libero).
@@ -441,7 +442,7 @@ export const PERSISTENCE = {
     // 23503 = foreign key (liste ancora collegate): messaggio comprensibile.
     mapError: (err) => (err?.code === "23503"
       ? "impossibile eliminare: il cliente ha liste viaggio collegate. Rimuovi o riassegna prima le liste viaggio associate."
-      : err?.message),
+      : erroreUtente(err, "cliente non eliminato")),
   },
 
   // ─── ADMIN: CATEGORIE ──────────────────────────────────────────────────────

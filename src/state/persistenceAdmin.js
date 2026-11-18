@@ -3,6 +3,7 @@
 // personale), aggregate in `PERSISTENCE` da state/persistence.js. File
 // separato per il tetto fisico: contratto e spiegazione restano in cima a
 // persistence.js.
+import { erroreUtente } from "../lib/errori.js";
 import {
   Tasks as TasksAPI, Notices as NoticesAPI, Users as UsersAPI, Categories as CategoriesAPI,
 } from "../lib/api.js";
@@ -95,7 +96,7 @@ export const PERSISTENCE_ADMIN = {
       const prev = (s.team || []).find(m => m.id === a.payload.id);
       return prev ? { type: "UPDATE_TEAM_MEMBER", payload: prev } : null;
     },
-    mapError: (err) => err?.message || "utente non approvato",
+    mapError: (err) => erroreUtente(err, "utente non approvato"),
     // A-3 · La riga in volo è `payload.id`.
     entityId: (a) => a.payload?.id,
   },
@@ -110,7 +111,7 @@ export const PERSISTENCE_ADMIN = {
       const prev = (s.team || []).find(m => m.id === a.payload);
       return prev ? { type: "ADD_TEAM_MEMBER", payload: prev } : null;
     },
-    mapError: (err) => err?.message || "utente non eliminato",
+    mapError: (err) => erroreUtente(err, "utente non eliminato"),
     // A-3 · Riga tolta in ottimistico: senza marcatura un refetch farebbe
     // riapparire l'utente appena eliminato.
     entityId: (a) => a.payload,
@@ -129,7 +130,7 @@ export const PERSISTENCE_ADMIN = {
     // TOGGLE_TEAM_MEMBER_ACTIVE è la propria inversa (`!active` sul valore
     // corrente): ridispatcharla torna al punto di partenza.
     rollback: (s, a) => ({ type: "TOGGLE_TEAM_MEMBER_ACTIVE", payload: a.payload }),
-    mapError: (err) => err?.message || "stato di attivazione non aggiornato",
+    mapError: (err) => erroreUtente(err, "stato di attivazione non aggiornato"),
     // A-3 · La posta più alta: `active` decide chi può ancora accedere.
     entityId: (a) => a.payload,
   },
@@ -204,7 +205,7 @@ export const PERSISTENCE_ADMIN = {
       }
       return { type: "ROLLBACK_RESTORE_BACKUP", payload: { daRipristinare, daRimuovere } };
     },
-    mapError: (err) => err?.message || "ripristino backup incompleto: alcune righe non sono state salvate",
+    mapError: (err) => erroreUtente(err, "ripristino backup incompleto: alcune righe non sono state salvate"),
   },
 
   // ─── PROFILO PERSONALE ─────────────────────────────────────────────────────
@@ -240,7 +241,7 @@ export const PERSISTENCE_ADMIN = {
         },
       };
     },
-    mapError: (err) => err?.message || "profilo non aggiornato",
+    mapError: (err) => erroreUtente(err, "profilo non aggiornato"),
     // A-3 · Il soggetto non è nel payload ma l'utente loggato: senza marcatura
     // un refetch riporterebbe indietro il profilo appena salvato.
     entityId: (a, s, uid) => uid,

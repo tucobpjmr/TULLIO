@@ -8,6 +8,7 @@ import { useAppData } from "../../../state/AppDataContext.jsx";
 import { bulkInputStyle, bulkBtnPrimary, bulkBtnGhost, bulkIconBtnSmall } from "./bulkStyles.js";
 import * as stiliComuni from "../../../styles/common.js";
 import { attivaConTastiera } from "../../../lib/a11y.js";
+import { erroreUtente } from "../../../lib/errori.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -105,7 +106,7 @@ export const DuplicateTab = ({ tasks, onCreate, onClose, onCancel, onDirty }) =>
     {
       alSuccesso: onClose,
       messaggioErrore: (e) =>
-        `Creazione non riuscita: ${e?.message || "errore sconosciuto"}. Le selezioni sono ancora qui, riprova.`,
+        `Creazione non riuscita: ${erroreUtente(e, "errore imprevisto")}. Le selezioni sono ancora qui, riprova.`,
     },
   );
 

@@ -11,11 +11,15 @@
 // `ui/validazioneInline.test.jsx`: il messaggio è LEGATO all'input, il FOCUS
 // va sul primo campo sbagliato, l'errore si spegne appena si corregge.
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render as renderBase, screen, fireEvent, waitFor } from "@testing-library/react";
+import { ConfirmProvider } from "../../state/ConfirmContext.jsx";
 import { EditMovimentoModal } from "../../components/liste/modals/EditMovimentoModal.jsx";
 import { NuovaListaModal } from "../../components/liste/modals/NuovaListaModal.jsx";
 import { AggiungiBeneficiarioModal } from "../../components/liste/modals/AggiungiBeneficiarioModal.jsx";
 import { BulkMovimentiModal } from "../../components/liste/modals/BulkMovimentiModal.jsx";
+
+// I form con chiusura protetta (hooks/useChiusuraProtetta.js) chiedono un ConfirmProvider.
+const render = (ui, opzioni) => renderBase(ui, { wrapper: ConfirmProvider, ...opzioni });
 
 // M-1 dell'audit UX/errori del 31 agosto: era ancora sulla frase che
 // validators.js cita testualmente come l'anti-pattern («Compila data,

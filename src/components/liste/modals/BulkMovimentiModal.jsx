@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { eur, metodoConBanca, parseImporto, sommaImporti, todayISO } from "../listeFormato.js";
 import { BancaSelect } from "./BancaSelect.jsx";
 import { LvOverlay } from "./LvOverlay.jsx";
+import { useChiusuraProtetta } from "../../../hooks/useChiusuraProtetta.js";
 import { MetodoSelect } from "./MetodoSelect.jsx";
 import { SegnoSeg } from "./SegnoSeg.jsx";
 import { FieldError, ariaCampo } from "../../ui/FieldError.jsx";
@@ -49,6 +50,9 @@ export function BulkMovimentiModal({ onSave, onClose }) {
   // forma che NewConversationView usa per l'elenco membri, dove non c'è un
   // singolo controllo da marcare `aria-invalid` (vedi docs/CLAUDE.md).
   const [avviso, setAvviso] = useState(null);
+  // A-3 · Esc, ✕ e «Annulla» chiedono prima di buttare via dati non salvati.
+  const sporco = rows.some((r) => r.desc.trim() || r.imp.trim());
+  const chiudi = useChiusuraProtetta(onClose, sporco);
   const dataRef = useRef(null);
   // key → { desc: nodo, imp: nodo }, popolata dai ref callback qui sotto: le
   // righe sono dinamiche, un useRef per campo non basterebbe.
@@ -137,7 +141,7 @@ export function BulkMovimentiModal({ onSave, onClose }) {
   };
 
   return (
-    <LvOverlay onClose={onClose} wide>
+    <LvOverlay onClose={chiudi} wide>
       {/* M-4 · `<form>` e non `<div>`: Invio deve inviare. */}
       <form noValidate onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <h2>Aggiungi più movimenti</h2>
@@ -210,7 +214,7 @@ export function BulkMovimentiModal({ onSave, onClose }) {
           <b className={`lv-num ${totCls}`}>{eur(totale)}</b>
         </div>
         <div className="actions">
-          <button type="button" className="lv-btn" onClick={onClose}>Annulla</button>
+          <button type="button" className="lv-btn" onClick={chiudi}>Annulla</button>
           <button type="submit" className="lv-btn primary" disabled={inVolo}>
             {inVolo ? "Registro…" : "Registra tutti"}
           </button>

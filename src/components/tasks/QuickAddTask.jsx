@@ -17,6 +17,7 @@ import { Modal } from "../ui/Modal.jsx";
 import { FieldError, ariaCampo } from "../ui/FieldError.jsx";
 import { validaCampi, obbligatorio, primoCampoInvalido } from "../../lib/validators.js";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
+import { useChiusuraProtetta } from "../../hooks/useChiusuraProtetta.js";
 import { useClientSuggestions, ClientSuggestions } from "../ui/ClientAutocomplete.jsx";
 import { useClients } from "../../state/ClientsContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
@@ -86,6 +87,13 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
   // subito: l'esito della scrittura ha ora il proprio canale (vedi sotto).
   const [erroreFile, impostaErroreFile] = useState("");
   const [errori, setErrori] = useState({});
+  // A-3 · Esc, ✕, «Annulla» e il click sul velo chiedono prima di buttare via
+  // un task scritto a metà. La categoria e la priorità hanno un default: da
+  // sole non contano come «dati inseriti».
+  const sporco = !!(form.title.trim() || form.description.trim() || form.client.trim()
+    || form.praticaRef.trim() || form.contact.trim() || form.dueDate
+    || form.assignees.length || pendingFiles.length);
+  const chiudi = useChiusuraProtetta(onClose, sporco);
   const fileInputRef = useRef(null);
   const titleRef = useRef(null);
   const rifCampo = { title: titleRef };
@@ -188,11 +196,11 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
   });
 
   return (
-    <Modal open onClose={onClose} labelledBy="quick-add-title" width={500} cardStyle={{ padding: 28 }}>
+    <Modal open onClose={chiudi} labelledBy="quick-add-title" width={500} cardStyle={{ padding: 28 }}>
       <>
         <div style={stiliComuni.testataModale}>
           <div id="quick-add-title" className="playfair" style={titoloModale}>Nuovo Task</div>
-          <button onClick={onClose} style={bottoneChiudi}>✕</button>
+          <button onClick={chiudi} style={bottoneChiudi}>✕</button>
         </div>
 
         <div style={stiliComuni.colGap14}>
@@ -347,7 +355,7 @@ export const QuickAddTask = ({ onAdd, onClose }) => {
         <FieldError id="qat-save-err">{erroreSalvataggio}</FieldError>
         {avviso && <div role="alert" style={avvisoParziale}>{avviso}</div>}
         <div style={barraAzioni}>
-          <button onClick={onClose} disabled={busy} style={{
+          <button onClick={chiudi} disabled={busy} style={{
             padding: "9px 18px", borderRadius: 8, border: "1px solid var(--border)",
             background: "transparent", cursor: busy ? "default" : "pointer", fontSize: 13, fontWeight: 500,
             opacity: busy ? 0.6 : 1,

@@ -15,6 +15,7 @@ import { bulkInputStyle, bulkTextareaStyle, bulkBtnPrimary, bulkBtnGhost } from 
 import { RowAttachments } from "./RowAttachments.jsx";
 import { useClientSuggestions, ClientSuggestions } from "../../ui/ClientAutocomplete.jsx";
 import * as stiliComuni from "../../../styles/common.js";
+import { erroreUtente } from "../../../lib/errori.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -168,7 +169,7 @@ export const ManualTab = ({ onCreate, onClose, onCancel, onDirty, clients = [] }
     {
       alSuccesso: onClose,
       messaggioErrore: (e) =>
-        `Creazione non riuscita: ${e?.message || "errore sconosciuto"}. I dati sono ancora qui, riprova.`,
+        `Creazione non riuscita: ${erroreUtente(e, "errore imprevisto")}. I dati sono ancora qui, riprova.`,
     },
   );
 

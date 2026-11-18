@@ -40,6 +40,7 @@ import { useConfirm } from "../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 import { attivaConTastiera } from "../../lib/a11y.js";
+import { erroreUtente } from "../../lib/errori.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -207,7 +208,7 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
         const { path, error } = await MessagesAPI.copyFile(src.fileUrl, destConvId, voiceName);
         if (error || !path) {
           console.error("[chat] forward voice copyFile", error);
-          dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Inoltro vocale fallito: ${error?.message || "errore sconosciuto"}` } });
+          dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Inoltro vocale fallito: ${erroreUtente(error, "errore imprevisto")}` } });
           return;
         }
         newMsg.fileUrl = path;
@@ -224,7 +225,7 @@ export const ChatPanel = memo(function ChatPanel({ open, onClose, conversations:
         const { path, error } = await MessagesAPI.copyFile(src.fileUrl, destConvId, src.fileName);
         if (error || !path) {
           console.error("[chat] forward copyFile", error);
-          dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Inoltro allegato fallito: ${error?.message || "errore sconosciuto"}` } });
+          dispatch({ type: "SHOW_TOAST", payload: { type: "error", message: `Inoltro allegato fallito: ${erroreUtente(error, "errore imprevisto")}` } });
           return;
         }
         newMsg.fileUrl = path;

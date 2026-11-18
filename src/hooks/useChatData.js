@@ -17,6 +17,7 @@ import { makeChatCommands } from "../components/chat/chatCommands.js";
 import { getUnreadCount } from "../components/chat/chatFormat.js";
 import { applicaRighe, fondiFinestre, aggiungiPagina, nonLettiOltreCorpus } from "../components/chat/messaggiStato.js";
 import { useDebouncedTableSubscription } from "./useDebouncedTableSubscription.js";
+import { erroreUtente } from "../lib/errori.js";
 
 // La finestra per conversazione: all'avvio e alla ripresa si leggono gli ultimi
 // PAGINA_STORIA messaggi di OGNI conversazione; il resto a pagine della stessa
@@ -178,7 +179,7 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
     }
     if (res.error) {
       console.error("[chat] msgs.precedenti", res.error);
-      onErrorRef.current(`Chat: caricamento dei messaggi precedenti fallito: ${res.error.message || ""}`);
+      onErrorRef.current(`Chat: caricamento dei messaggi precedenti fallito: ${erroreUtente(res.error, "errore imprevisto")}`);
       segnaStoria(convId, { caricando: false, errore: true });
       return;
     }
@@ -263,11 +264,11 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
       if (!isCurrent()) return;
       if (convsRes.error) {
         console.error("[chat] convs.list", convsRes.error);
-        onError(`Chat: caricamento conversazioni fallito: ${convsRes.error.message || ""}`);
+        onError(`Chat: caricamento conversazioni fallito: ${erroreUtente(convsRes.error, "errore imprevisto")}`);
       }
       if (msgsRes?.error) {
         console.error("[chat] msgs.list", msgsRes.error);
-        onError(`Chat: caricamento messaggi fallito: ${msgsRes.error.message || ""}`);
+        onError(`Chat: caricamento messaggi fallito: ${erroreUtente(msgsRes.error, "errore imprevisto")}`);
       }
       // A-1 · Una lettura fallita non sostituisce lo stato: scrivere `[]` e `{}`
       // svuotava la chat proprio al rientro della rete. Resta ciò che c'era.

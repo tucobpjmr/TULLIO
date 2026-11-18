@@ -13,6 +13,7 @@ import { MAX_TASK_FILE_SIZE, formatFileSize, fileIcon, isWithinSizeLimit, source
 import { useConfirm } from "../../state/ConfirmContext.jsx";
 import * as stiliComuni from "../../styles/common.js";
 import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
+import { erroreUtente } from "../../lib/errori.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -138,7 +139,7 @@ export function TaskAttachments({ taskId, editable }) {
       const { data, error: e } = await TaskFiles.upload(f, taskId, { uploadedBy: currentUserId });
       if (!montato()) return;
       setUploading(false);
-      if (e) { setError(`Upload di "${f.name}" fallito: ${e.message || "errore"}`); continue; }
+      if (e) { setError(`Upload di "${f.name}" fallito: ${erroreUtente(e, "errore imprevisto")}`); continue; }
       if (data) impostaFiles(prev => [data, ...prev]);
     }
     if (inputRef.current) inputRef.current.value = "";

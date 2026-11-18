@@ -12,10 +12,14 @@
 // siano ancora nel DOM. Un test che si accontentasse del messaggio passerebbe
 // anche su una modale che si chiude subito dopo averlo mostrato.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { render as renderBase, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { ConfirmProvider } from "../../state/ConfirmContext.jsx";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import { erroreDiPermesso } from "../../lib/esitoScrittura.js";
 import { renderWithAppData, DEMO_APP_CTX } from "../helpers/appData.jsx";
+
+// I form con chiusura protetta (hooks/useChiusuraProtetta.js) chiedono un ConfirmProvider.
+const render = (ui, opzioni) => renderBase(ui, { wrapper: ConfirmProvider, ...opzioni });
 
 // Mock di api.js per non istanziare il client Supabase reale (stessa forma di
 // bulkRowAttachments.test.jsx). `upload` è anche il perno del caso «task creata

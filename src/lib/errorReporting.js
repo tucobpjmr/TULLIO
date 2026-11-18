@@ -10,6 +10,8 @@
 // DEV gli errori già gestiti da un boundary). In produzione solo il pannello.
 // Non si filtra: un'euristica rischierebbe di ingoiare l'errore vero.
 
+import { erroreUtente, guastoDiRete } from "./errori.js";
+
 // Il consumatore dei messaggi, registrato da VoyageDesk: questo modulo non
 // conosce il reducer. Finché è null si logga soltanto.
 let sink = null;
@@ -78,12 +80,17 @@ const testoLeggibile = (motivo) => {
 const isErroreDiProgrammazione = (e) =>
   e instanceof TypeError || e instanceof ReferenceError || e instanceof RangeError;
 
+// In produzione il testo passa da `erroreUtente` (lib/errori.js): un codice
+// Postgres o un messaggio di libreria diventano una frase, e quando non c'è
+// niente di leggibile da dire resta il codice da dettare.
 const messaggioUtente = (motivo, codice) => {
   if (isChunkMancante(motivo)) return "L'app è stata aggiornata: ricarica la pagina per continuare.";
-  if (import.meta.env.DEV || !isErroreDiProgrammazione(motivo)) {
-    return `Operazione non riuscita: ${testoLeggibile(motivo)}`;
-  }
-  return `Operazione non riuscita. Se si ripete, segnala il codice ${codice}.`;
+  if (import.meta.env.DEV) return `Operazione non riuscita: ${testoLeggibile(motivo)}`;
+  const daDettare = `Operazione non riuscita. Se si ripete, segnala il codice ${codice}.`;
+  if (guastoDiRete(motivo)) return `Operazione non riuscita: ${erroreUtente(motivo)}.`;
+  if (isErroreDiProgrammazione(motivo)) return daDettare;
+  const testo = erroreUtente(motivo, "");
+  return testo ? `Operazione non riuscita: ${testo}` : daDettare;
 };
 
 // ─── ANTI-RAFFICA ──────────────────────────────────────────────────────────

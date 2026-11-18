@@ -19,6 +19,7 @@ import * as stiliComuni from "../../styles/common.js";
 import { useDispatch } from "../../state/DispatchContext.jsx";
 import { useSalvataggio } from "../../hooks/useSalvataggio.js";
 import { attivaConTastiera } from "../../lib/a11y.js";
+import { erroreUtente } from "../../lib/errori.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -133,7 +134,7 @@ export const AddTeamMemberModal = ({ onClose, existingIds, onInvited }) => {
     },
     {
       alSuccesso: onClose,
-      messaggioErrore: (e) => e?.message || "Invito non riuscito.",
+      messaggioErrore: (e) => erroreUtente(e, "Invito non riuscito."),
     },
   );
 

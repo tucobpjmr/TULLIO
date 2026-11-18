@@ -24,6 +24,7 @@ import { DB_ROLES, ROLE_LABELS, toDbRole } from "../../lib/taskConstants.js";
 import { useIsMounted } from "../../hooks/useIsMounted.js";
 import * as stiliComuni from "../../styles/common.js";
 import { attivaConTastiera } from "../../lib/a11y.js";
+import { erroreUtente } from "../../lib/errori.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
 // non ricostruiti a ogni render (M-1 dell'audit del 12 agosto).
@@ -151,7 +152,7 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
         // server. Un terzo stato, distinto da "ok" ed "err": non è un
         // fallimento dell'invito, ma non è nemmeno un successo pulito.
         out.push(error
-          ? { email: p.email, status: "err", message: error.message || "Errore" }
+          ? { email: p.email, status: "err", message: erroreUtente(error, "invito non riuscito") }
           : data?.warning
             ? { email: p.email, status: "warn", message: data.warning }
             : { email: p.email, status: "ok" });

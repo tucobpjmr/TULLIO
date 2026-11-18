@@ -69,4 +69,33 @@ describe("ViewErrorBoundary", () => {
     expect(screen.getByText("dashboard di nuovo viva")).toBeInTheDocument();
     expect(screen.queryByText("Questa sezione ha avuto un problema")).not.toBeInTheDocument();
   });
+  // A-1 dell'analisi UX del 15 novembre: a rompersi è la Dashboard, e
+  // «Torna alla Dashboard» chiede la STESSA vista — la chiave non cambia, il
+  // riarmo per chiave non scatta. Prima il bottone non faceva nulla.
+  it("si riarma anche quando l'uscita riporta alla stessa vista", () => {
+    let rotta = true;
+    function DashboardFragile() {
+      if (rotta) throw new Error("crash della dashboard");
+      return <div>dashboard di nuovo viva</div>;
+    }
+    const onReset = vi.fn(() => { rotta = false; });
+    render(
+      <ViewErrorBoundary viewKey="dashboard" onReset={onReset}>
+        <DashboardFragile />
+      </ViewErrorBoundary>,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Questa sezione ha avuto un problema");
+    fireEvent.click(screen.getByRole("button", { name: /Torna alla Dashboard/ }));
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("dashboard di nuovo viva")).toBeInTheDocument();
+  });
+
+  it("offre anche la ricarica, per quando tornare non basta", () => {
+    render(
+      <ViewErrorBoundary viewKey="dashboard" onReset={() => {}}>
+        <Esplode />
+      </ViewErrorBoundary>,
+    );
+    expect(screen.getByRole("button", { name: "Ricarica la pagina" })).toBeInTheDocument();
+  });
 });

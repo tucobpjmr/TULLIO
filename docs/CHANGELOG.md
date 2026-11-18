@@ -1,5 +1,41 @@
 # CHANGELOG — VoyageDesk
 
+## 18 novembre — analisi UX del 15 novembre: errori leggibili, form protetti, dialoghi
+
+**A-2 · Gli errori parlano italiano** (`erroreUtente`, `lib/errori.js`).
+- Un solo traduttore per scritture, caricamenti, chat, Liste, upload e toast
+  globali: codici Postgres/PostgREST/Auth, stati HTTP dello Storage e guasti
+  di rete diventano frasi; un codice di sistema sconosciuto mostra il ripiego
+  dell'operazione («task non salvato»), mai il messaggio tecnico.
+- Passano invariati i testi nostri: eccezioni `P0001` delle RPC (senza uuid),
+  Edge Function, `erroreDiPermesso`, `RIFIUTO_RLS`, codici dell'app
+  (`CONFLITTO`).
+- `guastoDiRete` si sposta in `lib/errori.js` (`codaScritture` lo riesporta).
+
+**A-3 · Un form compilato non si chiude con un tasto** (`useChiusuraProtetta`).
+- Esc, ✕, «Annulla» e velo chiedono conferma se ci sono dati non salvati:
+  Liste (più movimenti, nuova lista, modifica movimento, modifica lista),
+  scheda cliente, task rapido, avviso, nuovo agente, nuova categoria, invito
+  multiplo. `BulkTaskCreator` passa all'hook comune.
+
+**A-1 · «Torna alla Dashboard» funziona anche se a rompersi è la Dashboard.**
+- L'uscita del pannello d'errore riarma il boundary in modo esplicito; il
+  pannello della vista offre anche «Ricarica la pagina». I pannelli d'errore
+  hanno `role="alert"`.
+
+**M-4 · Dialoghi veri.**
+- `AddTeamMemberModal`, `AddCategoryModal`, `BulkInviteModal` passano a
+  `ui/Modal.jsx` (Esc, focus trap, `role="dialog"`); `ModalPortal.jsx` e gli
+  stili `modalOverlay`/`modalCard` sono rimossi.
+- `TaskSlideOver` e `ChatPanel`: `role="dialog"`, focus trap, Esc dalla pila
+  dei modali. Nel pannello task Esc salva prima la bozza del campo a fuoco;
+  in chat, con del testo nel campo, il primo Esc toglie solo il fuoco.
+- `DateTimePicker` entra nella pila: Esc chiude il calendario, non anche il
+  modale che lo contiene (prima chiudeva entrambi, es. in «Nuovo task»).
+- Test: `erroreUtente.test.js`, `chiusuraProtetta.test.jsx`,
+  `slideOverDialogo.test.jsx`, `chatDialogo.test.jsx`, più casi in
+  `viewErrorBoundary.test.jsx` e `datePickerDismiss.test.jsx`.
+
 ## 17 novembre — analisi del 16 novembre: M-1…M-3 (database), B-1…B-3 (Edge Function)
 
 Applicate in produzione via MCP dopo un dry-run transazionale che impersona

@@ -36,6 +36,8 @@ import { useDispatch } from "../../state/DispatchContext.jsx";
 import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
 import { SalvatoInLinea } from "../ui/SalvatoInLinea.jsx";
 import { useCampiSalvati } from "./useCampiSalvati.js";
+import { useTrappolaFocus } from "../../hooks/useTrappolaFocus.js";
+import { apriModale, chiudiModale, inCima } from "../ui/pilaModali.js";
 
 // I campi testo con bozza locale (commit al blur). Vedi A-2 più sotto.
 const CAMPI_BOZZA = ["title", "client", "praticaRef", "contact", "description"];
@@ -118,6 +120,33 @@ export const TaskSlideOver = memo(function TaskSlideOver({ task }) {
   // del toast. Hook anche lui, quindi prima dell'early return.
   const { salvato, segna } = useCampiSalvati();
 
+  // M-4 dell'analisi UX del 15 novembre: il pannello è un dialogo — Esc lo
+  // chiude (solo se è in cima alla pila: un calendario aperto ha la
+  // precedenza), il fuoco ci entra e ci resta, e alla chiusura torna dov'era.
+  // Hook, quindi prima dell'early return.
+  const pannelloRef = useRef(null);
+  useTrappolaFocus(pannelloRef, !!task);
+  const chiudiRef = useRef(null);
+  chiudiRef.current = () => {
+    // ⚠️ Prima si toglie il fuoco: il campo in modifica salva sul blur, e un
+    // input smontato da Esc non riceve `onBlur` — la bozza andrebbe persa.
+    const attivo = document.activeElement;
+    if (attivo instanceof HTMLElement && pannelloRef.current?.contains(attivo)) attivo.blur();
+    dispatch({ type: "SET_SELECTED_TASK", payload: null });
+  };
+  useEffect(() => {
+    const token = apriModale();
+    const onKey = (e) => {
+      if (e.key === "Escape" && inCima(token)) chiudiRef.current();
+    };
+    window.addEventListener("keydown", onKey);
+    pannelloRef.current?.focus();
+    return () => {
+      chiudiModale(token);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
   if (!task) return null;
 
   const currentAssignees = task.assignees || [];
@@ -195,20 +224,26 @@ export const TaskSlideOver = memo(function TaskSlideOver({ task }) {
     width: "100%", border: "1px solid var(--border)", borderRadius: 8,
     padding: "7px 10px", fontSize: 13, fontFamily: "inherit", background: "var(--card)",
   };
-  const chiudiPannello = () => dispatch({ type: "SET_SELECTED_TASK", payload: null });
+  const chiudiPannello = () => chiudiRef.current();
 
   return (
     <>
-      {/* A differenza del velo di ui/Modal.jsx, questo pannello non ha (ancora)
-          un equivalente da tastiera per la chiusura (nessun listener su Escape
-          in questo file): niente escape hatch, il velo diventa un vero
-          controllo raggiungibile con Tab e attivabile con Invio/Spazio. */}
+      {/* Il velo chiude al click. Da tastiera la chiusura è Esc (sopra) e il
+          bottone ✕: il velo resta comunque un controllo con nome, per chi
+          naviga con uno screen reader. */}
       <div
         role="button" tabIndex={0}
         onClick={chiudiPannello} onKeyDown={attivaConTastiera(chiudiPannello)}
         aria-label="Chiudi pannello task"
         style={{ position: "fixed", inset: 0, background: "rgba(15,32,68,0.4)", zIndex: Z.slideOverBackdrop }} />
-      <div className="slide-right vd-sheet-full" style={{
+      <div
+        ref={pannelloRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Task: ${task.title || "senza titolo"}`}
+        tabIndex={-1}
+        className="slide-right vd-sheet-full" style={{
+        outline: "none",
         position: "fixed", top: 0, right: 0, width: isMobile ? "100vw" : 480,
         background: "var(--card)", zIndex: Z.slideOver, boxShadow: "-20px 0 60px rgba(0,0,0,0.15)",
         // overflow:hidden sul guscio + scroll SOLO sul corpo (vedi sotto): su iOS
@@ -251,7 +286,7 @@ export const TaskSlideOver = memo(function TaskSlideOver({ task }) {
                 e => e.currentTarget.style.background = "var(--card)",
               )}
             ><Icona nome="cestino" dimensione={16} /></button>
-            <button onClick={() => dispatch({ type: "SET_SELECTED_TASK", payload: null })} aria-label="Chiudi" title="Chiudi" style={stiliComuni.btnChiudiTestata}><Icona nome="chiudi" dimensione={16} /></button>
+            <button onClick={chiudiPannello} aria-label="Chiudi" title="Chiudi" style={stiliComuni.btnChiudiTestata}><Icona nome="chiudi" dimensione={16} /></button>
           </div>
         </div>
 

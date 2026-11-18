@@ -15,15 +15,15 @@
 // senza valore proporzionato.
 import { useId, useRef, useState } from "react";
 import {
-  modalOverlay, modalCard, labelStyle, fieldStyle, btnPrimary, btnGhost,
+  modalCardContenuto, labelStyle, fieldStyle, btnPrimary, btnGhost,
 } from "./adminStyles.js";
-import { ModalPortal } from "../ui/ModalPortal.jsx";
+import { Modal } from "../ui/Modal.jsx";
+import { useChiusuraProtetta } from "../../hooks/useChiusuraProtetta.js";
 import { Users } from "../../lib/api.js";
 import { EMAIL_RX } from "../../lib/validators.js";
 import { DB_ROLES, ROLE_LABELS, toDbRole } from "../../lib/taskConstants.js";
 import { useIsMounted } from "../../hooks/useIsMounted.js";
 import * as stiliComuni from "../../styles/common.js";
-import { attivaConTastiera } from "../../lib/a11y.js";
 import { erroreUtente } from "../../lib/errori.js";
 
 // Stili costanti di questo file: allocati una volta a livello di modulo,
@@ -60,6 +60,9 @@ const parseLine = (raw, defaultRole) => {
   const role = toDbRole(parts[2]) ?? defaultRole;
   return { email, name, role };
 };
+
+// A batch in corso la modale non si chiude: Esc e velo non fanno nulla.
+const NIENTE = () => {};
 
 export const BulkInviteModal = ({ onClose, onInvited }) => {
   const [text, setText] = useState("");
@@ -98,6 +101,10 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
   const invitiId = useId();
   const ruoloId = useId();
   const coloreId = useId();
+  const titoloId = useId();
+  // A-3 · Esc, ✕, «Annulla» e velo chiedono prima di buttare via dati inseriti.
+  const sporco = !!text.trim() && !results;
+  const chiudi = useChiusuraProtetta(onClose, sporco);
 
   const submit = async () => {
     if (inVoloRif.current) return;
@@ -179,122 +186,95 @@ export const BulkInviteModal = ({ onClose, onInvited }) => {
   const errCount = (results || []).filter(r => r.status === "err").length;
   const allDone = results && !busy && results.length > 0;
 
-  // A-2 dell'audit UX/errori del 1 settembre: il velo chiude solo se il click
-  // parte DAL velo stesso (e.target === e.currentTarget), non se bubbla da un
-  // figlio — lo stesso confronto usato in ui/Modal.jsx, così la card non ha
-  // bisogno di un proprio onClick di stopPropagation. Questo modale non passa
-  // da ui/Modal.jsx e non ha un equivalente da tastiera per Esc, quindi il
-  // velo stesso resta nell'ordine di tabulazione (role/tabIndex/onKeyDown)
-  // invece del disable-comment usato lì. Il freno `busy` (vedi sopra: la
-  // modale non deve essere chiudibile a batch in corso) resta identico,
-  // spostato dentro il gestore invece che sulla prop.
-  const closeOnOverlay = (e) => {
-    if (busy) return;
-    if (e.target === e.currentTarget) onClose();
-  };
 
-  // Portale: AdminTeamTab vive dentro il wrapper .fade-in di AdminView (transform
-  // → containing block per i fixed). Vedi ui/ModalPortal.jsx.
   return (
-    <ModalPortal>
-      <div
-        role="button"
-        tabIndex={0}
-        aria-label="Esci"
-        aria-disabled={busy}
-        onClick={closeOnOverlay}
-        onKeyDown={attivaConTastiera(closeOnOverlay)}
-        style={modalOverlay}
-      >
-        <div style={{ ...modalCard, maxWidth: 560 }}>
-          <h3 className="playfair" style={txtHeadingMb8}>
-            Invito multiplo
-          </h3>
-          <div style={txtF125Muted}>
-            Una riga per invito. Formati supportati:<br />
-            <code style={codeStyle}>anna@agenzia.it</code><br />
-            <code style={codeStyle}>anna@agenzia.it, Anna Bianchi</code><br />
-            <code style={codeStyle}>anna@agenzia.it, Anna Bianchi, Senior Agent</code>
+    <Modal open onClose={busy ? NIENTE : chiudi} labelledBy={titoloId} width={560} cardStyle={modalCardContenuto}>
+      <h3 id={titoloId} className="playfair" style={txtHeadingMb8}>
+        Invito multiplo
+      </h3>
+      <div style={txtF125Muted}>
+        Una riga per invito. Formati supportati:<br />
+        <code style={codeStyle}>anna@agenzia.it</code><br />
+        <code style={codeStyle}>anna@agenzia.it, Anna Bianchi</code><br />
+        <code style={codeStyle}>anna@agenzia.it, Anna Bianchi, Senior Agent</code>
+      </div>
+
+      <div style={stiliComuni.gridGap12}>
+        <div>
+          <label htmlFor={invitiId} style={labelStyle}>Inviti</label>
+          <textarea
+            id={invitiId}
+            value={text}
+            onChange={e => setText(e.target.value)}
+            disabled={busy}
+            rows={8}
+            placeholder={"anna@agenzia.it\nmarco@agenzia.it, Marco Rossi\nluca@agenzia.it, Luca Verdi, Driver"}
+            style={{ ...fieldStyle, fontFamily: "monospace", fontSize: 12.5, resize: "vertical" }}
+            autoFocus
+          />
+        </div>
+
+        <div style={gridGap10}>
+          <div>
+            <label htmlFor={ruoloId} style={labelStyle}>Ruolo default</label>
+            <select id={ruoloId} value={defaultRole} onChange={e => setDefaultRole(e.target.value)} disabled={busy} style={fieldStyle}>
+              {DB_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+            </select>
           </div>
-
-          <div style={stiliComuni.gridGap12}>
-            <div>
-              <label htmlFor={invitiId} style={labelStyle}>Inviti</label>
-              <textarea
-                id={invitiId}
-                value={text}
-                onChange={e => setText(e.target.value)}
-                disabled={busy}
-                rows={8}
-                placeholder={"anna@agenzia.it\nmarco@agenzia.it, Marco Rossi\nluca@agenzia.it, Luca Verdi, Driver"}
-                style={{ ...fieldStyle, fontFamily: "monospace", fontSize: 12.5, resize: "vertical" }}
-                autoFocus
-              />
-            </div>
-
-            <div style={gridGap10}>
-              <div>
-                <label htmlFor={ruoloId} style={labelStyle}>Ruolo default</label>
-                <select id={ruoloId} value={defaultRole} onChange={e => setDefaultRole(e.target.value)} disabled={busy} style={fieldStyle}>
-                  {DB_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                </select>
-              </div>
-              <div>
-                <label htmlFor={coloreId} style={labelStyle}>Colore</label>
-                <input id={coloreId} type="color" value={color} disabled={busy} onChange={e => setColor(e.target.value)}
-                  style={{ ...fieldStyle, height: 38, padding: 2 }} />
-              </div>
-            </div>
-
-            {parseErrors.length > 0 && (
-              <div style={warnBoxStyle}>
-                <div style={txtBoldMb4}>Righe ignorate ({parseErrors.length})</div>
-                {parseErrors.slice(0, 6).map((e, i) => <div key={i}>• {e}</div>)}
-                {parseErrors.length > 6 && <div>…e altre {parseErrors.length - 6}</div>}
-              </div>
-            )}
-
-            {results && (
-              <div style={resultBoxStyle}>
-                <div style={txtBoldText}>
-                  {busy
-                    ? `Invio… ${results.length}/${total}`
-                    : `Riepilogo — ✅ ${okCount} inviati`
-                      + `${warnCount ? ` · ⚠️ ${warnCount} con avviso` : ""}`
-                      + `${errCount ? ` · ❌ ${errCount} falliti` : ""}`}
-                </div>
-                <div style={txtF125}>
-                  {results.map((r, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        display: "flex", gap: 8, padding: "2px 0",
-                        color: r.status === "ok" ? "var(--success)" : r.status === "warn" ? "var(--warning)" : "var(--danger)",
-                      }}
-                    >
-                      <span>{r.status === "ok" ? "✅" : r.status === "warn" ? "⚠️" : "❌"}</span>
-                      <span style={flex1}>{r.email}</span>
-                      {r.message && <span style={stiliComuni.txtMuted}>{r.message}</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div style={stiliComuni.rowGap8Mt20}>
-            <button onClick={onClose} disabled={busy} style={btnGhost}>
-              {allDone ? "Chiudi" : "Annulla"}
-            </button>
-            {!allDone && (
-              <button onClick={submit} disabled={busy || !text.trim()} style={btnPrimary}>
-                {busy ? "Invio…" : "Invia inviti"}
-              </button>
-            )}
+          <div>
+            <label htmlFor={coloreId} style={labelStyle}>Colore</label>
+            <input id={coloreId} type="color" value={color} disabled={busy} onChange={e => setColor(e.target.value)}
+              style={{ ...fieldStyle, height: 38, padding: 2 }} />
           </div>
         </div>
+
+        {parseErrors.length > 0 && (
+          <div style={warnBoxStyle}>
+            <div style={txtBoldMb4}>Righe ignorate ({parseErrors.length})</div>
+            {parseErrors.slice(0, 6).map((e, i) => <div key={i}>• {e}</div>)}
+            {parseErrors.length > 6 && <div>…e altre {parseErrors.length - 6}</div>}
+          </div>
+        )}
+
+        {results && (
+          <div style={resultBoxStyle}>
+            <div style={txtBoldText}>
+              {busy
+                ? `Invio… ${results.length}/${total}`
+                : `Riepilogo — ✅ ${okCount} inviati`
+                  + `${warnCount ? ` · ⚠️ ${warnCount} con avviso` : ""}`
+                  + `${errCount ? ` · ❌ ${errCount} falliti` : ""}`}
+            </div>
+            <div style={txtF125}>
+              {results.map((r, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex", gap: 8, padding: "2px 0",
+                    color: r.status === "ok" ? "var(--success)" : r.status === "warn" ? "var(--warning)" : "var(--danger)",
+                  }}
+                >
+                  <span>{r.status === "ok" ? "✅" : r.status === "warn" ? "⚠️" : "❌"}</span>
+                  <span style={flex1}>{r.email}</span>
+                  {r.message && <span style={stiliComuni.txtMuted}>{r.message}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
-    </ModalPortal>
+
+      <div style={stiliComuni.rowGap8Mt20}>
+        <button onClick={chiudi} disabled={busy} style={btnGhost}>
+          {allDone ? "Chiudi" : "Annulla"}
+        </button>
+        {!allDone && (
+          <button onClick={submit} disabled={busy || !text.trim()} style={btnPrimary}>
+            {busy ? "Invio…" : "Invia inviti"}
+          </button>
+        )}
+      </div>
+    </Modal>
   );
 };
 

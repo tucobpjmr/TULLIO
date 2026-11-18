@@ -45,8 +45,8 @@ function PannelloErroreOverlay({ error, info, codice, onReset }) {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: 'rgba(8,21,45,0.35)', padding: 20,
     }}>
-      <div className="fade-in" style={boxP24WFull}>
-        <div style={txtF30Mb10}>⚠️</div>
+      <div className="fade-in" role="alert" style={boxP24WFull}>
+        <div style={txtF30Mb10} aria-hidden="true">⚠️</div>
         <h2 className="playfair" style={txtF20Heading}>Non è stato possibile aprire questo pannello</h2>
         <p style={txtF135Muted}>
           Il resto di Tullio continua a funzionare. Se il problema si ripete,

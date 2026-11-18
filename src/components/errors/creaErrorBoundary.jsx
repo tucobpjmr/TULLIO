@@ -72,6 +72,17 @@ export function creaErrorBoundary({ nome, chiaveReset = null, messaggio, Fallbac
       return iniziale(props);
     }
 
+    // A-1 dell'analisi UX del 15 novembre. Il riarmo per chiave non scatta
+    // quando l'uscita riporta alla STESSA chiave: un crash della Dashboard,
+    // con «Torna alla Dashboard» che chiede SET_VIEW "dashboard", lasciava il
+    // pannello dov'era e l'utente senza via d'uscita. L'uscita del pannello
+    // riarma ESPLICITAMENTE, poi esegue l'azione del chiamante.
+    riprova = () => {
+      const self = /** @type {any} */ (this);
+      self.setState(iniziale(self.props));
+      self.props.onReset?.();
+    };
+
     componentDidCatch(error, info) {
       // M-4 dell'audit del 5 settembre. Il progetto non ha `@types/react` (mai
       // installato — provato ad aggiungerlo per questo stesso rilievo: risolve
@@ -112,7 +123,7 @@ export function creaErrorBoundary({ nome, chiaveReset = null, messaggio, Fallbac
       // tre ripara QUESTO, e due su tre richiudono il ciclo. Qui il rimedio è
       // uno solo per tutti e tre (A-4).
       if (obsoleto) return <PannelloAppAggiornata />;
-      return <Fallback error={error} info={info} codice={codice} onReset={self.props.onReset} />;
+      return <Fallback error={error} info={info} codice={codice} onReset={self.riprova} />;
     }
   }
 

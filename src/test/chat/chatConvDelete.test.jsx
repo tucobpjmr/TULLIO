@@ -74,7 +74,7 @@ function renderPanel({ onDeleteConversation }) {
 
 // La finestra di conferma è un <dialog> dell'app: si risponde cliccando.
 const rispondi = async (etichetta) => {
-  const dialogo = await screen.findByRole("dialog");
+  const dialogo = await screen.findByRole("dialog", { name: /^Eliminare/ });
   fireEvent.click(within(dialogo).getByRole("button", { name: etichetta }));
 };
 
@@ -101,7 +101,7 @@ describe("eliminazione conversazioni/gruppi", () => {
 
     expect(onDelete).not.toHaveBeenCalled();
     // E la finestra si chiude: una conferma annullata non lascia residui.
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /^Eliminare/ })).toBeNull());
   });
 
   it("su un'azione irreversibile il focus parte da Annulla, non da Elimina", async () => {
@@ -110,7 +110,7 @@ describe("eliminazione conversazioni/gruppi", () => {
     renderPanel({ onDeleteConversation: vi.fn() });
     fireEvent.click(screen.getByTitle("Elimina gruppo"));
 
-    const dialogo = await screen.findByRole("dialog");
+    const dialogo = await screen.findByRole("dialog", { name: /^Eliminare/ });
     await waitFor(() =>
       expect(document.activeElement).toBe(within(dialogo).getByRole("button", { name: "Annulla" })));
   });

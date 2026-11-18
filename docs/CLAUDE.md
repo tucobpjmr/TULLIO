@@ -90,6 +90,9 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 - **⛔ Niente `window.confirm` / `alert` / `prompt`**: conferme con `useConfirm()` (`danger: true` per le azioni distruttive), errori con un toast.
 - **⛔ Mai un `lazy()` montato con il solo `<Suspense>`**: si monta con `components/ui/LazyPanel.jsx` (Suspense + boundary insieme). Misurato: «lazy() senza boundary», atteso 0.
 - **Errori: a schermo il minimo, in console il dettaglio**: i boundary mostrano `ErrorDetails.jsx` (in produzione solo il codice di segnalazione). ⛔ Niente `<pre>{error.stack}</pre>`.
+- **Il testo di un errore passa da `erroreUtente(err, ripiego)`** (`lib/errori.js`): codici Postgres/PostgREST/Auth e guasti di rete diventano frasi, passano solo i testi nostri (RPC `P0001`, Edge Function, codici dell'app). ⛔ Mai `err.message` grezzo in un toast o a schermo.
+- **Un form con dati inseriti non si chiude senza chiedere**: Esc, ✕, «Annulla» e velo passano da `useChiusuraProtetta(onClose, sporco)`; `alSuccesso` riceve l'`onClose` originale.
+- **I pannelli laterali sono dialoghi**: `TaskSlideOver` e `ChatPanel` hanno `role="dialog"`, focus trap ed Esc dalla pila (`ui/pilaModali.js`). Anche un popover con Esc proprio (`DateTimePicker`) entra nella pila.
 - **Validazione dei form: inline, non via toast**: `validaCampi(valori, REGOLE)` con i validatori di `lib/validators.js`, `<FieldError>` + `ariaCampo`, focus su `primoCampoInvalido`. ⛔ Niente return muti né bottoni spenti al posto del messaggio; `type="text" inputMode="email"`, non `type="email"`.
 - **Attese annunciate**: ogni attesa visibile ha `role="status"` + `aria-live` e un TESTO.
 - **Stati di attesa onesti**: finché il primo fetch non è tornato, scheletro (`SkeletonCards`/`SkeletonRows`) e conteggi `…`, mai un vuoto o uno `0` che non si conosce.
@@ -100,7 +103,7 @@ Agisci come sviluppatore full-stack specializzato in sistemi gestionali per trav
 - **⛔ Mai un `value={{…}}` o `value={[…]}` letterale su un `Context.Provider`** (`VIETATO_CONTEXT_VALUE_LETTERALE`): `useMemo` o costante di modulo.
 
 **Stili**
-- **Stili**: z-index, bottoni e campi da `src/styles/tokens.js`. ⛔ Mai uno `zIndex` numerico inline. ⛔ Mai uno `style={{…}}` di soli valori costanti (`STILE_INLINE_COSTANTE`): va in una `const` di modulo, nel `*Styles.js` accanto o in `styles/common.js` se la forma ricorre in tre o più file (misurato per VALORE: «forme di stile identiche in 3+ file» e «forme già in common.js riscritte altrove», attesi 0). Restano **334 style inline dinamici**.
+- **Stili**: z-index, bottoni e campi da `src/styles/tokens.js`. ⛔ Mai uno `zIndex` numerico inline. ⛔ Mai uno `style={{…}}` di soli valori costanti (`STILE_INLINE_COSTANTE`): va in una `const` di modulo, nel `*Styles.js` accanto o in `styles/common.js` se la forma ricorre in tre o più file (misurato per VALORE: «forme di stile identiche in 3+ file» e «forme già in common.js riscritte altrove», attesi 0). Restano **331 style inline dinamici**.
 - **Stili condivisi**: `src/styles/common.js` si importa **qualificato** — `import * as stiliComuni from "…/styles/common.js"`. ⛔ Mai un import nominato da lì (`VIETATO_COMMON_NOMINATO`).
 - **Nome di una costante di stile = il suo ruolo** (`rigaAllegato`, `avvisoParziale`), non la forma (`rowCenterGap10`): la forma la dice il valore. Le vecchie si rinominano quando si tocca il file, non in massa (M-4 del 14 novembre).
 - **CSS globale**: `src/styles/global.css` (e `components/liste/liste.css`). ⛔ Niente `<style>` in JSX o in `index.html`: la CSP è `style-src 'self'`.

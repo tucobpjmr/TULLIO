@@ -16,6 +16,7 @@ vi.mock("../../lib/api.js", () => ({
 
 const { DateTimePicker } = await import("../../components/ui/DateTimePicker.jsx");
 const { BulkTaskCreator } = await import("../../components/tasks/bulk/BulkTaskCreator.jsx");
+const { Modal } = await import("../../components/ui/Modal.jsx");
 
 // Chiudere il pannello senza premere "OK" (click fuori, Escape, backdrop su
 // mobile) scartava in silenzio il giorno appena scelto — che nel frattempo
@@ -121,5 +122,21 @@ describe("BulkTaskCreator — scadenza di riga scelta senza confermare", () => {
     expect(onCreate).toHaveBeenCalledTimes(1);
     const [tasks] = onCreate.mock.calls[0];
     expect(tasks[0].dueDate).toBe(expectedIso(20));
+  });
+  // M-4 dell'analisi UX del 15 novembre: il calendario aperto sta in cima
+  // alla pila dei modali. Prima Esc chiudeva il calendario E il modale che lo
+  // conteneva (QuickAddTask), buttando via il task scritto.
+  it("Esc dentro un modale chiude il calendario, non il modale", () => {
+    const onClose = vi.fn();
+    render(
+      <Modal open onClose={onClose}>
+        <DateTimePicker value={null} onChange={vi.fn()} />
+      </Modal>,
+    );
+    openPicker(screen.getByText("gg/mm/aaaa --:--"));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

@@ -159,3 +159,23 @@ describe("reducer — ritiro del toast smentito (B-2)", () => {
     expect(reducer(s, { type: "RETRACT_TOASTS", payload: "UPDATE_TASK" }).toasts).toEqual([]);
   });
 });
+
+// M-1 dell'analisi UX del 15 novembre: «Annulla» vale solo per l'ultima azione.
+describe("pushToast — un solo «Annulla» a schermo", () => {
+  it("un toast annullabile nuovo toglie il bottone ai precedenti", async () => {
+    const { pushToast } = await import("../../state/toastQueue.js");
+    let coda = pushToast([], { message: "Spostato in Fatto", type: "success", undoable: true });
+    coda = pushToast(coda, { message: "Spostato nel cestino", type: "success", undoable: true });
+    expect(coda.map(t => [t.message, t.undoable])).toEqual([
+      ["Spostato in Fatto", false],
+      ["Spostato nel cestino", true],
+    ]);
+  });
+
+  it("un toast normale non tocca l'«Annulla» esistente", async () => {
+    const { pushToast } = await import("../../state/toastQueue.js");
+    let coda = pushToast([], { message: "Spostato in Fatto", type: "success", undoable: true });
+    coda = pushToast(coda, { message: "Profilo aggiornato!", type: "success" });
+    expect(coda[0].undoable).toBe(true);
+  });
+});

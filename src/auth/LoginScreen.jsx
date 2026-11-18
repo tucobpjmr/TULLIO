@@ -51,7 +51,7 @@ function localizeAuthError(error) {
 }
 
 export default function LoginScreen() {
-  const { signIn, resetPassword, resendConfirmation } = useAuth();
+  const { signIn, resetPassword, resendConfirmation, sessioneTerminata } = useAuth();
   // La registrazione self-service è stata rimossa (S-13): su un gestionale
   // interno con un flusso di invito completo (Edge Function invite-user) non
   // aveva una funzione chiara, e lasciava a chiunque conoscesse l'URL la
@@ -160,6 +160,13 @@ export default function LoginScreen() {
           </>
         )}
 
+        {/* M-2 · Un'uscita non chiesta si spiega, finché non arriva un altro messaggio. */}
+        {sessioneTerminata && !err && !info && (
+          <div role="status" style={infoStyle}>
+            La sessione è terminata: può essere scaduta o essere stata chiusa
+            da un&#39;altra scheda o da un amministratore. Accedi di nuovo per continuare.
+          </div>
+        )}
         {err && <div style={errStyle}>{err}</div>}
         {showResend && (
           <button

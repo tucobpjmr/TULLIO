@@ -1,6 +1,6 @@
 # CHANGELOG — VoyageDesk
 
-## 18 novembre — analisi UX del 15 novembre: errori leggibili, form protetti, dialoghi
+## 18 novembre — analisi UX del 15 novembre: errori leggibili, form protetti, dialoghi, M-1…M-3
 
 **A-2 · Gli errori parlano italiano** (`erroreUtente`, `lib/errori.js`).
 - Un solo traduttore per scritture, caricamenti, chat, Liste, upload e toast
@@ -32,6 +32,19 @@
   in chat, con del testo nel campo, il primo Esc toglie solo il fuoco.
 - `DateTimePicker` entra nella pila: Esc chiude il calendario, non anche il
   modale che lo contiene (prima chiudeva entrambi, es. in «Nuovo task»).
+**M-1 · «Annulla» annulla l'azione giusta.** Un toast annullabile nuovo toglie
+il bottone ai precedenti (`lastAction` è una sola); dopo l'annullamento il
+toast si chiude.
+
+**M-2 · Un'uscita non chiesta si spiega.** Sessione scaduta, account
+disattivato o uscita da un'altra scheda: il login dice «La sessione è
+terminata…» (`sessioneTerminata` in `AuthContext`). Le uscite chieste
+dall'utente non la accendono.
+
+**M-3 · Liste: un'eccezione è un esito.** `useListeWrite` cattura una
+`persist` che solleva e la mostra come toast d'errore, invece di riabilitare
+il bottone in silenzio.
+
 - Test: `erroreUtente.test.js`, `chiusuraProtetta.test.jsx`,
   `slideOverDialogo.test.jsx`, `chatDialogo.test.jsx`, più casi in
   `viewErrorBoundary.test.jsx` e `datePickerDismiss.test.jsx`.

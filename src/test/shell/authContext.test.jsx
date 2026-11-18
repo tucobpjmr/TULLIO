@@ -629,3 +629,29 @@ describe("AuthContext — A-3, le operazioni irreversibili portano la password",
     expect(Users.deleteAccount).toHaveBeenCalledWith("LaMiaPassword1");
   });
 });
+
+// M-2 dell'analisi UX del 15 novembre: un'uscita NON chiesta si spiega al login.
+describe("AuthContext — sessione terminata", () => {
+  const monta = async () => {
+    const { __authState } = await import("../../lib/supabaseAuth.js");
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await waitFor(() => expect(__authState.callback).toBeTypeOf("function"));
+    return { result, emetti: (evento, s) => act(() => { __authState.callback(evento, s); }) };
+  };
+
+  it("SIGNED_OUT senza un'uscita chiesta accende sessioneTerminata", async () => {
+    const { result, emetti } = await monta();
+    expect(result.current.sessioneTerminata).toBe(false);
+    emetti("SIGNED_OUT", null);
+    expect(result.current.sessioneTerminata).toBe(true);
+    emetti("SIGNED_IN", SESSION);
+    expect(result.current.sessioneTerminata).toBe(false);
+  });
+
+  it("l'uscita chiesta dall'utente non la accende", async () => {
+    const { result, emetti } = await monta();
+    await act(async () => { await result.current.signOut(); });
+    emetti("SIGNED_OUT", null);
+    expect(result.current.sessioneTerminata).toBe(false);
+  });
+});

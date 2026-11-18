@@ -85,6 +85,13 @@ export function AuthProvider({ children }) {
   // A-2 · Il passo del secondo fattore che manca all'admin (vedi auth/mfaStato.js),
   // o null. Finché non è null AuthGate mostra MfaScreen e non monta l'app.
   const [mfa, setMfa] = useState(null);
+  // M-2 dell'analisi UX del 15 novembre: un'uscita che l'utente NON ha chiesto
+  // (token non rinnovabile, account disattivato, uscita da un'altra scheda)
+  // riportava al login senza una parola. `uscitaVolutaRef` distingue le
+  // uscite chieste da qui; le altre accendono `sessioneTerminata`, che il
+  // login mostra.
+  const [sessioneTerminata, setSessioneTerminata] = useState(false);
+  const uscitaVolutaRef = useRef(false);
   // La funzione di init corrente, per rieseguirla da retryInit.
   const initAuthRef = useRef(null);
   // M-1 · L'utente il cui profilo è già caricato (null: nessuno, o da rileggere).
@@ -193,6 +200,11 @@ export function AuthProvider({ children }) {
     // lo stesso lock per il token → deadlock («Caricamento…» bloccato a ogni
     // avvio). setTimeout(0) rimanda il lavoro a dopo il ritorno del callback.
     const { data: sub } = supabaseAuth.onAuthStateChange((evento, s) => {
+      if (evento === 'SIGNED_OUT') {
+        if (!uscitaVolutaRef.current) setSessioneTerminata(true);
+        uscitaVolutaRef.current = false;
+      }
+      if (evento === 'SIGNED_IN') setSessioneTerminata(false);
       if (evento === 'PASSWORD_RECOVERY') {
         setRecovery(true);
         setRecoveryKind(prev => prev ?? 'recovery');
@@ -264,7 +276,9 @@ export function AuthProvider({ children }) {
   // revocherebbe le sessioni delle altre schede aperte.
   const signOut = useCallback(async () => {
     await revocaPush({ ovunque: false });
+    uscitaVolutaRef.current = true;
     const res = await supabaseAuth.signOut({ scope: 'local' });
+    if (res?.error) uscitaVolutaRef.current = false;
     // M-3 · Senza rete gotrue torna errore e la sessione resta aperta: la coda
     // offline si svuota solo a uscita avvenuta, o si perde lavoro restando dentro.
     if (res?.error) return res;
@@ -277,7 +291,9 @@ export function AuthProvider({ children }) {
   // push ovunque. Qui la sessione morta nelle altre schede è voluta.
   const signOutOvunque = useCallback(async () => {
     await revocaPush({ ovunque: true });
+    uscitaVolutaRef.current = true;
     const res = await supabaseAuth.signOut({ scope: 'global' });
+    if (res?.error) uscitaVolutaRef.current = false;
     if (res?.error) return res; // M-3, come signOut
     await svuotaCoda();
     await svuotaCache();
@@ -345,6 +361,7 @@ export function AuthProvider({ children }) {
       // la sottoscrizione del browser e l'intenzione.
       await revocaPush({ ovunque: false });
       await svuotaCoda();
+      uscitaVolutaRef.current = true;
       await supabaseAuth.signOut();
       await svuotaCache();
     }
@@ -358,6 +375,7 @@ export function AuthProvider({ children }) {
     team,
     caricando,
     authError,
+    sessioneTerminata,
     mfa,
     recovery,
     recoveryKind,
@@ -379,7 +397,7 @@ export function AuthProvider({ children }) {
     refreshTeam,
     retryInit,
   }), [
-    session, profile, team, caricando, authError, mfa, recovery, recoveryKind,
+    session, profile, team, caricando, authError, sessioneTerminata, mfa, recovery, recoveryKind,
     signIn, resetPassword, resendConfirmation, updatePassword, annullaRecovery, cambiaPassword, deleteAccount, signOut, signOutOvunque, refreshTeam, retryInit,
   ]);
 

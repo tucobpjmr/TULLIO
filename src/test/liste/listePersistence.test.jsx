@@ -104,6 +104,17 @@ describe("useListeWrite — esecuzione", () => {
     expect(toastDi(dispatch, "success")).toEqual(["Lista spostata nel cestino"]);
   });
 
+  // M-3 dell'analisi UX del 15 novembre: un'eccezione non era un esito.
+  it("una persist che SOLLEVA diventa un toast d'errore e { ok: false }", async () => {
+    ListeAPIMock.archivia.mockImplementationOnce(() => Promise.reject(new TypeError("Failed to fetch")));
+    const { esegui, dispatch } = montaEsecutore();
+    let esito;
+    await act(async () => { esito = await esegui("cestinaLista", "l1"); });
+    expect(esito).toEqual({ ok: false, data: null });
+    expect(toastDi(dispatch, "error")).toEqual([expect.stringMatching(/connessione assente/)]);
+    expect(toastDi(dispatch, "success")).toEqual([]);
+  });
+
   it("restituisce i dati della RPC al chiamante", async () => {
     const { esegui } = montaEsecutore();
     let esito;

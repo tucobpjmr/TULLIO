@@ -10,32 +10,20 @@
 // Lo stato nuovo lo compone il reducer (`SINCRONIZZA_TASK`), sullo stato del
 // momento in cui l'azione arriva e con le stesse protezioni di `SET_TASKS`.
 //
+// ⚠️ Si importa con `import()` (useAppHydration): serve solo alla ripresa, e
+// nel chunk dell'app peserebbe su ogni avvio (budget di verifica:bundle).
+//
 // ⚠️ Ogni dubbio ricade sulla lettura intera (`esito: "completo"`): una
 // lettura fallita, un id che lo stato non conosce. Più lento, mai sbagliato.
 
 import { Tasks as TasksAPI, TaskThreads as TaskThreadsAPI } from "../lib/api.js";
 import { fromDbTask, fromDbComment } from "../lib/mappers.js";
+import { cursoreDa } from "./cursoreTask.js";
 
 // `updated_at` è il `now()` della transazione, non del commit: una scrittura
 // che si chiude dopo un'altra può avere un istante più vecchio del cursore.
 // Il margine rilegge qualche riga già nota, che è innocuo.
 export const MARGINE_CURSORE_MS = 2 * 60_000;
-
-/**
- * Il più recente `updated_at` fra le righe lette, o `precedente` se nessuna
- * è più recente. Il cursore viene dal SERVER: l'orologio del client non conta.
- * @param {Array<{ updated_at?: string }>|null|undefined} righe
- * @param {string|null} [precedente]
- * @returns {string|null}
- */
-export const cursoreDa = (righe, precedente = null) => {
-  let max = precedente ? Date.parse(precedente) : -Infinity;
-  for (const r of righe || []) {
-    const t = Date.parse(r?.updated_at ?? "");
-    if (t > max) max = t;
-  }
-  return Number.isFinite(max) ? new Date(max).toISOString() : precedente;
-};
 
 const dalCursore = (cursore) =>
   new Date(Date.parse(cursore) - MARGINE_CURSORE_MS).toISOString().replace(/\.\d{3}Z$/, "Z");

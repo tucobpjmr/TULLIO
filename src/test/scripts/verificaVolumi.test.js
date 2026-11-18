@@ -70,10 +70,14 @@ describe("SOGLIE — l'elenco reale", () => {
     }
   });
 
-  it("copre `messages`, che è la soglia da cui nasce il controllo (ST-4 passo 2)", () => {
-    const m = SOGLIE.find((s) => s.tabella === "messages");
-    expect(m).toBeDefined();
-    expect(m.max).toBe(1500);
+  // La soglia da cui il controllo è nato era `messages` (ST-4 passo 2): il
+  // corpus unico della chat. Dal 18 novembre la chat legge una finestra per
+  // conversazione, e ciò che cresce col costo è il numero di conversazioni.
+  it("copre `conversations`, il costo dell'idratazione della chat", () => {
+    const c = SOGLIE.find((s) => s.tabella === "conversations");
+    expect(c).toBeDefined();
+    expect(c.max).toBe(200);
+    expect(SOGLIE.find((s) => s.tabella === "messages")).toBeUndefined();
   });
 
   it("nessuna tabella compare due volte", () => {

@@ -10,7 +10,7 @@
 
 import { getSupabase } from '../supabase';
 import { getClientId } from '../clientId';
-import { fetchAllRows, fetchRowsUpTo, WITH_COUNT } from '../pagination.js';
+import { fetchAllRows, WITH_COUNT } from '../pagination.js';
 import { withOrigin } from '../realtime.js';
 import { CONTA_RIGHE } from './comuni.js';
 import { signedUrlCache, creaSignedUrlGetter, sanitizeFileName, baseMimeType } from './storage.js';
@@ -79,14 +79,31 @@ export const Messages = {
     const { data, error } = await q;
     return { data: data ? [...data].reverse() : data, error };
   },
-  listAll: async (limit = 2000) => {
-    const supabase = await getSupabase();
-    const { data, error } = await fetchRowsUpTo(
-      () => supabase.from('messages').select('*')
-        .order('created_at', { ascending: false }).order('id', { ascending: false }),
-      limit
-    );
-    return { data: data ? [...data].reverse() : data, error };
+  // Gli ultimi `limit` messaggi di OGNI conversazione indicata: l'idratazione
+  // della chat (hooks/useChatData.js). Una richiesta per conversazione, al più
+  // `parallele` insieme. `troncate` sono le conversazioni con la pagina piena:
+  // hanno messaggi più vecchi, che «carica precedenti» porta a richiesta.
+  // ⚠️ Una sola richiesta fallita fa fallire tutto: un corpus a buchi
+  // sembrerebbe una conversazione vuota.
+  ultimiPerConversazioni: async (convIds, { limit = 50, parallele = 6 } = {}) => {
+    const ids = [...new Set(convIds || [])];
+    /** @type {Array<{ data: any[]|null, error: any }>} */
+    const risultati = new Array(ids.length);
+    let prossimo = 0;
+    const lavora = async () => {
+      while (prossimo < ids.length) {
+        const i = prossimo++;
+        risultati[i] = await Messages.listForConversation(ids[i], { limit });
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(parallele, ids.length) }, lavora));
+    const errore = risultati.find((r) => r?.error)?.error;
+    if (errore) return { data: null, error: errore, troncate: [] };
+    return {
+      data: risultati.flatMap((r) => r.data || []),
+      error: null,
+      troncate: ids.filter((_, i) => (risultati[i].data || []).length >= limit),
+    };
   },
   // B-7 del 16 novembre · Non letti per conversazione, contati sul server
   // (RPC chat_non_letti, migrazione 20261116105953). Il lettore è auth.uid().

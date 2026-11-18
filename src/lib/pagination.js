@@ -72,7 +72,8 @@ export const fetchAllRows = async (buildQuery) => {
 
 // B-2 dell'audit del 13 agosto. `fetchAllRows` scarica TUTTO — corretto per
 // una tabella che deve arrivare intera (clients, task_history…), sbagliato
-// per una lettura che dichiara volutamente un tetto (es. Messages.listAll):
+// per una lettura che dichiara volutamente un tetto (era il caso del vecchio
+// corpus della chat, Messages.listAll):
 // non c'è un `limit` da rispettare, solo un `count` da esaurire. Serviva una
 // terza via fra ".limit(n)" (tronca a `n` SOLO se n <= db-max-rows, altrimenti
 // PostgREST tronca lui a 1000 senza dirlo — il difetto che B-2 descrive: un

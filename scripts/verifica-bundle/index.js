@@ -133,7 +133,13 @@ const SOGLIA_FIRST_LOAD_KB = 86;
 // Misurato sullo stesso albero: main 56,84 kB, ramo 57,22 kB (+0,38). Elenco
 // dei chunk del first load identico: nessun lazy rientrato, è codice del
 // percorso caldo (notifiche per riga, paginazione, presenza, chat). +1 kB.
-const SOGLIA_APP_KB = 58;
+// ─── 18 novembre · ripresa per differenza e finestra per conversazione ─────
+// Stesso albero: main 57,77 kB, ramo 58,60 kB (+0,83). Elenco dei chunk del
+// first load identico. È il codice che deve girare a ogni lettura: la fusione
+// per conversazione della chat (useChatData, messaggiStato), il cursore dei
+// task e il caso SINCRONIZZA_TASK del reducer. La sincronizzazione vera e
+// propria (hooks/sincronizzaTask.js) è già fuori, caricata con `import()`. +1 kB.
+const SOGLIA_APP_KB = 59;
 // ─── RIMISURATA DOPO M-2 (audit del 4 settembre) ───────────────────────────
 // `conTastiera()` (lib/a11y.js) e il suo uso in una ventina di componenti del
 // percorso caldo — TaskCard/TaskRow, la Sidebar, il FAB, UserSwitcher,
@@ -154,7 +160,9 @@ const SOGLIA_APP_KB = 58;
 // mostrare la schermata del codice prima di montare l'app (auth/mfaStato.js),
 // più le forme delle schermate d'accesso promosse in styles/common.js. La
 // schermata stessa è lazy e fuori misura (IMPORT_DINAMICI_SENZA_PREFETCH). +1 kB.
-const SOGLIA_AUTENTICATO_KB = 142;
+// 18 novembre · la stessa misura della soglia del chunk dell'app: main 141,39,
+// ramo 142,22 kB (+0,83), tutto nel chunk dell'app. +1 kB.
+const SOGLIA_AUTENTICATO_KB = 143;
 
 const kb = (bytes) => bytes / 1000;
 

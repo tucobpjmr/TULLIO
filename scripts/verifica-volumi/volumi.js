@@ -39,16 +39,18 @@
 /** @type {Soglia[]} */
 export const SOGLIE = [
   {
-    tabella: 'messages',
-    max: 1500,
+    tabella: 'conversations',
+    max: 200,
     perche:
-      'Messages.listAll(2000) rilegge il corpus intero di TUTTE le conversazioni ' +
-      'visibili a ogni evento realtime della chat (debounced). Il costo cresce ' +
-      'con lo storico, la frequenza con il numero di persone che scrivono.',
+      'La chat legge gli ultimi 50 messaggi di OGNI conversazione visibile, una ' +
+      'richiesta per conversazione (Messages.ultimiPerConversazioni, al più 6 in ' +
+      "parallelo), all'avvio e a ogni ripresa. Il numero di messaggi non conta più; " +
+      'il numero di conversazioni sì. Il conteggio è sul totale: ogni utente ne ' +
+      'legge solo le sue, quindi è una stima per eccesso.',
     rimedio:
-      'Collega Messages.listForConversation (src/lib/api.js) al posto di listAll ' +
-      'in hooks/useChatData.js — è già scritta e mai chiamata di proposito. ' +
-      'Vedi ST-4 passo 2 in docs/archivio/audit/AUDIT_STRUTTURA_2026-08-10.md.',
+      'Sostituisci le richieste per conversazione con una RPC che restituisca gli ' +
+      'ultimi N messaggi per conversazione in una sola query (row_number() over ' +
+      '(partition by conversation_id)), chiamata da hooks/useChatData.js.',
   },
   {
     tabella: 'task_history',

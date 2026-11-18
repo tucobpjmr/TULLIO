@@ -63,7 +63,7 @@ vi.mock("../../lib/supabase", () => {
   return { supabase, getSupabase: () => Promise.resolve(supabase) };
 });
 
-const { Clients, Tasks, TaskThreads, Messages, Notices, Conversations } = await import("../../lib/api.js");
+const { Clients, Tasks, TaskThreads, Notices, Conversations } = await import("../../lib/api.js");
 const { fetchAllRows, fetchRowsUpTo } = await import("../../lib/pagination.js");
 
 beforeEach(() => { chiamate.length = 0; });
@@ -189,35 +189,6 @@ describe("TaskThreads.historyForTask — legge la cronologia di UN task", () => 
     // 3 di A-3 tocca solo la cronologia.
     await TaskThreads.comments();
     expect(chiamate[0].eq).toEqual([]);
-  });
-});
-
-// ─── B-2 · Messages.listAll dichiarava un limite (2000) che il cap del
-// server (1000) troncava in silenzio, restituendo sempre e solo i 1000
-// messaggi più recenti anche quando ne erano stati chiesti 2000.
-describe("Messages.listAll — il limite dichiarato deve essere davvero consegnato", () => {
-  it("pagina con .range() invece di un .limit() nudo", async () => {
-    await Messages.listAll(2000);
-    expect(chiamate.length).toBeGreaterThan(0);
-    expect(chiamate[0].da).toBe(0);
-  });
-
-  it("ordina in modo deterministico, chiudendo su id", async () => {
-    await Messages.listAll(2000);
-    expect(chiamate[0].ordini).toEqual(["created_at", "id"]);
-  });
-
-  it("restituisce fino a 2000 righe, non le prime 1000 troncate dal cap", async () => {
-    const { data, error } = await Messages.listAll(2000);
-    expect(error).toBeNull();
-    expect(data).toHaveLength(TOTALE); // 1500: sotto il limite di 2000, sopra il cap di 1000
-  });
-
-  it("non richiede più pagine di quelle necessarie a coprire il limite", async () => {
-    chiamate.length = 0;
-    await Messages.listAll(2000);
-    // 2000 / 1000 (PAGE_SIZE) = al più due richieste, non una scarica-tutto.
-    expect(chiamate.length).toBeLessThanOrEqual(2);
   });
 });
 

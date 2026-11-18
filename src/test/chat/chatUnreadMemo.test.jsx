@@ -10,7 +10,7 @@ import { renderHook } from "@testing-library/react";
 
 vi.mock("../../lib/api.js", () => ({
   Conversations: { listMine: vi.fn(async () => ({ data: [], error: null })) },
-  Messages: { listAll: vi.fn(async () => ({ data: [], error: null })) },
+  Messages: { ultimiPerConversazioni: vi.fn(async () => ({ data: [], error: null, troncate: [] })) },
   subscribeToTable: vi.fn(() => () => {}),
 }));
 

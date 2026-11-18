@@ -32,7 +32,7 @@ import {
 import { useDebouncedTableSubscription } from "./useDebouncedTableSubscription.js";
 import { useErroriIdratazione, useErroriComposti } from "./useErroriIdratazione.js";
 import { stessaLista, stessaMappa } from "../lib/confrontoIdratazione.js";
-import { sincronizzaTask, cursoreDa } from "./sincronizzaTask.js";
+import { cursoreDa } from "./cursoreTask.js";
 
 // Indicizza per task_id le righe di una tabella figlia dei task, applicando il
 // mapper della sua entità. Fuori dall'hook perché è pura.
@@ -278,6 +278,7 @@ export function useAppHydration({
     // cursore. Un evento realtime durante la lettura la rende superata (gen di
     // useDebouncedTableSubscription), e il giro riparte.
     if (tabelle === null && cursoreTask.current && leggiTask) {
+      const { sincronizzaTask } = await import("./sincronizzaTask.js");
       const r = await sincronizzaTask({ cursore: cursoreTask.current, filtro, taskInStato: leggiTask, isCurrent });
       if (r.esito === "superato") return;
       if (r.esito === "ok") {

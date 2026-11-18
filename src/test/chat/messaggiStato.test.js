@@ -1,7 +1,7 @@
 // A-2 dell'analisi del 10 novembre — le trasformazioni pure della mappa dei
 // messaggi: eventi riga per riga, fusione con il corpus, pagine di storia.
 import { describe, it, expect } from "vitest";
-import { applicaRighe, fondiCorpus, aggiungiPagina, nonLettiOltreCorpus } from "../../components/chat/messaggiStato.js";
+import { applicaRighe, fondiFinestre, aggiungiPagina, nonLettiOltreCorpus } from "../../components/chat/messaggiStato.js";
 
 const m = (id, minuto, conv = "c1", extra = {}) => ({
   id, conversation_id: conv, time: new Date(Date.UTC(2026, 0, 1, 0, minuto)).toISOString(), ...extra,
@@ -47,26 +47,40 @@ describe("applicaRighe", () => {
   });
 });
 
-describe("fondiCorpus", () => {
-  it("corpus intero: il server è tutta la verità (un messaggio cancellato sparisce)", () => {
+describe("fondiFinestre", () => {
+  it("pagina non piena: il server è tutta la verità (un messaggio cancellato sparisce)", () => {
     const prima = { c1: [m("a", 1), m("b", 2)] };
     const server = { c1: [m("b", 2)] };
-    expect(fondiCorpus(prima, server, { troncato: false })).toBe(server);
+    expect(fondiFinestre(prima, server, { lette: ["c1"], troncate: new Set() }).c1.map(x => x.id)).toEqual(["b"]);
   });
 
-  it("corpus troncato: restano i messaggi più vecchi della soglia, senza doppioni", () => {
-    const prima = { c1: [m("vecchio", 1), m("b", 10)], c2: [m("solo-vecchio", 2)] };
-    const server = { c1: [m("b", 10), m("c", 11)], c3: [m("d", 12)] };
-    const out = fondiCorpus(prima, server, { troncato: true });
+  it("troncata: restano i messaggi più vecchi della SUA soglia, senza doppioni", () => {
+    const prima = { c1: [m("vecchio", 1), m("b", 10)], c2: [m("c2-vecchio", 2), m("c2-b", 20)] };
+    const server = { c1: [m("b", 10), m("c", 11)], c2: [m("c2-b", 20)] };
+    const out = fondiFinestre(prima, server, { lette: ["c1", "c2"], troncate: new Set(["c1", "c2"]) });
     expect(out.c1.map(x => x.id)).toEqual(["vecchio", "b", "c"]);
-    expect(out.c2.map(x => x.id)).toEqual(["solo-vecchio"]);
-    expect(out.c3.map(x => x.id)).toEqual(["d"]);
+    // La soglia di c2 è la SUA (minuto 20), non quella di c1 (minuto 10).
+    expect(out.c2.map(x => x.id)).toEqual(["c2-vecchio", "c2-b"]);
   });
 
-  it("corpus troncato: un messaggio dentro la finestra del server ma assente è stato cancellato", () => {
+  it("troncata: un messaggio dentro la finestra del server ma assente è stato cancellato", () => {
     const prima = { c1: [m("a", 10), m("cancellato", 11), m("c", 12)] };
     const server = { c1: [m("a", 10), m("c", 12)] };
-    expect(fondiCorpus(prima, server, { troncato: true }).c1.map(x => x.id)).toEqual(["a", "c"]);
+    expect(fondiFinestre(prima, server, { lette: ["c1"], troncate: new Set(["c1"]) }).c1.map(x => x.id))
+      .toEqual(["a", "c"]);
+  });
+
+  it("lettura completa: una conversazione non più elencata sparisce", () => {
+    const prima = { c1: [m("a", 1)], via: [m("x", 1, "via")] };
+    const out = fondiFinestre(prima, { c1: [m("a", 1)] }, { lette: ["c1"], troncate: new Set() });
+    expect(Object.keys(out)).toEqual(["c1"]);
+  });
+
+  it("parziale: si toccano solo le conversazioni lette", () => {
+    const prima = { c1: [m("a", 1)] };
+    const out = fondiFinestre(prima, { c2: [m("n", 2, "c2")] }, { lette: ["c2"], troncate: new Set(), parziale: true });
+    expect(out.c1).toBe(prima.c1);
+    expect(out.c2.map(x => x.id)).toEqual(["n"]);
   });
 });
 

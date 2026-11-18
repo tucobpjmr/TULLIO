@@ -28,7 +28,8 @@ vi.mock("../../lib/api.js", () => ({
   MessageTemplates: { list: vi.fn(vuoto) },
 }));
 
-const { sincronizzaTask, cursoreDa, MARGINE_CURSORE_MS } = await import("../../hooks/sincronizzaTask.js");
+const { sincronizzaTask, MARGINE_CURSORE_MS } = await import("../../hooks/sincronizzaTask.js");
+const { cursoreDa } = await import("../../hooks/cursoreTask.js");
 const { useAppHydration } = await import("../../hooks/useAppHydration.js");
 const { reducer, makeInitialState } = await import("../../state/reducer.js");
 

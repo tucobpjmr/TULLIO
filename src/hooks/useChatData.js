@@ -15,17 +15,21 @@ import { fromDbConversation, fromDbMessage } from "../lib/mappers.js";
 import { scopeConversationsForUser } from "../lib/chatUtils.js";
 import { makeChatCommands } from "../components/chat/chatCommands.js";
 import { getUnreadCount } from "../components/chat/chatFormat.js";
-import { applicaRighe, fondiCorpus, aggiungiPagina, nonLettiOltreCorpus } from "../components/chat/messaggiStato.js";
+import { applicaRighe, fondiFinestre, aggiungiPagina, nonLettiOltreCorpus } from "../components/chat/messaggiStato.js";
 import { useDebouncedTableSubscription } from "./useDebouncedTableSubscription.js";
 
-// A-2 · Tetto del corpus letto all'avvio (i messaggi più recenti di tutte le
-// conversazioni). Sotto il tetto in stato c'è tutto; sopra, la storia più
-// vecchia si carica a pagine, per conversazione aperta.
-export const TETTO_CORPUS = 2000;
+// La finestra per conversazione: all'avvio e alla ripresa si leggono gli ultimi
+// PAGINA_STORIA messaggi di OGNI conversazione; il resto a pagine della stessa
+// misura, per conversazione aperta (`caricaPrecedenti`).
 export const PAGINA_STORIA = 50;
 const RITARDO_RIGHE_MS = 50;
 const STORIA_VUOTA = { caricando: false, completa: false, errore: false };
 const NESSUN_OLTRE = Object.freeze({});
+/** @param {Record<string, number>} a @param {Record<string, number>} b */
+const stessiNonLetti = (a, b) => {
+  const ka = Object.keys(a);
+  return ka.length === Object.keys(b).length && ka.every(k => a[k] === b[k]);
+};
 
 // B-7 del 16 novembre · Il conteggio del server (RPC chat_non_letti). Un
 // fallimento — anche la migrazione non ancora applicata — non è un errore per
@@ -47,7 +51,7 @@ const leggiNonLettiServer = async () => {
 // per conversazione. È l'equivalente di `pendingWrites` nel reducer del core,
 // per la STESSA ragione: fra il dispatch ottimistico e il commit su Supabase
 // passano centinaia di ms, e in quella finestra un evento realtime ALTRUI fa
-// ripartire `listAll()`. La risposta è più recente per tutti i messaggi tranne
+// ripartire la lettura dei messaggi. La risposta è più recente per tutti i messaggi tranne
 // il nostro, che non c'è ancora — sostituire la mappa intera lo farebbe
 // sparire, e nulla verrebbe poi a rimetterlo: l'eco della nostra INSERT porta
 // il nostro `origin_client` e viene scartata da `subscribeToTable`.
@@ -67,11 +71,13 @@ const messaggiInVolo = (mappaDalServer, inVolo) => {
 };
 
 // ─── ST-4, secondo passo (A-2 dell'analisi del 10 novembre) ────────────────
-// Il corpus (i TETTO_CORPUS messaggi più recenti) si legge all'avvio e alla
-// ripresa: serve ad anteprime e non letti. Gli eventi di `messages` si
-// applicano riga per riga, e sopra il tetto la storia più vecchia si carica a
-// pagine per conversazione (`caricaPrecedenti`). I NON LETTI più vecchi del
-// corpus li conta il server (B-7 del 16 novembre, `nonLettiOltre`).
+// Gli ultimi messaggi di ogni conversazione si leggono all'avvio e alla
+// ripresa: servono ad anteprime e non letti. Prima era un corpus unico dei
+// 2000 messaggi più recenti di TUTTE le conversazioni, riletto a ogni ripresa:
+// il costo cresceva con lo storico. Gli eventi di `messages` si applicano riga
+// per riga; la storia più vecchia si carica a pagine (`caricaPrecedenti`). I
+// NON LETTI più vecchi della finestra li conta il server (B-7 del 16
+// novembre, `nonLettiOltre`).
 
 export function useChatData({ enabled, team, currentUserId, mockConversations, mockMessages, onError, onSuccess, onConversationRead }) {
   // Loading: true finché non completa il primo reload da Supabase. Evita il
@@ -234,21 +240,26 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
     try {
       /** @type {{data: any[]|null, error: any}} */
       let convsRes = { data: null, error: null };
-      /** @type {{data: any[]|null, error: any}|null} */
+      /** @type {{data: any[]|null, error: any, troncate: string[]}|null} */
       let msgsRes = null;
-      if (soloConversazioni) {
-        convsRes = await ConversationsAPI.listMine();
-        const nuova = !convsRes.error && (convsRes.data || []).some(c => !convNote.current.has(c.id));
-        if (nuova) msgsRes = await MessagesAPI.listAll(TETTO_CORPUS);
+      // Le conversazioni di cui si leggono gli ultimi messaggi: tutte, o solo
+      // quelle mai viste (`parziale`) quando l'evento è su `conversations`.
+      /** @type {string[]} */
+      let lette = [];
+      const parziale = soloConversazioni;
+      if (soloMessaggi) {
+        lette = [...convNote.current];
       } else {
-        [convsRes, msgsRes] = await Promise.all([
-          soloMessaggi ? Promise.resolve({ data: null, error: null }) : ConversationsAPI.listMine(),
-          MessagesAPI.listAll(TETTO_CORPUS),
-        ]);
+        convsRes = await ConversationsAPI.listMine();
+        const ids = (convsRes.data || []).map(c => c.id);
+        lette = convsRes.error ? [] : (parziale ? ids.filter(id => !convNote.current.has(id)) : ids);
       }
-      // B-7 · Corpus troncato: i non letti più vecchi li conta il server.
-      const troncato = (msgsRes?.data || []).length >= TETTO_CORPUS;
-      const conteggi = msgsRes && !msgsRes.error && troncato ? await leggiNonLettiServer() : null;
+      if (!convsRes.error && (!parziale || lette.length)) {
+        msgsRes = await MessagesAPI.ultimiPerConversazioni(lette, { limit: PAGINA_STORIA });
+      }
+      const troncate = new Set(msgsRes?.troncate || []);
+      // B-7 · Conversazioni troncate: i non letti più vecchi li conta il server.
+      const conteggi = msgsRes && !msgsRes.error && troncate.size ? await leggiNonLettiServer() : null;
       if (!isCurrent()) return;
       if (convsRes.error) {
         console.error("[chat] convs.list", convsRes.error);
@@ -275,16 +286,29 @@ export function useChatData({ enabled, team, currentUserId, mockConversations, m
           if (!m) continue;
           (msgsByConv[m.conversation_id] ||= []).push(m);
         }
-        const oltre = conteggi ? nonLettiOltreCorpus(conteggi, msgsByConv, currentUserIdRef.current) : NESSUN_OLTRE;
-        setNonLettiOltre(prev => (prev === oltre || (!Object.keys(prev).length && !Object.keys(oltre).length) ? prev : oltre));
+        const daContare = conteggi?.filter(r => lette.includes(r?.conversation_id));
+        const oltre = daContare ? nonLettiOltreCorpus(daContare, msgsByConv, currentUserIdRef.current) : NESSUN_OLTRE;
+        setNonLettiOltre(prev => {
+          const next = parziale ? { ...prev, ...oltre } : oltre;
+          return stessiNonLetti(prev, next) ? prev : next;
+        });
         // Le righe in attesa sono più vecchie di questa lettura: la contiene già.
         righeInAttesa.current = [];
         // A-2 (14 agosto): un messaggio la cui INSERT è in volo può mancare
         // dalla risposta; `messaggiInVolo` lo tiene a schermo.
-        setMessagesRaw(prev => messaggiInVolo(fondiCorpus(prev, msgsByConv, { troncato }), inVoloRef.current));
-        setCorpusCompleto(!troncato);
-        // Corpus intero: nessuna storia a pagine da ricordare.
-        if (!troncato) setStoria(prev => (Object.keys(prev).length ? {} : prev));
+        setMessagesRaw(prev => messaggiInVolo(
+          fondiFinestre(prev, msgsByConv, { lette, troncate, parziale }), inVoloRef.current));
+        // Una conversazione con la pagina non piena ha la storia intera in
+        // stato; una troncata tiene la sua storia a pagine, se ne aveva.
+        setStoria(prev => {
+          const next = parziale ? { ...prev } : {};
+          for (const id of lette) {
+            if (!troncate.has(id)) next[id] = { ...STORIA_VUOTA, completa: true };
+            else if (prev[id]) next[id] = prev[id];
+          }
+          return next;
+        });
+        setCorpusCompleto(prev => (parziale ? prev : true) && !troncate.size);
       }
       setChatLoading(false);
     } finally {

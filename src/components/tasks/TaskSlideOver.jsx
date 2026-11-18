@@ -8,7 +8,7 @@
 // digitato — che finché stava qui faceva ri-renderizzare l'intero pannello a
 // ogni carattere; TaskAttachments.jsx e TaskHistoryPanel.jsx erano già fuori e
 // si caricano da sé i propri dati.
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import { useViewport } from "../ui/Viewport.jsx";
 import { PriorityBadge } from "../ui/PriorityBadge.jsx";
 import { CategoryChip } from "../ui/CategoryChip.jsx";
@@ -40,7 +40,7 @@ import { useCampiSalvati } from "./useCampiSalvati.js";
 // I campi testo con bozza locale (commit al blur). Vedi A-2 più sotto.
 const CAMPI_BOZZA = ["title", "client", "praticaRef", "contact", "description"];
 
-export const TaskSlideOver = ({ task }) => {
+export const TaskSlideOver = memo(function TaskSlideOver({ task }) {
   const dispatch = useDispatch();
   const conferma = useConfirm();
   const { isMobile } = useViewport();
@@ -414,4 +414,4 @@ export const TaskSlideOver = ({ task }) => {
       </div>
     </>
   );
-};
+});

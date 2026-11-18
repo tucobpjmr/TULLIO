@@ -139,7 +139,13 @@ const SOGLIA_FIRST_LOAD_KB = 86;
 // per conversazione della chat (useChatData, messaggiStato), il cursore dei
 // task e il caso SINCRONIZZA_TASK del reducer. La sincronizzazione vera e
 // propria (hooks/sincronizzaTask.js) è già fuori, caricata con `import()`. +1 kB.
-const SOGLIA_APP_KB = 59;
+// ─── 18 novembre, stesso ramo · QuickAddTask lazy ───────────────────────────
+// Il form del FAB (e con lui DateTimePicker, che nessun altro modulo eager
+// usa) esce dal chunk dell'app: 58,60 → 51,91 kB (−6,69). Si carica a browser
+// libero dopo il primo render (VoyageDeskInner), fuori da questa misura. La
+// soglia SCENDE con la misura, con il margine di ~1 kB delle ultime: un
+// import statico di QuickAddTask rimesso per distrazione la supera.
+const SOGLIA_APP_KB = 53;
 // ─── RIMISURATA DOPO M-2 (audit del 4 settembre) ───────────────────────────
 // `conTastiera()` (lib/a11y.js) e il suo uso in una ventina di componenti del
 // percorso caldo — TaskCard/TaskRow, la Sidebar, il FAB, UserSwitcher,
@@ -162,7 +168,9 @@ const SOGLIA_APP_KB = 59;
 // schermata stessa è lazy e fuori misura (IMPORT_DINAMICI_SENZA_PREFETCH). +1 kB.
 // 18 novembre · la stessa misura della soglia del chunk dell'app: main 141,39,
 // ramo 142,22 kB (+0,83), tutto nel chunk dell'app. +1 kB.
-const SOGLIA_AUTENTICATO_KB = 143;
+// 18 novembre, stesso ramo · QuickAddTask lazy: 142,22 → 135,53 kB. Scende
+// con la misura, margine ~1 kB.
+const SOGLIA_AUTENTICATO_KB = 137;
 
 const kb = (bytes) => bytes / 1000;
 

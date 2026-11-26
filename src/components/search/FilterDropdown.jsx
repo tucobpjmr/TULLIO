@@ -32,7 +32,7 @@ export const FilterDropdown = ({ options, selected, onToggle }) => {
         style={{
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
           width: "100%", padding: "7px 10px", borderRadius: 6,
-          border: `1px solid ${count ? "var(--gold)" : "var(--border)"}`,
+          border: `1.5px solid ${count ? "var(--gold)" : "var(--text-muted)"}`,
           background: "var(--card)", fontSize: 12, fontWeight: 600, color: "var(--text)",
           cursor: "pointer", fontFamily: "inherit", boxSizing: "border-box",
         }}

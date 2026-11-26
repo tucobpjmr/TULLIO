@@ -27,7 +27,7 @@ export const rowCenterGap10 = stiliComuni.rowCenterGap10;
 export const txtF11Muted = { fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 3 };
 export const boxF12WFull = {
   width: "100%", padding: "7px 10px", borderRadius: 6,
-  border: "1px solid var(--border)", fontSize: 12, outline: "none", fontFamily: "inherit", boxSizing: "border-box",
+  border: "1.5px solid var(--text-muted)", fontSize: 12, outline: "none", fontFamily: "inherit", boxSizing: "border-box",
 };
 export const rowCenterGap8 = { display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "var(--text)" };
 export const box2 = { background: "var(--card)" };

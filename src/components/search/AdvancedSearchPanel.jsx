@@ -44,7 +44,7 @@ import { attivaConTastiera, conTastiera } from "../../lib/a11y.js";
 // invece di togliere un criterio.
 const FILTRI_VUOTI = {
   dateFrom: "", dateTo: "", cats: [], stats: [], agents: [],
-  includeTrashed: false, listeStati: [], listeClienti: [],
+  includeTrashed: false,
 };
 
 function filtriReducer(s, a) {
@@ -83,7 +83,7 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
   const idDateTo = useId();
   // M-4 dell'audit del 2 settembre: come gli altri campi qui sopra.
   const idIncludeTrashed = useId();
-  const { dateFrom, dateTo, cats, stats, agents, includeTrashed, listeStati, listeClienti } = filtri;
+  const { dateFrom, dateTo, cats, stats, agents, includeTrashed } = filtri;
   const imposta = (campo, valore) => filtriDispatch({ type: "IMPOSTA", campo, valore });
   const alterna = (campo, valore) => filtriDispatch({ type: "ALTERNA", campo, valore });
 
@@ -116,7 +116,7 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
     filtriDispatch({ type: "AZZERA" });
   };
 
-  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed || listeStati.length || listeClienti.length;
+  const hasFilters = keyword.trim() || dateFrom || dateTo || cats.length || stats.length || agents.length || includeTrashed;
 
   // M-5 · Indice e filtro vivono in `lib/searchTask.js`: sono puri, e qui
   // dentro erano ~110 righe che nessun test unitario poteva raggiungere senza
@@ -139,23 +139,6 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
     dispatch({ type: "SET_SELECTED_TASK", payload: t });
     onClose();
   };
-
-  // Clienti e stati disponibili dalle liste caricate (per i dropdown dei filtri).
-  const availableListeClienti = useMemo(() => {
-    const seen = new Set();
-    liste.forEach(l => {
-      if (l.clients?.name) seen.add(l.clients.name);
-    });
-    return Array.from(seen).sort((a, b) => a.localeCompare(b, "it"));
-  }, [liste]);
-
-  const availableListeStati = useMemo(() => {
-    const seen = new Set();
-    liste.forEach(l => {
-      if (l.stato) seen.add(l.stato);
-    });
-    return Array.from(seen).sort();
-  }, [liste]);
 
   // M-5 · Stessa divisione dei task: l'indice e il filtro sono in
   // `lib/searchListe.js`, qui restano i memo. `beneficiariNomi` arriva come
@@ -272,32 +255,6 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
           />
         </div>
 
-        {listeAllowed && (
-          <>
-            <div style={stiliComuni.mb14}>
-              <div style={sectionTitle}>✈️ Stato Lista</div>
-              <FilterDropdown
-                options={availableListeStati.map(s => ({
-                  value: s, label: s.charAt(0).toUpperCase() + s.slice(1),
-                }))}
-                selected={listeStati}
-                onToggle={val => alterna("listeStati", val)}
-              />
-            </div>
-
-            <div style={stiliComuni.mb14}>
-              <div style={sectionTitle}>✈️ Cliente Lista</div>
-              <FilterDropdown
-                options={availableListeClienti.map(c => ({
-                  value: c, label: c,
-                }))}
-                selected={listeClienti}
-                onToggle={val => alterna("listeClienti", val)}
-              />
-            </div>
-          </>
-        )}
-
         <label style={rowCenterGap8} htmlFor={idIncludeTrashed}>
           <input id={idIncludeTrashed} type="checkbox" checked={includeTrashed} onChange={e => imposta("includeTrashed", e.target.checked)} />
           🗑️ Includi {listeAllowed ? "task e liste" : "task"} nel cestino
@@ -393,7 +350,7 @@ export const AdvancedSearchPanel = ({ tasks, onClose, keyword = "", onKeyword, c
           </>
         )}
 
-        {listeAllowed && (keyword.trim() || listeStati.length || listeClienti.length) && listaResults.length > 0 && (
+        {listeAllowed && keyword.trim() && listaResults.length > 0 && (
           <>
             <div style={boxStickyF11}>
               {listaResults.length} {listaResults.length === 1 ? "lista" : "liste"} viaggio ✈️
